@@ -1,0 +1,4 @@
+world/textures/mossy_cobblestone_diff_8k.png filter=lfs diff=lfs merge=lfs -text
+world/textures/coast_sand_rocks_02_diff_8k.png filter=lfs diff=lfs merge=lfs -text
+world/textures/*.jpg filter=lfs diff=lfs merge=lfs -text
+world/textures/*.png filter=lfs diff=lfs merge=lfs -text
