@@ -1,5 +1,5 @@
 world/assets/mujoco_menagerie/
-
+world\textures\mossy_cobblestone_diff_8k.png
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
