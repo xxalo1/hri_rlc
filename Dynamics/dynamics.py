@@ -2,38 +2,50 @@ from __future__ import annotations
 
 import numpy as np
 import scipy as sp
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 FloatArray = NDArray[np.float32]
 
-class DH:
-    """Minimal standard DH (Craig) helper."""
+class dynamics:
     def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray, theta0: Optional[FloatArray] = None, 
-                 b: Optional[FloatArray] = None, o_0: Optional[FloatArray] = None, z_0: Optional[FloatArray] = None):
+                 b: Optional[FloatArray] = None, o_0: Optional[FloatArray] = None, axes_o: Optional[FloatArray] = None,
+                 inertia: Optional[dict[Any, Any]] = None) -> None:
         """
-        d, a, alpha: 1D arrays (length n)
+        d, a, alpha: 1D array (length n)
         theta0: optional 1D array of fixed offsets (length n), defaults to zeros
         b: optional 1D array of translations along the new z axis (length n)
-
+        axes_o: optional 2D array (3x3), axes of base frame in world coords, defaults to identity
+        inertia: optional dict of manipulator iertias coms masses 
+        o_0: optional 1d array, origin of base frame in world coords, defaults to [0,0,0]
         """
+        if not o_0:
+            o_0 = np.array([0, 0, 0], dtype=self.dtype)
+        if not axes_o:
+            axes_o = np.array([[1, 0, 0],
+                               [0, 1, 0],
+                               [0, 0, 1]], dtype=self.dtype)
+        if not b:
+            b = np.zeros_like(d)
+        if not theta0:
+            theta0 = np.zeros_like(d)
+        
+        if not inertia:
+            inertia = {}
+        
+        self.inertia = inertia
         self.d     = d
         self.a     = a
         self.alpha = alpha
-        if theta0 is None:
-            theta0 = np.zeros_like(d)
         self.theta0 = theta0
         self.theta = self.theta0.copy()
         self.dtype = np.float32
-        self.o_0 = o_0  # origins in base frame
-        self.z_0 = z_0  # z axes in base frame
 
-        if b is None:
-            self.b = np.zeros_like(d)
-        else:
-            self.b = b
+        self.b = b
+        self.o_0 = o_0  # origins in base frame
+        self.axes_o = axes_o  # z axes in base frame
 
     def dh_transform(self, theta: float, d: float,
                       a: float, alpha: float, b: float = 0.0) -> FloatArray:
@@ -68,12 +80,17 @@ class DH:
             T.append(T_i)
         return T
 
-    def fk(self) -> Sequence[FloatArray]:
+    def fk(self, n: Optional[int] = None) -> Sequence[FloatArray]:
         """
         Transform of joint i with respect to ground using stored DH params.
+        Args:
+            n: Optional number of joints to compute, defaults to all joints
         """
+        if n is None:
+            n = len(self.d)
+            
         T = [np.eye(4, dtype=self.dtype)]  # T0
-        for j in range(len(self.d)+1):
+        for j in range(n):
             T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j], self.b[j])
             T_i = T[j] @ T_i
             T.append(T_i)
@@ -93,7 +110,7 @@ class DH:
         if alpha is not None:
             self.alpha = alpha
     
-    def jacobian(self):
+    def jacobian(self) -> FloatArray:
         """
         6*n Jacobian for revolute joints:
           Jv_i = z_{i-1} * (o_n - o_{i-1})
@@ -102,7 +119,7 @@ class DH:
         """
         n = len(self.d)
         origins = [self.o_0]   # o_0
-        axes_z  = [self.z_0]   # z_0
+        axes_z  = [self.axes_o[:, 2]]   # z axis from rotation matrix
         Ts = self.fk()
         for i in range(n):
             origins.append(Ts[i][:3, 3].copy())  # o_i
@@ -119,6 +136,26 @@ class DH:
         J = np.vstack([Jv, Jw])  # 6*n
         return J
 
+    def _COMs(self):
+        """
+        Compute centers of mass for each link in world frame.
+        Returns list of COM positions (3,) for each link.
+        """
+        n = len(self.inertia)
+        Ts = self.fk()  # Convert Sequence to list so we can modify it
+        T0 = np.zeros((4, 4), dtype=self.dtype)
+        T0[:3, :3] = self.axes_o  # Rotation matrix
+        T0[:3, 3] = self.o_0      # Translation vector
+        T0[3, 3] = 1.0
+
+        COMs = []
+        for i in range(n):
+            local_COM = self.inertia[i]['COM']  # (3,)
+            T_i = T0 if i==0 else Ts[i-1]
+            COM_i_homog = T_i @ np.hstack((local_COM, 1.0))  # (4,)
+            COMs.append(COM_i_homog[:3])  # (3,)
+        return COMs
+    
     def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
                 tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
         """
