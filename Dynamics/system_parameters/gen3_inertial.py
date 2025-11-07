@@ -12,6 +12,8 @@ def load_inertial(yaml_or_dict):
     data = yaml.safe_load(open(yaml_or_dict, "r"))
     model = {}
     for row in data["links"]:
+        if row["name"] is "ee_with_vision":
+            continue  # skip end-effector with vision sensor
         model[row["name"]] = {
             "id": int(row["id"]),
             "m": float(row["mass_kg"]),
