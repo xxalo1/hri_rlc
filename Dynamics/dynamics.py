@@ -11,8 +11,8 @@ FloatArray = NDArray[np.float32]
 
 class DH:
     """Minimal standard DH (Craig) helper."""
-    def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray, theta0: FloatArray = None, 
-                 b: FloatArray = None, o_0: FloatArray = None, z_0: FloatArray = None):
+    def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray, theta0: Optional[FloatArray] = None, 
+                 b: Optional[FloatArray] = None, o_0: Optional[FloatArray] = None, z_0: Optional[FloatArray] = None):
         """
         d, a, alpha: 1D arrays (length n)
         theta0: optional 1D array of fixed offsets (length n), defaults to zeros
@@ -22,6 +22,8 @@ class DH:
         self.d     = d
         self.a     = a
         self.alpha = alpha
+        if theta0 is None:
+            theta0 = np.zeros_like(d)
         self.theta0 = theta0
         self.theta = self.theta0.copy()
         self.dtype = np.float32
@@ -34,7 +36,7 @@ class DH:
             self.b = b
 
     def dh_transform(self, theta: float, d: float,
-                      a: float, alpha: float, b: float = None) -> FloatArray:
+                      a: float, alpha: float, b: float = 0.0) -> FloatArray:
         """Standard DH T_i (Craig)
         b: optional translation along the new z axis"""
         cT, sT = np.cos(theta), np.sin(theta)
@@ -66,12 +68,12 @@ class DH:
             T.append(T_i)
         return T
 
-    def fk(self, i: int) -> FloatArray:
+    def fk(self) -> Sequence[FloatArray]:
         """
         Transform of joint i with respect to ground using stored DH params.
         """
-        T = [np.eye(4)]
-        for j in range(i+1):
+        T = [np.eye(4, dtype=self.dtype)]  # T0
+        for j in range(len(self.d)+1):
             T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j], self.b[j])
             T_i = T[j] @ T_i
             T.append(T_i)
@@ -99,9 +101,9 @@ class DH:
         Returns J
         """
         n = len(self.d)
-        origins = self.o_0   # o_0
-        axes_z  = self.z_0   # z_0
-        Ts = self.T0_i()
+        origins = [self.o_0]   # o_0
+        axes_z  = [self.z_0]   # z_0
+        Ts = self.fk()
         for i in range(n):
             origins.append(Ts[i][:3, 3].copy())  # o_i
             axes_z.append(Ts[i][:3, 2].copy())   # z_i
