@@ -108,6 +108,33 @@ class DH:
         J = np.vstack([Jv, Jw])  # 6*n
         return J
 
+    def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
+                tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
+        """
+        Inverse kinematics for 7-DOF arm using iterative Jacobian pseudo-inverse method.
+        target_T: desired end-effector transform (4x4)
+        q_init: initial joint angles (7,)
+        Returns q_sol: joint angles achieving target_T within tolerance.
+        """
+        q = self.theta.copy()  # initial guess
+        for iter in range(max_iters):
+            self.update(theta=q)
+            current_T = self.fk(len(q)-1)[-1]
+            pos_err = target_T[:3, 3] - current_T[:3, 3]
+            rot_err_matrix = current_T[:3, :3].T @ target_T[:3, :3]
+            rot_err_axis, rot_err_angle = self._rotation_matrix_to_axis_angle(rot_err_matrix)
+            err = np.hstack((pos_err, rot_err_axis * rot_err_angle))
+
+            if np.linalg.norm(err) < tol:
+                break
+
+            J = self.jacobian()
+            J_pinv = np.linalg.pinv(J)
+            delta_q = alpha * (J_pinv @ err)
+            q += delta_q
+
+        return q
+
     def quintic_trajs(self, q0: FloatArray, qf: FloatArray, t0: float, tf: float, dt: float,
                       v0: FloatArray = 0.0, a0: FloatArray = 0.0, vf: FloatArray = 0.0,
                       af: FloatArray = 0.0) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
@@ -169,30 +196,3 @@ class DH:
         qdd = (((20*a[5]*tcol + 12*a[4])*tcol + 6*a[3])*tcol + 2*a[2])
 
         return q, qd, qdd
-    
-    def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
-                tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
-        """
-        Inverse kinematics for 7-DOF arm using iterative Jacobian pseudo-inverse method.
-        target_T: desired end-effector transform (4x4)
-        q_init: initial joint angles (7,)
-        Returns q_sol: joint angles achieving target_T within tolerance.
-        """
-        q = self.theta.copy()  # initial guess
-        for iter in range(max_iters):
-            self.update(theta=q)
-            current_T = self.fk(len(q)-1)[-1]
-            pos_err = target_T[:3, 3] - current_T[:3, 3]
-            rot_err_matrix = current_T[:3, :3].T @ target_T[:3, :3]
-            rot_err_axis, rot_err_angle = self._rotation_matrix_to_axis_angle(rot_err_matrix)
-            err = np.hstack((pos_err, rot_err_axis * rot_err_angle))
-
-            if np.linalg.norm(err) < tol:
-                break
-
-            J = self.jacobian()
-            J_pinv = np.linalg.pinv(J)
-            delta_q = alpha * (J_pinv @ err)
-            q += delta_q
-
-        return q
