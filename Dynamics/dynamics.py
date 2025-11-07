@@ -11,11 +11,13 @@ FloatArray = NDArray[np.float32]
 
 class DH:
     """Minimal standard DH (Craig) helper."""
-    def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray, theta0: FloatArray = None,
-                 o_0: Sequence[float] = None, z_0: Sequence[float] = None):
+    def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray, theta0: FloatArray = None, 
+                 b: FloatArray = None, o_0: FloatArray = None, z_0: FloatArray = None):
         """
         d, a, alpha: 1D arrays (length n)
         theta0: optional 1D array of fixed offsets (length n), defaults to zeros
+        b: optional 1D array of translations along the new z axis (length n)
+
         """
         self.d     = d
         self.a     = a
@@ -26,16 +28,23 @@ class DH:
         self.o_0 = o_0  # origins in base frame
         self.z_0 = z_0  # z axes in base frame
 
-    def dh_transform(self, theta: FloatArray, d: FloatArray,
-                      a: FloatArray, alpha: FloatArray) -> FloatArray:
-        """Standard DH T_i (Craig)"""
+        if b is None:
+            self.b = np.zeros_like(d)
+        else:
+            self.b = b
+
+    def dh_transform(self, theta: float, d: float,
+                      a: float, alpha: float, b: float = None) -> FloatArray:
+        """Standard DH T_i (Craig)
+        b: optional translation along the new z axis"""
         cT, sT = np.cos(theta), np.sin(theta)
         cA, sA = np.cos(alpha), np.sin(alpha)
-        T = np.array([[cT, -sT * cA,  sT * sA, a * cT],
+        A = np.array([[cT, -sT * cA,  sT * sA, a * cT],
                       [sT,  cT * cA, -cT * sA, a * sT],
                       [0 ,      sA ,      cA ,     d  ],
                       [0 ,      0  ,      0  ,     1  ]], dtype=self.dtype)
-        return T
+        A[:3, 3] += b * A[:3, 2]  # translate along the new z axis
+        return A
 
     def T_i(self, i: int) -> FloatArray:
         """
@@ -43,7 +52,7 @@ class DH:
         """
         T = []
         for j in range(i+1):
-            T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j])
+            T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j], self.b[j])
             T.append(T_i)
         return T[i]
 
@@ -53,7 +62,7 @@ class DH:
         """
         T = []
         for j in range(len(self.d)):
-            T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j])
+            T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j], self.b[j])
             T.append(T_i)
         return T
 
@@ -63,7 +72,7 @@ class DH:
         """
         T = [np.eye(4)]
         for j in range(i+1):
-            T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j])
+            T_i = self.dh_transform(self.theta[j], self.d[j], self.a[j], self.alpha[j], self.b[j])
             T_i = T[j] @ T_i
             T.append(T_i)
         # strip off T0
