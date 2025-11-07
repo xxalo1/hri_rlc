@@ -1,9 +1,27 @@
+from __future__ import annotations
+
 import numpy as np
-from typing import Optional, Sequence
+import scipy as sp
+from typing import Any, Optional, Sequence
+
+import numpy as np
+from numpy.typing import NDArray
+
+FloatArray = NDArray[np.float32]
+dtype = np.float32
 
 def to_array(a: Sequence[float]) -> np.ndarray:
     """Convert input to a NumPy array if it is not already one."""
-    return np.asarray(a, dtype=np.float32).reshape(-1)
+    return np.asarray(a, dtype=dtype).reshape(-1)
+
+def to_n_array(x, n: int) -> FloatArray:
+    """Convert input to a NumPy array of length n.
+    If input is a scalar or size 1, repeat to length n.
+    """
+    arr = to_array(x)
+    if arr.size == n:
+        return arr.reshape(n)
+    return np.full(n, arr.item(), dtype=dtype)
 
 def eu_to_quaternion(euler: Sequence[float]) -> np.ndarray:
     """Convert Euler angles (roll, pitch, yaw) to a quaternion (x, y, z, w)."""
@@ -72,3 +90,4 @@ def rotmat_to_quat(R):
 
 def enforce_hemisphere(q, q_prev):
     return q if np.dot(q, q_prev) >= 0.0 else -q
+

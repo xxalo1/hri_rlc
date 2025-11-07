@@ -1,6 +1,6 @@
 import numpy as np
 import yaml, copy, pandas as pd
-
+from numpy import pi
 def Rx(angle):
     c, s = np.cos(angle), np.sin(angle)
     return np.array([[1, 0, 0],
@@ -25,13 +25,15 @@ def load_inertial(yaml_or_dict):
 def rotated_inertials(model, R):
     """Return a NEW dict with c' = R c, Ic' = R Ic R^T (no in-place mutation)."""
     out = {}
+    i = 0
     for name, v in model.items():
         out[name] = {
             "id": v["id"],
             "m":  v["m"],
-            "com": R @ v["com"],
-            "Ic":  R @ v["Ic"] @ R.T,
+            "com": R[i] @ v["com"],
+            "Ic":  R[i] @ v["Ic"] @ R[i].T,
         }
+        i += 1
     return out
 
 def inertia_to_vec(I):
@@ -67,8 +69,12 @@ def compare_models(before, after):
 # --- run ---
 model0 = load_inertial("kinova_gen3_inertial.yaml")  # your YAML file
 before = copy.deepcopy(model0)                        # snapshot BEFORE rotation
-Rflip  = Rx(np.pi)                                    # rotate frame by π about x
-after  = rotated_inertials(before, Rflip)             # NEW dict, no mutation
+angles = [0, pi, pi, pi, pi, pi, pi, pi]
+Rflip = []                                    # rotate frame by π about x
+for i in range(len(model0)):
+    Rflip.append(Rx(angles[i]))                                    # rotate frame by π about x
+model_updated = rotated_inertials(before, Rflip)             # NEW dict, no mutation
 
-print("\nCOM & inertia comparison (before vs after; deltas shown):")
-_ = compare_models(before, after)
+#print("\nCOM & inertia comparison (before vs after; deltas shown):")
+#_ = compare_models(before, model_updated)
+print(model_updated.keys())

@@ -1,6 +1,6 @@
-from dynamics import DH
+from .model import model
 import numpy as np
-from util import to_array
+from ..utils.util import to_array
 
 from numpy import pi
 import matplotlib.pyplot as plt
@@ -38,17 +38,19 @@ theta0 = dh[:,3]
 alpha = dh[:,2]
 
 o_0 = np.array([0, 0, 0], dtype=np.float32)
-z_0 = np.array([0, 0, 1], dtype=np.float32)
-x_0 = np.array([1, 0, 0], dtype=np.float32)
-y_0 = np.array([0, 1, 0], dtype=np.float32)
+
+axes_o = np.array([[1, 0, 0],
+                   [0, 1, 0],
+                   [0, 0, 1]], dtype=np.float32)
+
 theta = to_array([0, np.pi/2])
-robot = DH(d, a, alpha, theta0, o_0=o_0, z_0=z_0, b=b)
+robot = model(d, a, alpha, theta0, o_0=o_0, axes_o=axes_o, b=b)
 
 origins = [o_0]
 R = []
-axesX = [x_0]
-axesY = [y_0]
-axesZ = [z_0]
+axesX = [axes_o[0, :].copy()]
+axesY = [axes_o[0, :].copy()]
+axesZ = [axes_o[0, :].copy()]
 T = robot.fk(len(d)-1)
 
 for i in range(len(d)):
