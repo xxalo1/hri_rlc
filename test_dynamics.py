@@ -1,6 +1,6 @@
 from Dynamics.dynamics import DH
 import numpy as np
-from numpy_util import to_array
+from util import to_array
 
 import matplotlib.pyplot as plt
 
