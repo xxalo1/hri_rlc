@@ -29,7 +29,7 @@ dh_m = np.array([
 
 mm2m = 1e-3
 
-b = np.array([0, 5.4, 210.4, 6.4, 208.4, 0, 105.9, 0]) * mm2m # frame offsets in mm along the new z axis
+b = np.array([0, 5.4, 210.4, 6.4, 208.4, 0, 105.9, 0], dtype=np.float32) * mm2m # frame offsets in mm along the new z axis
 
 d = dh[:,0] * mm2m
 print(d)
