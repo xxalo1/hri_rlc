@@ -1,4 +1,4 @@
-from Dynamics.dynamics import DH
+from dynamics import DH
 import numpy as np
 from util import to_array
 
@@ -13,7 +13,7 @@ dh = np.array([[156.4,     0,         0,             0],
                [6.4,       0,     pi/2,       0],
                [105.9,     0,         -pi/2,      0],
                [0,         0,     pi/2,       0],
-               [61.5,      0,         -pi/2,      0]])
+               [61.5,      0,         -pi/2,      0]], dtype=np.float32)
 
 
 dh_m = np.array([
