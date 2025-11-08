@@ -9,7 +9,6 @@ from numpy.typing import ArrayLike, NDArray
 from . import kin, kin_t
 from ...utils import numpy_util as npu
 from ...utils import pytorch_util as ptu
-from ..traj import quintic as tr
 
 FloatArray = npu.FloatArray
 dtype = npu.dtype
@@ -228,12 +227,9 @@ class Kinematics:
             if np.linalg.norm(err) < tol:
                 break
 
-            J = self.jacobian()
+            J = self.jac()
             J_pinv = np.linalg.pinv(J)
             delta_q = alpha * (J_pinv @ err)
             q += delta_q
 
         return q
-
-
-    def quintic_trajs(self, q0: FloatArray, qf: FloatArray, t0: float, tf: float, dt: float,
