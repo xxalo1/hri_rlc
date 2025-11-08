@@ -92,6 +92,32 @@ class Kinematics:
         Ts_world = [T_WB @ Ti for Ti in Ts_base[:n]]
         return Ts_world
 
+
+    def fk_t(self, q: torch.Tensor | None = None, n: int | None = None) -> torch.Tensor:
+        """
+        Compute cumulative forward-kinematics transforms in world coordinates (Torch).
+
+        Args:
+            n: Number of joints to include. If None, includes all joints.
+
+        Returns:
+            torch.Tensor: shape (n, 4, 4), world-frame transforms
+                [T_W_1, T_W_2, ..., T_W_n], where T_W_i = T_0 @ T_B_i.
+                The identity T_W_0 (i.e., T_0) is not included.
+        """
+        if q is None:
+            q = self.theta_t
+        # Base-frame cumulative transforms from DH as torch (N,4,4)
+        Ts_base = ops_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
+        if n is None:
+            n = Ts_base.shape[0]
+        Ts_base = Ts_base[:n]
+
+        Ts_world = self.T_0_t @ Ts_base  # (n,4,4)
+
+        return Ts_world
+
+
     def update(self, theta: Optional[FloatArray] = None, d: Optional[FloatArray] = None,
                 a: Optional[FloatArray] = None, alpha: Optional[FloatArray] = None, o_0: Optional[FloatArray] = None,
                 axes_o: Optional[FloatArray] = None):
@@ -168,7 +194,7 @@ class Kinematics:
         Initialize jacobian function for autograd.        
         """
         def jac(q: torch.Tensor) -> torch.Tensor:
-            Ts = ops_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
+            Ts = self.fk_t(q)
             return ops_t.jacobian(self.T_0_t, Ts)   # (6,n)
 
         self.jac_fn = jac
