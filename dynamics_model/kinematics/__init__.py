@@ -1,4 +1,5 @@
 """Kinematics package public API."""
-from dynamics_model.kinematics.trans_np import transform_chain
+from . import kin
+from . import kin_t
 
-__all__ = ["transform_chain"]
+__all__ = ["kin", "kin_t"]

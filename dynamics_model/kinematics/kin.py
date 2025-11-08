@@ -2,14 +2,14 @@ import numpy as np
 from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
 
-import torch  # add torch for AD
-from ...utils import util as ut
+from ...utils import numpy_util as npu
 
-FloatArray = ut.FloatArray
-dtype = ut.dtype
+FloatArray = npu.FloatArray
+dtype = npu.dtype
 
 def transform_matrix(theta: float, d: float,
-                    a: float, alpha: float, b: float = 0.0) -> FloatArray:
+                    a: float, alpha: float, b: float = 0.0
+                    ) -> FloatArray:
     """Standard DH T_i (Craig)
     b: optional translation along the new z axis"""
     cT, sT = np.cos(theta), np.sin(theta)
@@ -21,7 +21,9 @@ def transform_matrix(theta: float, d: float,
     A[:3, 3] += b * A[:3, 2]  # translate along the new z axis
     return A
 
-def transform_chain(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray) -> Sequence[FloatArray]:
+
+def transform_chain(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray
+                    ) -> Sequence[FloatArray]:
     """
     Transform of joints with respect to each other using stored DH params.
     theta: 1D array (length n)
@@ -38,7 +40,9 @@ def transform_chain(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: Floa
         A.append(A_i)
     return A
 
-def cumulative_transforms(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray) -> Sequence[FloatArray]:
+
+def cumulative_transforms(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray
+                          ) -> Sequence[FloatArray]:
     """
     Transform of joints with respect to base frame using stored DH params.
     theta: 1D array (length n)
@@ -56,3 +60,25 @@ def cumulative_transforms(theta: FloatArray, d: FloatArray, a: FloatArray, alpha
         T_i = T_i @ A[j]
         T.append(T_i)
     return T
+
+
+def jacobian(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, T_0: FloatArray,
+             Ts: Sequence[FloatArray]
+             ) -> FloatArray:
+    n = len(d)
+    origins = [T_0[:3, 3]]   # o_0
+    axes_z  = [T_0[:3, 2]]   # z axis from rotation matrix
+    for i in range(n):
+        origins.append(Ts[i][:3, 3].copy())  # o_i
+        axes_z.append(Ts[i][:3, 2].copy())   # z_i
+
+    o_n = origins[-1]
+    Jv = np.zeros((3, n), dtype=d.dtype)
+    Jw = np.zeros((3, n), dtype=d.dtype)
+    for i in range(n):
+        z_im1 = axes_z[i]
+        o_im1 = origins[i]
+        Jv[:, i] = np.cross(z_im1, o_n - o_im1)
+        Jw[:, i] = z_im1
+    J = np.vstack([Jv, Jw])  # 6*n
+    return J

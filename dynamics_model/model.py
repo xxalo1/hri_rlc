@@ -5,10 +5,10 @@ from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
 
 from . import kinematics as kin
-from ..utils import util as ut
+from ..utils import numpy_util as npu
 from . import traj as tr
-FloatArray = ut.FloatArray
-dtype = ut.dtype
+FloatArray = npu.FloatArray
+dtype = npu.dtype
 
 class model:
     def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray,
@@ -185,13 +185,13 @@ class model:
         n = len(q0)
 
         if not v0:
-            v0 = ut.to_n_array(0.0, n)
+            v0 = npu.to_n_array(0.0, n)
         if not a0:
-            a0 = ut.to_n_array(0.0, n)
+            a0 = npu.to_n_array(0.0, n)
         if not vf:
-            vf = ut.to_n_array(0.0, n)
+            vf = npu.to_n_array(0.0, n)
         if not af:
-            af = ut.to_n_array(0.0, n)
+            af = npu.to_n_array(0.0, n)
 
         Q, Qd, Qdd, T = tr.quintic_trajs(q0, qf, t0, tf, dt, v0, a0, vf, af)
         return Q, Qd, Qdd, T
