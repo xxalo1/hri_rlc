@@ -67,14 +67,10 @@ def compare_models(before, after):
     return df
 
 # --- run ---
-model0 = load_inertial("kinova_gen3_inertial.yaml")  # your YAML file
+model0 = load_inertial("inertial.yaml")  # your YAML file
 before = copy.deepcopy(model0)                        # snapshot BEFORE rotation
 angles = [0, pi, pi, pi, pi, pi, pi, pi]
 Rflip = []                                    # rotate frame by π about x
 for i in range(len(model0)):
     Rflip.append(Rx(angles[i]))                                    # rotate frame by π about x
 model_updated = rotated_inertials(before, Rflip)             # NEW dict, no mutation
-
-#print("\nCOM & inertia comparison (before vs after; deltas shown):")
-#_ = compare_models(before, model_updated)
-print(model_updated.keys())
