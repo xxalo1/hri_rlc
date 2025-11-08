@@ -51,7 +51,7 @@ def cumulative_transforms(theta: FloatArray, d: FloatArray, a: FloatArray, alpha
     alpha: 1D array (length n)
     b: optional 1D array of translations along the new z axis (length n)
 
-    returns: [T_0_0, …, T_0_{n-1}]
+    returns: [T_0_1, …, T_0_{n-1}]
     """
     T = []
     A = transform_chain(theta, d, a, alpha, b)
