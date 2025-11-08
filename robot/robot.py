@@ -6,10 +6,10 @@ from typing import Any, Optional, Sequence, Callable
 from numpy.typing import ArrayLike, NDArray
 
 
-from .kinematics import kin, kin_t
+from .kin import kin, kin_t
 from ..utils import numpy_util as npu
 from ..utils import pytorch_util as ptu
-from .trajectory import traj as tr
+from .traj import quintic as tr
 from dynamics_model import kinematics
 
 FloatArray = npu.FloatArray
