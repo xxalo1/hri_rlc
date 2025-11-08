@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-
 import numpy as np
-from typing import Any, Optional, Sequence
+import torch
+from typing import Any, Optional, Sequence, Callable
 from numpy.typing import ArrayLike, NDArray
 
-from .kinematics import trans_np as kin
-from ..utils import util as ut
+
+from .kinematics import kin, kin_t
+from ..utils import numpy_util as npu
+from ..utils import pytorch_util as ptu
 from . import traj as tr
-FloatArray = ut.FloatArray
-dtype = ut.dtype
+
+FloatArray = npu.FloatArray
+dtype = npu.dtype
 
 class model:
     def __init__(self, d: FloatArray, a: FloatArray, alpha: FloatArray,
@@ -62,6 +65,10 @@ class model:
             inertia = {}
         self.inertia = inertia
 
+        self._jac_fn: Optional[Callable[[torch.Tensor], torch.Tensor]] = None
+        self.update_tensors()
+
+
     def fk(self, n: Optional[int] = None) -> Sequence[FloatArray]:
         """
         Compute cumulative forward-kinematics transforms from base to each joint.
@@ -79,33 +86,46 @@ class model:
         """
         if n is None:
             n = len(self.d)
-        T = [self.T_0]
-        A = kin.transform_chain(self.theta, self.d, self.a, self.alpha, self.b)
-        for j in range(len(self.d)):
-            T_i = T[j] @ A[j]
-            T.append(T_i)
+        A = kin.cumulative_transforms(self.theta, self.d, self.a, self.alpha, self.b)
+        T = self.T_0 * 
         return T[1:]
+
 
     def update(self, theta: Optional[FloatArray] = None, d: Optional[FloatArray] = None,
                 a: Optional[FloatArray] = None, alpha: Optional[FloatArray] = None, o_0: Optional[FloatArray] = None,
                 axes_o: Optional[FloatArray] = None):
         """Update attributes theta, d, a, alpha, o_0, axes_o."""
-        if theta:
+        if theta is not None:
             self.theta = theta
-        if d:
+        if d is not None:
             self.d = d
-        if a:
+        if a is not None:
             self.a = a
-        if alpha:
+        if alpha is not None:
             self.alpha = alpha
-        if o_0:
+        if o_0 is not None:
             self.o_0 = o_0
             self.T_0[:3, 3] = o_0
-        if axes_o:
+        if axes_o is not None:
             self.axes_o = axes_o
             self.T_0[:3, :3] = axes_o
-    
-    def jacobian(self) -> FloatArray:
+            
+        if any(x is not None for x in (d, a, alpha, o_0, axes_o)):
+            self._jac_fn = None
+            self.update_tensors()
+
+
+    def update_tensors(self):
+        """Update all attributes to PyTorch tensors for autograd."""
+        self.d_t = ptu.from_numpy(self.d, dtype=ptu.dtype)
+        self.a_t = ptu.from_numpy(self.a, dtype=ptu.dtype)
+        self.alpha_t = ptu.from_numpy(self.alpha, dtype=ptu.dtype)
+        self.theta_t = ptu.from_numpy(self.theta, dtype=ptu.dtype)
+        self.b_t = ptu.from_numpy(self.b, dtype=ptu.dtype) if self.b is not None else None
+        self.T_0_t = ptu.from_numpy(self.T_0, dtype=ptu.dtype)
+
+
+    def jac(self) -> FloatArray:
         """
         6*n Jacobian for revolute joints:
           Jv_i = z_{i-1} * (o_n - o_{i-1})
@@ -131,6 +151,46 @@ class model:
         J = np.vstack([Jv, Jw])  # 6*n
         return J
 
+
+    def jac_t(self) -> torch.Tensor:
+        """
+        PyTorch version of jacobian for autograd.
+        Returns J
+        """
+        theta_t = ptu.from_numpy(self.theta, dtype=ptu.dtype)
+        jac = self.jac_fn or self.init_jac_callable()
+        return jac(theta_t)
+
+
+    def init_jac_callable(self) -> Callable[[torch.Tensor], torch.Tensor]:
+        """
+        Initialize jacobian function for autograd.        
+        """
+        def jac(q: torch.Tensor) -> torch.Tensor:
+            Ts = kin_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
+            return kin_t.jacobian(self.T_0_t, Ts)   # (6,n)
+
+        self.jac_fn = jac
+        return jac
+
+
+    def spatial_vel(self, q, qd, i):
+        """
+        Compute joint i spatial velocity given current joint velocities.
+        Returns 6D velocity vector [vx, vy, vz, wx, wy, wz]
+        """
+        return kin_t.spatial_vel(q, qd, self.jac_fn)
+
+
+    def spatial_acc(self, qd, qdd, i):
+        """
+        Compute joint i spatial acceleration given current joint velocities and accelerations.
+        Returns 6D acceleration vector [ax, ay, az, alpha_x, alpha_y, alpha_z]
+        """
+        J = self.jacobian()
+        return J[:, i] @ qdd
+
+
     def _COMs(self, inertia):
         """
         Compute centers of mass for each link in world frame.
@@ -147,6 +207,7 @@ class model:
             COMs.append(COM_i_homog[:3])  # (3,)
         return COMs
     
+
     def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
                 tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
         """
@@ -174,6 +235,7 @@ class model:
 
         return q
 
+
     def quintic_trajs(self, q0: FloatArray, qf: FloatArray, t0: float, tf: float, dt: float,
                       v0: FloatArray | None = None,
                       a0: FloatArray | None = None,
@@ -186,13 +248,13 @@ class model:
         n = len(q0)
 
         if not v0:
-            v0 = ut.to_n_array(0.0, n)
+            v0 = npu.to_n_array(0.0, n)
         if not a0:
-            a0 = ut.to_n_array(0.0, n)
+            a0 = npu.to_n_array(0.0, n)
         if not vf:
-            vf = ut.to_n_array(0.0, n)
+            vf = npu.to_n_array(0.0, n)
         if not af:
-            af = ut.to_n_array(0.0, n)
+            af = npu.to_n_array(0.0, n)
 
         Q, Qd, Qdd, T = tr.quintic_trajs(q0, qf, t0, tf, dt, v0, a0, vf, af)
         return Q, Qd, Qdd, T

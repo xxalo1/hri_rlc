@@ -2,10 +2,10 @@ import numpy as np
 from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
 
-from ..utils import util as ut
+from ..utils import numpy_util as npu
 
-FloatArray = ut.FloatArray
-dtype = ut.dtype
+FloatArray = npu.FloatArray
+dtype = npu.dtype
 
 def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, dt: float,
                       v0: FloatArray, a0: FloatArray, vf: FloatArray, af: FloatArray
