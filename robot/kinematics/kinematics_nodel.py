@@ -9,7 +9,7 @@ from numpy.typing import ArrayLike, NDArray
 from . import kin, kin_t
 from ...utils import numpy_util as npu
 from ...utils import pytorch_util as ptu
-from ..trajectory import traj as tr
+from ..traj import quintic as tr
 
 FloatArray = npu.FloatArray
 dtype = npu.dtype
