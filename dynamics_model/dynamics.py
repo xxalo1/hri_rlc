@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+
 import numpy as np
 from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
 
-from . import kinematics as kin
+from .kinematics import trans_np as kin
 from ..utils import util as ut
 from . import traj as tr
 FloatArray = ut.FloatArray

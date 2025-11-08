@@ -2,7 +2,8 @@ import numpy as np
 from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
 
-from ..utils import util as ut
+import torch  # add torch for AD
+from ...utils import util as ut
 
 FloatArray = ut.FloatArray
 dtype = ut.dtype
