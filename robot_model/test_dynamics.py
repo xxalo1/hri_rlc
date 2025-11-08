@@ -1,4 +1,4 @@
-from .model import model
+from .robot import model
 import numpy as np
 from ..utils.util import to_array
 
