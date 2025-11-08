@@ -1,6 +1,6 @@
-from .robot import model
+from ..robot.core import model
 import numpy as np
-from ..utils.util import to_array
+from ..utils import to_array
 
 from numpy import pi
 import matplotlib.pyplot as plt

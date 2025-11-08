@@ -9,22 +9,14 @@ FloatArray = npu.FloatArray
 dtype = npu.dtype
 
 
-class Trajectory:
+class TrajPlanner:
     """Trajectory class for robot joint trajectories."""
-    def __init__(self, waypoints: list[FloatArray], duration: float) -> None:
+    def __init__(self) -> None:
         """
         Initialize the trajectory with given waypoints and duration.
 
         Args:
-        waypoints (list[np.ndarray]): List of joint angle waypoints.
-        duration (float): Total duration of the trajectory.
         """
-        self.waypoints = waypoints
-        self.duration = duration
-        self.num_joints = waypoints[0].shape[0]
-        self.segments = len(waypoints) - 1
-        self.dt = duration / self.segments
-        self.coefficients = self._compute_coefficients()
         
     def quintic_trajs(self, q0: FloatArray, qf: FloatArray, t0: float, tf: float, dt: float,
                       v0: FloatArray | None = None,

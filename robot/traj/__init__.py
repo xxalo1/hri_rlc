@@ -1,3 +1,3 @@
 """trajectory package public API."""
-from . import quintic
-__all__ = ["quintic"]
+from .trajectory import TrajPlanner
+__all__ = ["TrajPlanner"]
