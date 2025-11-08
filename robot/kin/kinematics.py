@@ -6,7 +6,7 @@ from typing import Any, Optional, Sequence, Callable
 from numpy.typing import ArrayLike, NDArray
 
 
-from . import kin, kin_t
+from . import ops, ops_t
 from ...utils import numpy_util as npu
 from ...utils import pytorch_util as ptu
 
@@ -68,27 +68,29 @@ class Kinematics:
         self.update_tensors()
 
 
-    def fk(self, n: Optional[int] = None) -> Sequence[FloatArray]:
+    def fk(self, n: int | None = None) -> Sequence[FloatArray]:
         """
-        Compute cumulative forward-kinematics transforms from base to each joint.
+        Compute cumulative forward-kinematics transforms in world coordinates.
 
         Args:
-        n: Number of joints to include. If None, includes all joints.
+            n: Number of joints to include. If None, includes all joints.
 
         Returns:
-        list[np.ndarray]: List of 4x4 transforms
-        [T_0_1, T_0_2, ..., T_0_n] (length n), each mapping the base
-        frame (0) to joint frames 1..n.
-
-        Notes:
-        The identity T_0_0 is not included; prepend np.eye(4) if needed.
+            list[np.ndarray]: [T_W_1, T_W_2, ..., T_W_n] (length n), where
+                T_W_i = T_WB @ T_B_i, with T_WB = self.T_0 and T_B_i from DH.
+            Notes:
+                The identity T_W_0 (i.e., T_0) is not included; prepend self.T_0 if needed.
         """
         if n is None:
             n = len(self.d)
-        A = kin.cumulative_transforms(self.theta, self.d, self.a, self.alpha, self.b)
-        T = self.T_0 * 
-        return T[1:]
 
+        # Base-frame cumulative transforms (A0, A0@A1, …)
+        Ts_base = ops.cumulative_transforms(self.theta, self.d, self.a, self.alpha, self.b)
+
+        # World-frame transforms: pre-multiply by base/world pose
+        T_WB = self.T_0
+        Ts_world = [T_WB @ Ti for Ti in Ts_base[:n]]
+        return Ts_world
 
     def update(self, theta: Optional[FloatArray] = None, d: Optional[FloatArray] = None,
                 a: Optional[FloatArray] = None, alpha: Optional[FloatArray] = None, o_0: Optional[FloatArray] = None,
@@ -166,8 +168,8 @@ class Kinematics:
         Initialize jacobian function for autograd.        
         """
         def jac(q: torch.Tensor) -> torch.Tensor:
-            Ts = kin_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
-            return kin_t.jacobian(self.T_0_t, Ts)   # (6,n)
+            Ts = ops_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
+            return ops_t.jacobian(self.T_0_t, Ts)   # (6,n)
 
         self.jac_fn = jac
         return jac
@@ -178,7 +180,7 @@ class Kinematics:
         Compute joint i spatial velocity given current joint velocities.
         Returns 6D velocity vector [vx, vy, vz, wx, wy, wz]
         """
-        return kin_t.spatial_vel(q, qd, self.jac_fn)
+        return ops_t.spatial_vel(q, qd, self.jac_fn)
 
 
     def spatial_acc(self, qd, qdd, i):

@@ -1,5 +1,5 @@
 """Kinematics package public API."""
-from . import kin
-from . import kin_t
+from . import ops
+from . import ops_t
 from .kinematics import Kinematics
-__all__ = ["kin", "kin_t", "Kinematics"]
+__all__ = ["ops", "ops_t", "Kinematics"]

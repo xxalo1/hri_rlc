@@ -26,7 +26,7 @@ def transform_matrices(theta: torch.Tensor,
     A[:, 2, 0] = 0.0;  A[:, 2, 1] = sA;    A[:, 2, 2] = cA;    A[:, 2, 3] = d
     A[:, 3, 0] = 0.0;  A[:, 3, 1] = 0.0;    A[:, 3, 2] = 0.0;    A[:, 3, 3] = 1.0
     if b is not None:
-        A[:, 3, 3] = A[:, 3, 3] + b.unsqueeze(-1) * A[:, 3, 2]
+        A[:, :3, 3] = A[:, :3, 3] + b.unsqueeze(-1) * A[:, :3, 2]
     return A
 
 
@@ -44,7 +44,7 @@ def cumulative_transforms(theta: torch.Tensor,
     alpha: 1D tensor (length n)
     b: optional 1D tensor of translations along the new z axis (length n)
 
-    returns: 3d tensor [T_0_0, …, T_0_{n-1}]
+    returns: 3d tensor [T_0_1, …, T_0_{n-1}]
     """
     if b is None:
         b = torch.zeros_like(d)
