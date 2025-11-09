@@ -99,32 +99,31 @@ def cumulative_transforms(
 
     Parameters
     ----------
-    q, d, a, alpha : (n,)
+    q, d, a, alpha : ndarray, shape (n,)
         Standard DH parameters as 1D arrays of equal length.
-    b : (n,), optional
+    b : ndarray, shape (n,), optional
         Extra translation along each link's new z-axis. Defaults to zeros.
 
     Returns
     -------
-    Ts : (n, 4, 4)
+    T_bl : ndarray, shape (n, 4, 4)
         Stack of base-to-link transforms.
     """
     n = q.size
 
     A = transform_matrices(q, d, a, alpha, b)  # (n,4,4)
-    Ts = np.empty_like(A)                      # (n,4,4)
+    T_bl = np.empty_like(A)                      # (n,4,4)
 
-    T = np.eye(4, dtype=A.dtype)
+    T_b = np.eye(4, dtype=A.dtype)
     for i in range(n):
-        T = T @ A[i]
-        Ts[i] = T
+        T_b = T_b @ A[i]
+        T_bl[i] = T_b
 
-    return Ts
+    return T_bl
 
 
 def jacobian(
-    T_0_world: FloatArray,
-    Ts_world: FloatArray,
+    T_wf: FloatArray,
     ) -> FloatArray:
     """
     Compute the geometric Jacobian J(q) in the world frame.
@@ -133,11 +132,9 @@ def jacobian(
 
     Parameters
     ----------
-    T_0_world : ndarray, shape (4, 4)
-        Pose of the base frame expressed in the world frame.
-    Ts_world : ndarray, shape (n, 4, 4)
-        Cumulative world-to-link transforms T_world_link_i for i = 1..n.
-
+    T_wf : ndarray, shape (n+1, 4, 4)
+        World-to-frame transforms for all frames including base (frame 0).
+    
     Returns
     -------
     J : ndarray, shape (6, n)
@@ -145,59 +142,42 @@ def jacobian(
         Rows 0..2 are the linear part Jv, rows 3..5 are the angular part Jw.
     """
     # shape checks
-    assert T_0_world.shape == (4, 4), "T_0_world must be (4, 4)"
-    assert Ts_world.ndim == 3 and Ts_world.shape[1:] == (4, 4), "Ts_world must be (n, 4, 4)"
-    n = Ts_world.shape[0]
+    assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n, 4, 4)"
+    n = T_wf.shape[0] - 1
 
-    T_all = np.empty((n + 1, 4, 4), dtype=Ts_world.dtype)
-    T_all[0] = T_0_world
-    T_all[1:] = Ts_world
+    o_wf = T_wf[:, :3, 3]   # (n+1, 3) origins in world
+    z_wf = T_wf[:, :3, 2]   # (n+1, 3) z-axes in world
 
-    o_all = T_all[:, :3, 3]   # (n+1, 3) origins in world
-    z_all = T_all[:, :3, 2]   # (n+1, 3) z-axes in world
-
-    o_n = o_all[-1]           # end-effector origin
+    o_n = o_wf[-1]           # end-effector origin
 
     # revolute joints: Jv_i = z_{i-1} x (o_n - o_{i-1}), Jw_i = z_{i-1}
-    Jv = np.cross(z_all[:-1], (o_n - o_all[:-1]), axis=1).T   # (3, n)
-    Jw = z_all[:-1].T                                          # (3, n)
+    Jv = np.cross(z_wf[:-1], (o_n - o_wf[:-1]), axis=1).T   # (3, n)
+    Jw = z_wf[:-1].T                                          # (3, n)
 
     J = np.vstack([Jv, Jw])  # (6, n)
     return J
 
-
-def COMs(Ts: Sequence[FloatArray], 
-         T_0: FloatArray, 
-         inertia: dict[Any, Any]
-         ) -> Sequence[FloatArray]:
+def com_world(
+    T_wf: FloatArray,
+    com_f: FloatArray,
+    ) -> FloatArray:
     """
-    Compute the centers of mass (COM) for each link in the world frame.
-
-    Assumptions
-    -----------
-    1) Ts[i] is the 4x4 homogeneous transform from the base frame to link i.
-    2) T_0 is the 4x4 homogeneous transform from the world frame to the base frame.
-    3) inertia[i]['COM'] is the link i COM expressed in the link i frame as a 3-vector.
+    Compute centers of mass in the world frame.
 
     Parameters
     ----------
-    Ts : sequence of ndarray, each (4, 4)
-        world-to-link 4x4 homogeneous transforms for all links, ordered by link index.
-    T_0 : ndarray, shape (4, 4)
-        World-to-base transform.
-    inertia : dict
-        Mapping i -> {'COM': ndarray (3,), ...} for each link including base.
+    T_wf : ndarray, shape (n+1, 4, 4)
+        World-to-frame transforms for base (0) and all links.
+    com_local : ndarray, shape (n+1, 3)
+        COM positions expressed in each frame's local coordinates.
 
     Returns
     -------
-    COMs_world : ndarray, shape (n, 3)
-        Stack of COM positions for all links, each expressed in the world frame.
+    com_w : ndarray, shape (n+1, 3)
+        COM positions for base and links, expressed in the world frame.
     """
-    n = len(inertia)
-    T = [T_0, Ts]
-    COMs = []
-    for i in range(n):
-        local_COM = inertia[i]['COM']  # (3,)
-        COM_i= T[i] @ np.hstack((local_COM, 1.0))  # (4,)
-        COMs.append(COM_i[:3])  # (3,)
-    return COMs
+    R = T_wf[:, :3, :3]            # (n+1, 3, 3)
+    p = T_wf[:, :3, 3]             # (n+1, 3)
+    com_f = com_f[..., None]      # (n+1, 3, 1)
+    com_w = R @ com_f + p   # (n+1, 3)
+    return com_w

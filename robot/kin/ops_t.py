@@ -26,7 +26,7 @@ def transform_matrices(theta: torch.Tensor,
     A[:, 2, 0] = 0.0;  A[:, 2, 1] = sA;    A[:, 2, 2] = cA;    A[:, 2, 3] = d
     A[:, 3, 0] = 0.0;  A[:, 3, 1] = 0.0;    A[:, 3, 2] = 0.0;    A[:, 3, 3] = 1.0
     if b is not None:
-        A[:, :3, 3] = A[:, :3, 3] + b.unsqueeze(-1) * A[:, :3, 2]
+        A[:, :3, 3] = A[:, :3, 3] + b[..., None] * A[:, :3, 2]
     return A
 
 
@@ -58,19 +58,38 @@ def cumulative_transforms(theta: torch.Tensor,
     return torch.stack(T)
 
 
-def jacobian(T0: torch.Tensor, Ts: torch.Tensor) -> torch.Tensor:
+def jacobian(
+    T_wf: torch.Tensor,
+    ) -> torch.Tensor:
+    """
+    Compute the geometric Jacobian J(q) in the world frame.
 
-    Tall = torch.cat([T0.unsqueeze(0), Ts], dim=0)   # (n+1,4,4)
-    O = Tall[:, :3, 3]                               # (n+1,3)
-    Z = Tall[:, :3, 2]                               # (n+1,3)
+    Assumed revolute about z_{i-1}.
 
-    on = O[-1]                                       # (3,)
-    z  = Z[:-1]                                      # (n,3)
-    o  = O[:-1]                                      # (n,3)
+    Parameters
+    ----------
+    T_wf : Tensor, shape (n+1, 4, 4)
+        World-to-frame transforms for all frames including base (frame 0).
+    
+    Returns
+    -------
+    J : Tensor, shape (6, n)
+        Geometric Jacobian expressed in the world frame.
+        Rows 0..2 are the linear part Jv, rows 3..5 are the angular part Jw.
+    """
+    # shape checks
+    assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n, 4, 4)"
 
-    Jv = torch.cross(z, on - o, dim=1).T             # (3,n)
-    Jw = z.T                                         # (3,n)
-    return torch.cat([Jv, Jw], dim=0)                # (6,n)
+    o_wf = T_wf[:, :3, 3]   # (n+1, 3) origins in world
+    z_wf = T_wf[:, :3, 2]   # (n+1, 3) z-axes in world
+
+    o_n = o_wf[-1]           # end-effector origin
+
+    Jv = torch.cross(z_wf[:-1], (o_n - o_wf[:-1]), dim=1).T   # (3, n)
+    Jw = z_wf[:-1].T                                          # (3, n)
+
+    J = torch.cat([Jv, Jw])  # (6, n)
+    return J
 
 
 def spatial_vel(q: torch.Tensor, qd: torch.Tensor, jac: JacFn) -> torch.Tensor:
