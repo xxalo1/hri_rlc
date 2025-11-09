@@ -133,6 +133,13 @@ class Kinematics:
         return Ts_world
 
 
+    def update_com(self) -> None:
+        """Update the centers of mass (COM) positions."""
+        if self.inertia is None:
+            return
+        Ts = self.fk()
+        self.COMs = ops.COMs(self, Ts, self.T_0, self.inertia)
+
     def update_config(self,
                 d: FloatArray | None = None,
                 a: FloatArray | None = None, 
@@ -360,23 +367,6 @@ class Kinematics:
         a = torch.cat(a, dim=0)       # (n, 6)
         return a
 
-
-    def _COMs(self, inertia):
-        """
-        Compute centers of mass for each link in world frame.
-        Returns list of COM positions (3,) for each link.
-        """
-        n = len(inertia)
-        Ts = self.fk()  # Convert Sequence to list so we can modify it
-        T_0 = self.T_0
-        COMs = []
-        for i in range(n):
-            local_COM = inertia[i]['COM']  # (3,)
-            T_i = T_0 if i==0 else Ts[i-1]
-            COM_i_homog = T_i @ np.hstack((local_COM, 1.0))  # (4,)
-            COMs.append(COM_i_homog[:3])  # (3,)
-        return COMs
-    
 
     def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
                 tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
