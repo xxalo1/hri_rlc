@@ -62,10 +62,9 @@ def cumulative_transforms(theta: FloatArray, d: FloatArray, a: FloatArray, alpha
     return T
 
 
-def jacobian(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, T_0: FloatArray,
-             Ts: Sequence[FloatArray]
+def jacobian(T_0: FloatArray, Ts: Sequence[FloatArray]
              ) -> FloatArray:
-    n = len(d)
+    n = len(Ts)
     origins = [T_0[:3, 3]]   # o_0
     axes_z  = [T_0[:3, 2]]   # z axis from rotation matrix
     for i in range(n):
@@ -73,8 +72,8 @@ def jacobian(theta: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray,
         axes_z.append(Ts[i][:3, 2].copy())   # z_i
 
     o_n = origins[-1]
-    Jv = np.zeros((3, n), dtype=d.dtype)
-    Jw = np.zeros((3, n), dtype=d.dtype)
+    Jv = np.zeros((3, n), dtype=T_0.dtype)
+    Jw = np.zeros((3, n), dtype=T_0.dtype)
     for i in range(n):
         z_im1 = axes_z[i]
         o_im1 = origins[i]
