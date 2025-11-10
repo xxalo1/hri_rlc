@@ -1,0 +1,100 @@
+import numpy as np
+import yaml, copy, pandas as pd
+from numpy import pi
+from pathlib import Path
+
+from..utils import numpy_util as npu
+dtype = npu.dtype
+
+HERE = Path(__file__).parent
+INERT_FILE = HERE / "inertial.yaml"
+DH_FILE = HERE / "dh.yaml"
+ANGLES = [0, pi, pi, pi, pi, pi, pi, pi]
+SKIP_LINKS = ("ee_with_vision",)
+
+def Rx(angle):
+    c, s = np.cos(angle), np.sin(angle)
+    return np.array([[1, 0, 0],
+                     [0, c,-s],
+                     [0, s, c]], dtype=np.float32)
+
+
+def load_inertial(yaml_path, skip_links=SKIP_LINKS) -> dict:
+    """
+    Load inertial data and return stacked NumPy arrays.
+
+    Returns a dict with:
+      id  : (n,)   int64
+      m   : (n,)   float_dtype
+      com : (n,3)  float_dtype
+      Ic  : (n,3,3) float_dtype
+    """
+    # accept a path or a preloaded dict
+    with open(yaml_path, "r") as f:
+        data = yaml.safe_load(f)
+
+    rows = [r for r in data["links"] if r.get("name") not in skip_links]
+    n = len(rows)
+
+    ids = np.fromiter((int(r["id"]) for r in rows), dtype=np.int64, count=n)
+    m   = np.fromiter((float(r["mass_kg"]) for r in rows), dtype=dtype, count=n)
+    com = np.array([r["com_m"] for r in rows], dtype=dtype)        # (n,3)
+    Ic  = np.array([r["Ic_kgm2"] for r in rows], dtype=dtype)      # (n,3,3)
+
+    return {"id": ids, "m": m, "com": com, "Ic": Ic}
+
+
+def rotated_inertials(model: dict, R_wf: np.ndarray) -> dict:
+    """
+    Rotate COM and inertia for each link.
+      com' = R com
+      Ic'  = R Ic R^T
+    Shapes:
+      R_wf : (n,3,3)
+      model['com'] : (n,3)
+      model['Ic']  : (n,3,3)
+    Returns a new dict with same keys, arrays updated.
+    """
+    com = model["com"]            # (n,3)
+    Ic  = model["Ic"]             # (n,3,3)
+
+    com_rot = R_wf @ com[..., None]                # (n,3)
+    Ic_rot  = np.einsum("nij,njk,nlk->nil", R_wf, Ic, R_wf)       # R Ic R^T
+
+    out = dict(model)
+    out["com"] = com_rot
+    out["Ic"]  = Ic_rot
+    return out
+
+
+def load_inertia() -> dict:
+    """Load Kinova Gen3 inertial model and apply per-link flips (R @ com, R Ic R^T)."""
+    inertia = load_inertial(INERT_FILE)
+    n = inertia["m"].shape[0]
+
+    angles = np.asarray(ANGLES[:n], dtype=inertia["com"].dtype)
+    Rflip  = np.stack([Rx(theta) for theta in angles], axis=0).astype(inertia["com"].dtype)
+
+    return rotated_inertials(inertia, Rflip)
+
+
+def load_dh() -> dict[str, np.ndarray]:
+    """
+    Read a DH YAML (with key 'dh': list of rows) and return a dict of NumPy arrays:
+      {'id': (n,), 'd': (n,), 'a': (n,), 'alpha': (n,), 'theta0': (n,), 'b': (n,)}
+    """
+    with open(DH_FILE, "r") as f:
+        data = yaml.safe_load(f)
+
+    rows = list(data["dh"])
+    rows.sort(key=lambda r: int(r.get("id", 0)))
+    n = len(rows)
+
+    ids    = np.fromiter((int(r["id"])       for r in rows), dtype=np.int64,       count=n)
+    d      = np.fromiter((float(r["d"])      for r in rows), dtype=dtype,    count=n)
+    a      = np.fromiter((float(r["a"])      for r in rows), dtype=dtype,    count=n)
+    alpha  = np.fromiter((float(r["alpha"])  for r in rows), dtype=dtype,    count=n)
+    theta0 = np.fromiter((float(r["theta0"]) for r in rows), dtype=dtype,    count=n)
+    b      = np.fromiter((float(r.get("b", 0.0)) for r in rows), dtype=dtype, count=n)
+
+    return {"id": ids, "d": d, "a": a, "alpha": alpha, "theta0": theta0, "b": b}

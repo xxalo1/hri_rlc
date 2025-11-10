@@ -1,11 +1,7 @@
-import numpy as np
-k, m, n = 4, 2, 4
+from ..kinova_gen3 import kinova_gen3 as kg3
+from ..utils import numpy_util as npu
+mydict = kg3.load_inertia()
+dhdict = kg3.load_dh()
+print("inertia: \n", mydict)
 
-R = np.arange(k*k*n).reshape(n, k, k)
-b = np.arange(n).reshape(n)
-
-print("R:\n", R)
-print("b:\n", b)
-R[:, :3, 3] += b @ R[:, :3, 2]
-
-print("Updated R:\n", R)
+print("dh: \n", dhdict)

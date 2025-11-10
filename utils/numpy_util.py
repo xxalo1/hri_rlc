@@ -5,7 +5,7 @@ from typing import Any, Optional, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-FloatArray = NDArray[np.float32]
+FloatArray = NDArray[np.floating]
 dtype = np.float32
 
 def to_array(a: Sequence[float]) -> np.ndarray:
@@ -21,3 +21,26 @@ def to_n_array(x, n: int) -> FloatArray:
     if arr.size == n:
         return arr.reshape(n)
     return np.full(n, arr.item(), dtype=dtype)
+
+from typing import Mapping, Sequence
+import numpy as np  # only for typing/context; `to_array` does the conversion
+
+def dict_to_arrays(data: Mapping[str, Sequence], keys: Sequence[str] | None = None) -> dict[str, np.ndarray]:
+    """
+    Convert a dict of lists to a dict of ndarrays using `to_array`.
+
+    Parameters
+    ----------
+    data : dict[str, Sequence]
+        Each value is a list/sequence of values.
+    keys : sequence[str] | None
+        Keys to convert. If None, convert all keys in `data`.
+
+    Returns
+    -------
+    out : dict[str, np.ndarray]
+        Same keys (or the selected subset), with values converted by `to_array`.
+    """
+    if keys is None:
+        keys = list(data.keys())
+    return {k: to_array(data[k]) for k in keys}

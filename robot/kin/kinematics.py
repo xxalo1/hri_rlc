@@ -16,16 +16,88 @@ dtype = npu.dtype
 class Kinematics:
     """
     Kinematics class for representing and computing robot kinematics.
+
+    initializes with DH parameters and provides methods for forward kinematics,
+    Jacobian computation, spatial velocities, and accelerations.
+
+    Parameters
+    ----------
+    dh : dict[str, FloatArray]
+        Dictionary containing DH parameters:
+            - 'd': link offsets
+            - 'a': link lengths
+            - 'alpha': link twists
+            - 'q0': initial joint positions
+            - 'b': optional translations along new z axes
+    o_wb : FloatArray | None, optional
+        Origin of the base frame in world coordinates. Defaults to [0, 0, 0].
+    axes_wb : FloatArray | None, optional
+        Axes of the base frame in world coordinates. Defaults to identity.
+    inertia : dict[str, FloatArray] | None, optional
+        Dictionary containing inertia properties:
+            - 'com': centers of mass
+            - 'mass': masses
+            - 'Ic': inertia tensors
+    dtype : data-type, optional
+        Data type for numerical arrays. Defaults to npu.dtype.
+
+    Attributes
+    ----------
+    q : FloatArray
+        Current joint positions.
+    qd : FloatArray
+        Current joint velocities.
+    qdd : FloatArray
+        Current joint accelerations.
+    d : FloatArray
+        Link offsets.
+    a : FloatArray
+        Link lengths.
+    alpha : FloatArray
+        Link twists.
+    q0 : FloatArray
+        Initial joint positions.
+    b : FloatArray
+        Translations along new z axes.
+    o_wb : FloatArray
+        Origin of the base frame in world coordinates.
+    axes_wb : FloatArray
+        Axes of the base frame in world coordinates.
+    T_wb : FloatArray
+        World-to-base homogeneous transform.
+    com_fl : FloatArray | None
+        Centers of mass in the link's frame.
+    mass : FloatArray | None
+        Masses of the links.
+    Ic_fl : FloatArray | None
+        Inertia tensors in the link's frame.
+    q_t : Tensor
+        Current joint positions as a PyTorch tensor.
+    qd_t : Tensor
+        Current joint velocities as a PyTorch tensor.
+    qdd_t : Tensor
+        Current joint accelerations as a PyTorch tensor.
+    d_t : Tensor
+        Link offsets as a PyTorch tensor.
+    a_t : Tensor
+        Link lengths as a PyTorch tensor.
+    alpha_t : Tensor
+        Link twists as a PyTorch tensor.
+    q0_t : Tensor
+        Initial joint positions as a PyTorch tensor.
+    b_t : Tensor
+        Translations along new z axes as a PyTorch tensor.
+    T_wb_t : Tensor
+        World-to-base homogeneous transform as a PyTorch tensor.
+
+    Methods
+    -------
     """
     def __init__(self, 
-        d: FloatArray, 
-        a: FloatArray, 
-        alpha: FloatArray,
-        q_0: FloatArray | None = None,
-        b: FloatArray | None = None,
+        dh: dict[str, FloatArray],
         o_wb: FloatArray | None = None,
         axes_wb: FloatArray | None = None,
-        inertia: dict[Any, Any] | None = None,
+        inertia: dict[str, FloatArray] | None = None,
         dtype = dtype
         ) -> None:
         """
@@ -36,25 +108,25 @@ class Kinematics:
         inertia: optional dict of manipulator iertias coms masses 
         o_0: optional 1d array, origin of base frame in world coords, defaults to [0,0,0]
         """
-        if o_wb is None:
-            o_wb = np.array([0, 0, 0], dtype=dtype)
-        if axes_wb is None:
-            axes_wb = np.array([[1, 0, 0],
-                               [0, 1, 0],
-                               [0, 0, 1]], dtype=dtype)
-        if b is None:
-            b = np.zeros_like(d)
-        if q_0 is None:
-            q_0 = np.zeros_like(d)
-        
-        self.inertia = inertia
-        self.d     = d
-        self.a     = a
-        self.alpha = alpha
-        self.q_0 = q_0
+
         self.dtype = dtype
 
-        self.b = b
+        self.d = dh["d"]
+        self.a = dh["a"]
+        self.alpha = dh["alpha"]
+        self.q0 = dh["q0"]
+        self.b = dh.get("b")
+
+        if o_wb is None: o_wb = np.array([0, 0, 0], dtype=dtype)
+        if axes_wb is None: axes_wb = np.eye(3, dtype=dtype)
+        if self.b is None: self.b = np.zeros_like(self.d)
+
+        if inertia is None: inertia = {}
+
+        self.com_fl = inertia.get("com", None)
+        self.mass = inertia.get("mass", None)
+        self.Ic_fl = inertia.get("Ic", None)
+
         self.o_wb = o_wb  # origins in base frame
         self.axes_wb = axes_wb  # z axes in base frame
 
@@ -62,42 +134,41 @@ class Kinematics:
         self.T_wb[:3, :3] = axes_wb
         self.T_wb[:3, 3] = o_wb
 
-        if inertia:
-            updated_com = self._COMs(inertia)
-            for i, name in enumerate(inertia.keys()):
-                inertia[name]['COM'] = updated_com[i]
-        else:
-            inertia = {}
-        self.inertia = inertia
-
-        self.q: FloatArray = self.q_0.copy()
+        self.q: FloatArray = self.q0.copy()
         self.qd: FloatArray = np.zeros_like(self.q)
         self.qdd: FloatArray = np.zeros_like(self.q)
 
         self._jac_fn: Callable[[torch.Tensor], torch.Tensor] | None = None
         self.update_tensors()
 
-
+    # done
     def prepend_base(self,
-        T_wl: FloatArray
-        ) -> FloatArray:
+        T_wl: FloatArray | torch.Tensor
+        ) -> FloatArray | torch.Tensor:
         """Stack link transforms `T_wl` with base transform `T_wb`.
         
         Parameters
         ----------
-        T_wl : ndarray, shape (n, 4, 4)
+        T_wl : ndarray | Tensor, shape (n, 4, 4)
             3D array of world-frame transforms [T_w1, ..., T_wn].
         Returns
         -------
-        T_w : ndarray, shape (n+1, 4, 4)
+        T_w : ndarray | Tensor, shape (n+1, 4, 4)
             3D array of world-frame transforms including the base [T_w0, T_w1, ..., T_wn].
         """
-        T_w = np.empty((T_wl.shape[0] + 1, 4, 4), dtype=T_wl.dtype)
-        T_w[0]  = self.T_wb
-        T_w[1:] = T_wl
+
+        if isinstance(T_wl, torch.Tensor):
+            T_w = torch.empty(T_wl.shape[0] + 1, 4, 4, dtype=T_wl.dtype, device=T_wl.device)
+        elif isinstance(T_wl, np.ndarray):
+            T_w = np.empty((T_wl.shape[0] + 1, 4, 4), dtype=T_wl.dtype)
+        else: 
+            raise TypeError("T_wl must be a numpy array or torch tensor.")
+        
+        T_w[0]  = self.T_wb # type: ignore
+        T_w[1:] = T_wl # type: ignore
         return T_w
 
-
+    # done
     def fk(self, 
         q: FloatArray | None = None, 
         n: int | None = None
@@ -126,7 +197,7 @@ class Kinematics:
         T_wl = self.T_wb @ T_bl
         return T_wl
 
-
+    # done
     def fk_t(self, 
         q: torch.Tensor | None = None, 
         n: int | None = None
@@ -155,22 +226,25 @@ class Kinematics:
         T_wl = self.T_wb_t @ T_bl
         return T_wl
 
-
+    # done
     def update_com(self) -> None:
-        """Update the centers of mass (COM) positions."""
-        if self.inertia is None:
-            return
-        Ts = self.fk()
-        self.COMs = ops.COMs(Ts, self.T_wb, self.inertia)
+        """
+        Update the centers of mass (COM) positions 
+        from link frame to world frame.
+        """
+        if self.com_fl is None: return
+        T_wl = self.fk()
+        T_w = self.prepend_base(T_wl)
+        self.com_wl = ops.com_world(T_w, self.com_fl) # type: ignore
 
-
+    # done
     def update_config(self,
-                d: FloatArray | None = None,
-                a: FloatArray | None = None, 
-                alpha: FloatArray | None = None, 
-                o_0: FloatArray | None = None,
-                axes_o: FloatArray | None = None
-                ) -> None:
+        d: FloatArray | None = None,
+        a: FloatArray | None = None, 
+        alpha: FloatArray | None = None, 
+        o_0: FloatArray | None = None,
+        axes_o: FloatArray | None = None
+        ) -> None:
         """
         Update attributes d, a, alpha, o_0, axes_o.
 
@@ -187,24 +261,25 @@ class Kinematics:
         axes_o : FloatArray | None
             Base frame axes.
         """
-        if d is not None:
-            self.d = d
-        if a is not None:
-            self.a = a
-        if alpha is not None:
-            self.alpha = alpha
-        if o_0 is not None:
-            self.o_wb = o_0
+
+        assert any(x is not None and not np.ndarray for x in (d, a, alpha, o_0, axes_o)),\
+              "any input provided must be a numpy array."
+
+        if d is not None: self.d = d
+        if a is not None: self.a = a
+        if alpha is not None: self.alpha = alpha
+        if o_0 is not None: 
+            self.o_wb = o_0; 
             self.T_wb[:3, 3] = o_0
-        if axes_o is not None:
+        if axes_o is not None: 
             self.axes_wb = axes_o
             self.T_wb[:3, :3] = axes_o
-            
+
         if any(x is not None for x in (d, a, alpha, o_0, axes_o)):
             self._jac_fn = None
             self.update_tensors()
 
-
+    # done
     def step(self, 
         q: FloatArray | None = None,
         qd: FloatArray | None = None, 
@@ -224,7 +299,8 @@ class Kinematics:
         qdd : ndarray, shape (n,), optional
             Joint accelerations.
         """
-
+        assert any(x is not None and not np.ndarray for x in (q, qd, qdd)),\
+              "any input provided must be a numpy array."
 
         if q is not None: 
             self.q = q
@@ -236,17 +312,16 @@ class Kinematics:
             self.qdd = qdd
             self.qdd_t = ptu.from_numpy(qdd, dtype=ptu.dtype)
 
-
+    # done
     def update_tensors(self):
         """Update all attributes to PyTorch tensors for autograd."""
         self.d_t = ptu.from_numpy(self.d, dtype=ptu.dtype)
         self.a_t = ptu.from_numpy(self.a, dtype=ptu.dtype)
         self.alpha_t = ptu.from_numpy(self.alpha, dtype=ptu.dtype)
-        self.q_t = ptu.from_numpy(self.q, dtype=ptu.dtype)
         self.b_t = ptu.from_numpy(self.b, dtype=ptu.dtype) if self.b is not None else None
         self.T_wb_t = ptu.from_numpy(self.T_wb, dtype=ptu.dtype)
 
-
+    # done
     def jac(self, q: FloatArray | None = None) -> FloatArray:
         """
         Compute the geometric Jacobian matrix using NumPy operations.
@@ -276,10 +351,10 @@ class Kinematics:
         if q is None: q = self.q
         T_wl = self.fk(q)
         T_wf = self.prepend_base(T_wl)
-        J = ops.jacobian(T_wf)
+        J = ops.jacobian(T_wf) # type: ignore
         return J
 
-
+    # done
     def jac_t(self, q: torch.Tensor | None = None) -> torch.Tensor:
         """
         Compute the Jacobian matrix using a differentiable PyTorch implementation.
@@ -309,23 +384,24 @@ class Kinematics:
         jac = self.jac_fn or self._init_jac_callable()
         return jac(q)
 
-
+    # done
     def _init_jac_callable(self) -> Callable[[torch.Tensor], torch.Tensor]:
         """
-        Initialize jacobian function for autograd.        
+        Initialize jacobian function callable `self.jac_fn` for autograd.
         """
         def jac(q: torch.Tensor) -> torch.Tensor:
-            Ts = self.fk_t(q)
-            return ops_t.jacobian(self.T_wb_t, Ts)   # (6,n)
+            T_bl = self.fk_t(q)
+            T_wf = self.prepend_base(T_bl)
+            return ops_t.jacobian(T_wf)   # type: ignore # (6,n)
 
         self.jac_fn = jac
         return jac
 
-
+    # done
     def spatial_vel(self, 
-                    q: torch.Tensor | None = None, 
-                    qd: torch.Tensor | None = None
-                    ) -> torch.Tensor:
+        q: torch.Tensor | None = None, 
+        qd: torch.Tensor | None = None
+        ) -> torch.Tensor:
         """
         Compute the spatial velocity of all joints in the manipulator.
 
@@ -357,8 +433,12 @@ class Kinematics:
         v = torch.cat(v, dim=0)          # (n, 6)
         return v        
 
-
-    def spatial_acc(self, q: torch.Tensor, qd: torch.Tensor, qdd: torch.Tensor) -> torch.Tensor:
+    # done
+    def spatial_acc(self, 
+        q: torch.Tensor, 
+        qd: torch.Tensor, 
+        qdd: torch.Tensor
+        ) -> torch.Tensor:
         """
         Compute the spatial acceleration of all joints in the manipulator.
 
@@ -403,7 +483,7 @@ class Kinematics:
         """
         q = self.q.copy()  # initial guess
         for iter in range(max_iters):
-            self.update(theta=q)
+            self.step(q=q)
             current_T = self.fk(len(q)-1)[-1]
             pos_err = target_T[:3, 3] - current_T[:3, 3]
             rot_err_matrix = current_T[:3, :3].T @ target_T[:3, :3]

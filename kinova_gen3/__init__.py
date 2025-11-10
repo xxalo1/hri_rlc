@@ -1,4 +1,4 @@
 """kinova_gen3 package public API."""
-from .inertial import model_updated
+from .kinova_gen3 import load_inertia, load_dh
 
-__all__ = ["model_updated"]
+__all__ = ["load_inertia", "load_dh"]
