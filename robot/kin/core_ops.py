@@ -1,19 +1,45 @@
 import numpy as np
 from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
-
+import torch
 from ...utils import numpy_util as npu
-
+from typing import overload, Optional
 FloatArray = npu.FloatArray
 dtype = npu.dtype
 
-def transform_matrices( 
-    q: FloatArray,
-    d: FloatArray,
-    a: FloatArray,
-    alpha: FloatArray,
-    b: FloatArray | None = None,
-    ) -> FloatArray:
+Array = np.ndarray | torch.Tensor
+
+@overload
+def transform_matrices(
+    q: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray | None = ...
+    ) -> FloatArray: ...
+
+@overload
+def transform_matrices(
+    q: torch.Tensor, d: torch.Tensor, a: torch.Tensor, alpha: torch.Tensor, b: torch.Tensor | None = ...    
+    ) -> torch.Tensor: ...
+
+@overload
+def cumulative_transforms(
+    q: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray | None = ...
+    ) -> FloatArray: ...
+
+@overload
+def cumulative_transforms(
+    q: torch.Tensor, d: torch.Tensor, a: torch.Tensor, alpha: torch.Tensor, b: torch.Tensor | None = ...    
+    ) -> torch.Tensor: ...
+
+@overload
+def jacobian(
+    T_wf: FloatArray
+    ) -> FloatArray: ...
+
+@overload
+def jacobian(
+    T_wf: torch.Tensor
+    ) -> torch.Tensor: ...
+
+def transform_matrices(q, d, a, alpha, b = None): # type: ignore
     """
     Vectorized Standard DH transforms (Craig's convention).
 
@@ -23,21 +49,21 @@ def transform_matrices(
 
     Parameters
     ----------
-    q : ndarray, shape (n,)
+    q : ndarray or Tensor, shape (n,)
         Joint positions.
-    d : ndarray, shape (n,)
+    d : ndarray or Tensor, shape (n,)
         Offsets along previous z.
-    a : ndarray, shape (n,)
+    a : ndarray or Tensor, shape (n,)
         Lengths along current x.
-    alpha : ndarray, shape (n,)
+    alpha : ndarray or Tensor, shape (n,)
         Twists about current x (rad).
-    b : ndarray, shape (n,), optional
+    b : ndarray or Tensor, shape (n,), optional
         Extra translation along the new z-axis after forming A_i.
         Defaults to zeros if None.
 
     Returns
     -------
-    A : ndarray, shape (n, 4, 4)
+    A : ndarray or Tensor, shape (n, 4, 4)
         Stack of per-link homogeneous transforms.
 
     Notes
@@ -46,35 +72,39 @@ def transform_matrices(
         A_i = Rot_z(theta_i) * Trans_z(d_i) * Trans_x(a_i) * Rot_x(alpha_i)
     The `b` shift is applied by adding b_i * z_new to the translation column.
     """
+    
+    if all(isinstance(x, torch.Tensor) for x in (q, d, a, alpha)):
+        xp = torch
+    elif all(isinstance(x, np.ndarray) for x in (q, d, a, alpha)):
+        xp = np
+    else:
+        raise TypeError("all inputs must be either numpy arrays or torch tensors")
 
-    if b is None: b = np.zeros_like(q)
+    if b is None: b = xp.zeros_like(q)
 
     assert q.ndim == d.ndim == a.ndim == alpha.ndim == b.ndim == 1, "All inputs must be 1-D"
     assert q.shape == d.shape == a.shape == alpha.shape == b.shape, "All inputs must have the same length"
     n = q.shape[0]
 
-    cT, sT = np.cos(q), np.sin(q)
-    cA, sA = np.cos(alpha), np.sin(alpha)
-
-    A = np.empty((n, 4, 4), dtype=q.dtype)
+    cT, sT = xp.cos(q), xp.sin(q)
+    cA, sA = xp.cos(alpha), xp.sin(alpha)
+    if xp is np:
+        A = xp.empty((n, 4, 4), dtype=q.dtype)
+    else:
+        A = xp.empty((n, 4, 4), dtype=q.dtype, device=q.device)
 
     A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT
     A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT
     A[:, 2, 0] = 0.0;  A[:, 2, 1] = sA;    A[:, 2, 2] = cA;    A[:, 2, 3] = d
     A[:, 3, 0] = 0.0;  A[:, 3, 1] = 0.0;    A[:, 3, 2] = 0.0;    A[:, 3, 3] = 1.0
 
-    A[:, :3, 3] += b[:, None] * A[:, :3, 2]
+    A[:, :3, 3] += b[:, None] * A[:, :3, 2] # type: ignore
 
     return A
 
 
-def cumulative_transforms(
-    q: FloatArray,
-    d: FloatArray,
-    a: FloatArray,
-    alpha: FloatArray,
-    b: FloatArray | None = None,
-    ) -> FloatArray:
+
+def cumulative_transforms(q, d, a, alpha, b=None):
     """
     Cumulative DH transforms with respect to the base frame.
 
@@ -94,12 +124,25 @@ def cumulative_transforms(
     T_bl : ndarray, shape (n, 4, 4)
         Stack of base-to-link transforms.
     """
-    n = q.shape[0]
+    
+    if all(isinstance(x, torch.Tensor) for x in (d, a, alpha)):
+        xp = torch
+    elif all(isinstance(x, np.ndarray) for x in (d, a, alpha)):
+        xp = np
+    else:
+        raise TypeError("all inputs must be either numpy arrays or torch tensors")
+
+    n = q.size
 
     A = transform_matrices(q, d, a, alpha, b)  # (n,4,4)
-    T_bl = np.empty_like(A)                      # (n,4,4)
+    T_bl = xp.empty_like(A)                      # (n,4,4)
 
-    T_b = np.eye(4, dtype=A.dtype)
+    if xp is np:
+        T_b = xp.eye((n, 4, 4), dtype=q.dtype)
+    else:
+        T_b = xp.eye((n, 4, 4), dtype=q.dtype, device=q.device)
+
+    T_b = xp.eye(4, dtype=A.dtype)
     for i in range(n):
         T_b = T_b @ A[i]
         T_bl[i] = T_b
@@ -107,62 +150,45 @@ def cumulative_transforms(
     return T_bl
 
 
-def jacobian(
-    T_wf: FloatArray,
-    ) -> FloatArray:
+
+def jacobian(T_wf):
     """
-    Compute the geometric Jacobian J(q) in the world frame.
+    Compute the geometric Jacobian J(q) in the world frame. 
+    pytorch version for automatic differentiation.
 
     Assumed revolute about z_{i-1}.
 
     Parameters
     ----------
-    T_wf : ndarray, shape (n+1, 4, 4)
+    T_wf : Tensor, shape (n+1, 4, 4)
         World-to-frame transforms for all frames including base (frame 0).
     
     Returns
     -------
-    J : ndarray, shape (6, n)
+    J : Tensor, shape (6, n)
         Geometric Jacobian expressed in the world frame.
         Rows 0..2 are the linear part Jv, rows 3..5 are the angular part Jw.
     """
     # shape checks
+
+    if isinstance(T_wf, torch.Tensor):
+        xp = torch
+    elif isinstance(T_wf, np.ndarray):
+        xp = np
+    else:
+        raise TypeError("input must be either a numpy array or a torch tensor")
+
+
     assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n, 4, 4)"
-    n = T_wf.shape[0] - 1
 
     o_wf = T_wf[:, :3, 3]   # (n+1, 3) origins in world
     z_wf = T_wf[:, :3, 2]   # (n+1, 3) z-axes in world
 
     o_n = o_wf[-1]           # end-effector origin
 
-    # revolute joints: Jv_i = z_{i-1} x (o_n - o_{i-1}), Jw_i = z_{i-1}
-    Jv = np.cross(z_wf[:-1], (o_n - o_wf[:-1]), axis=1).T   # (3, n)
+    Jv = xp.cross(z_wf[:-1], (o_n - o_wf[:-1]), dim=1).T   # (3, n)
     Jw = z_wf[:-1].T                                          # (3, n)
 
-    J = np.vstack([Jv, Jw])  # (6, n)
+    J = np.vstack([Jv, Jw]) if xp is np else torch.cat([Jv, Jw])
     return J
 
-
-def com_world(
-    T_wf: FloatArray,
-    com_fl: FloatArray,
-    ) -> FloatArray:
-    """
-    Compute centers of mass in the world frame.
-
-    Parameters
-    ----------
-    T_wf : ndarray, shape (n+1, 4, 4)
-        World-to-frame transforms for base (0) and all links.
-    com_fl : ndarray, shape (n+1, 3)
-        COM positions expressed in each frame's local coordinates.
-
-    Returns
-    -------
-    com_w : ndarray, shape (n+1, 3)
-        COM positions for base and links, expressed in the world frame.
-    """
-    R = T_wf[:, :3, :3]            # (n+1, 3, 3)
-    p = T_wf[:, :3, 3]             # (n+1, 3)
-    com_w = R @ com_fl + p          # (n+1, 3)
-    return com_w
