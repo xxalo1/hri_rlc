@@ -98,7 +98,8 @@ class Kinematics:
         o_wb: FloatArray | None = None,
         axes_wb: FloatArray | None = None,
         inertia: dict[str, FloatArray] | None = None,
-        dtype = dtype
+        dtype = dtype,
+
         ) -> None:
         """
         d, a, alpha: 1D array (length n)
@@ -171,7 +172,7 @@ class Kinematics:
     # done
     def fk(self, 
         q: FloatArray | None = None, 
-        n: int | None = None
+        i: int | None = None
         ) -> FloatArray:
         """
         Compute cumulative forward kinematics in the world frame.
@@ -179,28 +180,29 @@ class Kinematics:
         Parameters
         ----------
         q : ndarray, shape (n,), optional
-            Joint positions. Defaults to the internal state `self.q` if None.
-        n : int, optional
-            Number of joints to include. Defaults to all joints.
+            Joint positions. Defaults to the internal state `self.q` if `None`.
+        i : int, optional
+            joint index up to which to compute the forward kinematics. 
+            Defaults to all joints if `None`.
 
         Returns
         -------
-        T_wl : ndarray, shape (n, 4, 4)
-            World-frame transforms [T_W_1, ..., T_W_n].
+        T_wl : ndarray, shape (i+1, 4, 4)
+            World-frame transforms [T_W_1, ..., T_W_(i+1)].
         """
-        if n is None: n = len(self.d)
         if q is None: q = self.q
+        if i is None: i = len(q) -1
+        i+=1
 
         T_bl = ops.cumulative_transforms(q, self.d, self.a, self.alpha, self.b)
-        T_bl = T_bl[:n]
-
+        T_bl = T_bl[:i]
         T_wl = self.T_wb @ T_bl
         return T_wl
 
     # done
     def fk_t(self, 
         q: torch.Tensor | None = None, 
-        n: int | None = None
+        i: int | None = None
         ) -> torch.Tensor:
         """
         Compute cumulative forward kinematics in the world frame (PyTorch).
@@ -209,20 +211,21 @@ class Kinematics:
         ----------
         q : Tensor, shape (n,), optional
             Joint positions. Defaults to the internal state `self.q_t` if None.
-        n : int, optional
-            Number of joints to include. Defaults to all joints.
+        i : int, optional
+            joint index up to which to compute the forward kinematics. 
+            Defaults to all joints if `None`.
 
         Returns
         -------
-        T_wl : Tensor, shape (n, 4, 4)
-            World-frame transforms stacked as [T_W_1, ..., T_W_n].
+        T_wl : Tensor, shape (i+1, 4, 4)
+            World-frame transforms stacked as [T_W_1, ..., T_W_(i+1)].
         """
         if q is None: q = self.q_t
-        if n is None: n = q.shape[0]
-        
-        T_bl = ops_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
-        T_bl = T_bl[:n]
+        if i is None: i = len(q) -1
+        i+=1
 
+        T_bl = ops_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
+        T_bl = T_bl[:i]
         T_wl = self.T_wb_t @ T_bl
         return T_wl
 
@@ -322,7 +325,10 @@ class Kinematics:
         self.T_wb_t = ptu.from_numpy(self.T_wb, dtype=ptu.dtype)
 
     # done
-    def jac(self, q: FloatArray | None = None) -> FloatArray:
+    def jac(self, 
+        q: FloatArray | None = None,
+        i: int | None = None
+        ) -> FloatArray:
         """
         Compute the geometric Jacobian matrix using NumPy operations.
 
@@ -340,6 +346,9 @@ class Kinematics:
         q : ndarray, shape (n,), optional
             Joint positions.
             If None, defaults to `self.q`.
+        i : int, optional
+            joint index up to which to compute the Jacobian.
+            If None, defaults to end effector.
 
         Returns
         -------
@@ -349,13 +358,16 @@ class Kinematics:
             three correspond to angular velocity terms.
         """
         if q is None: q = self.q
-        T_wl = self.fk(q)
+        T_wl = self.fk(q, i=i)
         T_wf = self.prepend_base(T_wl)
         J = ops.jacobian(T_wf) # type: ignore
         return J
 
-    # done
-    def jac_t(self, q: torch.Tensor | None = None) -> torch.Tensor:
+    # add way to 
+    def jac_t(self, 
+        q: torch.Tensor | None = None,
+        i: int | None = None
+        ) -> torch.Tensor:
         """
         Compute the Jacobian matrix using a differentiable PyTorch implementation.
 
@@ -368,6 +380,9 @@ class Kinematics:
         q : Tensor, shape (n,), optional
             Joint configuration vector. If None, defaults to the internal joint
             positions `self.q_t`.
+        i : int, optional
+            Joint index to which compute the Jacobian.
+            If None, defaults to end effector.
 
         Returns
         -------
@@ -382,15 +397,15 @@ class Kinematics:
         """
         if q is None: q = self.q_t
         jac = self.jac_fn or self._init_jac_callable()
-        return jac(q)
+        return jac(q, i=i)
 
     # done
-    def _init_jac_callable(self) -> Callable[[torch.Tensor], torch.Tensor]:
+    def _init_jac_callable(self) -> Callable[[torch.Tensor, int | None], torch.Tensor]:
         """
         Initialize jacobian function callable `self.jac_fn` for autograd.
         """
-        def jac(q: torch.Tensor) -> torch.Tensor:
-            T_bl = self.fk_t(q)
+        def jac(q: torch.Tensor, i: int | None = None) -> torch.Tensor:
+            T_bl = self.fk_t(q, i=i)
             T_wf = self.prepend_base(T_bl)
             return ops_t.jacobian(T_wf)   # type: ignore # (6,n)
 
@@ -398,12 +413,13 @@ class Kinematics:
         return jac
 
     # done
-    def spatial_vel(self, 
+    def spatial_vel_t(self, 
         q: torch.Tensor | None = None, 
         qd: torch.Tensor | None = None
         ) -> torch.Tensor:
         """
-        Compute the spatial velocity of all joints in the manipulator.
+        Compute the spatial velocity of all joints in the manipulator. 
+        pytorch version for automatic differentiation.
 
         Each joint's 6D spatial velocity is given as:
         [vx, vy, vz, wx, wy, wz].
@@ -425,15 +441,51 @@ class Kinematics:
         if q is None: q = self.q_t
         if qd is None: qd = self.qd_t
 
-        n = q.shape[0]
+        n = len(q)
         v = []
+        J_all = torch.zeros((n, 6, n), dtype=q.dtype, device=q.device)
         for i in range(n):
-            v_i = ops_t.spatial_vel(q[: i + 1], qd[: i + 1], self.jac_fn)
-            v.append(v_i.unsqueeze(0))   # (1, 6)
-        v = torch.cat(v, dim=0)          # (n, 6)
-        return v        
+            J_all[i, :, : i + 1] = self.jac_t(q, i=i)  # (6, i+1)
+        v = J_all @ qd
+        return v
 
     # done
+    def spatial_vel(self, 
+        q: FloatArray | None = None, 
+        qd: FloatArray | None = None
+        ) -> FloatArray:
+        """
+        Compute the spatial velocity of all joints in the manipulator.
+
+        Each joint's 6D spatial velocity is given as:
+        [vx, vy, vz, wx, wy, wz].
+
+        Parameters
+        ----------
+        q : ndarray, shape (n,), optional
+            Joint positions. Defaults to `self.q_t` if None.
+        qd : ndarray, shape (n,), optional
+            Joint velocities. Defaults to `self.qd_t` if None.
+
+        Returns
+        -------
+        v : ndarray, shape (n, 6)
+            Spatial velocities for all joints, stacked row-wise.
+            Each row corresponds to one joint's [linear, angular] velocity.
+        """
+
+        if q is None: q = self.q
+        if qd is None: qd = self.qd
+
+        n = len(q)
+        v = []
+        J_all = np.zeros((n, 6, n), dtype=q.dtype)
+        for i in range(n):
+            J_all[i, :, : i + 1] = self.jac(q, i=i)  # (6, i+1)
+        v = J_all @ qd
+        return v
+
+    # broken
     def spatial_acc(self, 
         q: torch.Tensor, 
         qd: torch.Tensor, 
@@ -472,7 +524,7 @@ class Kinematics:
         a = torch.cat(a, dim=0)       # (n, 6)
         return a
 
-
+    # broken
     def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
                 tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
         """

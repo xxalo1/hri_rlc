@@ -127,8 +127,7 @@ def jacobian(
         Rows 0..2 are the linear part Jv, rows 3..5 are the angular part Jw.
     """
     # shape checks
-    assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n, 4, 4)"
-    n = T_wf.shape[0] - 1
+    assert T_wf.ndim == 3 and T_wf.shape[:] == (4, 4), "T_wf must be (n, 4, 4)"
 
     o_wf = T_wf[:, :3, 3]   # (n+1, 3) origins in world
     z_wf = T_wf[:, :3, 2]   # (n+1, 3) z-axes in world
