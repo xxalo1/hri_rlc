@@ -1,45 +1,43 @@
 import numpy as np
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, TypeVar
 from numpy.typing import ArrayLike, NDArray
 import torch
 from ...utils import numpy_util as npu
 from typing import overload, Optional
-FloatArray = npu.FloatArray
+from ...backend import XP
 dtype = npu.dtype
 
-Array = np.ndarray | torch.Tensor
-
-@overload
-def transform_matrices(
-    q: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray | None = ...
-    ) -> FloatArray: ...
-
-@overload
-def transform_matrices(
-    q: torch.Tensor, d: torch.Tensor, a: torch.Tensor, alpha: torch.Tensor, b: torch.Tensor | None = ...    
-    ) -> torch.Tensor: ...
+Arr = TypeVar("Arr", np.ndarray, torch.Tensor)
 
 @overload
 def cumulative_transforms(
-    q: FloatArray, d: FloatArray, a: FloatArray, alpha: FloatArray, b: FloatArray | None = ...
-    ) -> FloatArray: ...
+    q: np.ndarray, 
+    d: np.ndarray, 
+    a: np.ndarray, 
+    alpha: np.ndarray, 
+    b: np.ndarray | None = ...
+    ) -> np.ndarray: ...
 
 @overload
 def cumulative_transforms(
-    q: torch.Tensor, d: torch.Tensor, a: torch.Tensor, alpha: torch.Tensor, b: torch.Tensor | None = ...    
+    q: torch.Tensor, 
+    d: torch.Tensor, 
+    a: torch.Tensor, 
+    alpha: torch.Tensor, 
+    b: torch.Tensor | None = ...
     ) -> torch.Tensor: ...
 
 @overload
 def jacobian(
-    T_wf: FloatArray
-    ) -> FloatArray: ...
+    T_wf: np.ndarray
+    ) -> np.ndarray: ...
 
 @overload
 def jacobian(
     T_wf: torch.Tensor
     ) -> torch.Tensor: ...
 
-def transform_matrices(q, d, a, alpha, b = None): # type: ignore
+def transform_matrices(q: Arr, d: Arr, a: Arr, alpha: Arr, b: Arr | None = None) -> Arr:
     """
     Vectorized Standard DH transforms (Craig's convention).
 
@@ -72,13 +70,10 @@ def transform_matrices(q, d, a, alpha, b = None): # type: ignore
         A_i = Rot_z(theta_i) * Trans_z(d_i) * Trans_x(a_i) * Rot_x(alpha_i)
     The `b` shift is applied by adding b_i * z_new to the translation column.
     """
-    
-    if all(isinstance(x, torch.Tensor) for x in (q, d, a, alpha)):
-        xp = torch
-    elif all(isinstance(x, np.ndarray) for x in (q, d, a, alpha)):
-        xp = np
-    else:
-        raise TypeError("all inputs must be either numpy arrays or torch tensors")
+
+    xp = XP.from_inputs(q, d, a, alpha)
+    xp.assert_consistent(q, d, a, alpha)
+
 
     if b is None: b = xp.zeros_like(q)
 
@@ -88,10 +83,8 @@ def transform_matrices(q, d, a, alpha, b = None): # type: ignore
 
     cT, sT = xp.cos(q), xp.sin(q)
     cA, sA = xp.cos(alpha), xp.sin(alpha)
-    if xp is np:
-        A = xp.empty((n, 4, 4), dtype=q.dtype)
-    else:
-        A = xp.empty((n, 4, 4), dtype=q.dtype, device=q.device)
+
+    A = xp.zeros((n, 4, 4))
 
     A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT
     A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT
