@@ -6,7 +6,7 @@ from typing import Any, Optional, Sequence, Callable
 from numpy.typing import ArrayLike, NDArray
 
 
-from . import ops, ops_t
+from . import ops, ops_t, core_ops as cops
 from ...utils import numpy_util as npu
 from ...utils import pytorch_util as ptu
 
@@ -194,7 +194,7 @@ class Kinematics:
         if i is None: i = len(q) -1
         i+=1
 
-        T_bl = ops.cumulative_transforms(q, self.d, self.a, self.alpha, self.b)
+        T_bl = cops.transform_matrices(q, self.d, self.a, self.alpha, self.b)
         T_bl = T_bl[:i]
         T_wl = self.T_wb @ T_bl
         return T_wl
