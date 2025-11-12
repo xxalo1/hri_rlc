@@ -1,22 +1,25 @@
 import numpy as np
 from typing import Any, Optional, Sequence, TypeVar
-from numpy.typing import ArrayLike, NDArray
 import torch
-from ...utils import numpy_util as npu
 from typing import overload, Optional
+
 from ...backend import XP
+from ...utils import numpy_util as npu
+from ...utils import array_compat as xp
+FloatArray  = npu.FloatArray
 dtype = npu.dtype
 
-Arr = TypeVar("Arr", np.ndarray, torch.Tensor)
+
+Arr = TypeVar("Arr", FloatArray, torch.Tensor)
 
 @overload
 def cumulative_transforms(
-    q: np.ndarray, 
-    d: np.ndarray, 
-    a: np.ndarray, 
-    alpha: np.ndarray, 
-    b: np.ndarray | None = ...
-    ) -> np.ndarray: ...
+    q: FloatArray, 
+    d: FloatArray, 
+    a: FloatArray, 
+    alpha: FloatArray, 
+    b: FloatArray | None = ...
+    ) -> FloatArray: ...
 
 @overload
 def cumulative_transforms(
@@ -29,15 +32,34 @@ def cumulative_transforms(
 
 @overload
 def jacobian(
-    T_wf: np.ndarray
-    ) -> np.ndarray: ...
+    T_wf: FloatArray
+    ) -> FloatArray: ...
 
 @overload
 def jacobian(
     T_wf: torch.Tensor
     ) -> torch.Tensor: ...
 
-def transform_matrices(q: Arr, d: Arr, a: Arr, alpha: Arr, b: Arr | None = None) -> Arr:
+@overload
+def transform_matrices(
+    q: torch.Tensor, 
+    d: torch.Tensor, 
+    a: torch.Tensor, 
+    alpha: torch.Tensor, 
+    b: torch.Tensor | None = ...
+    ) -> torch.Tensor: ...
+
+@overload
+def transform_matrices(
+    q: FloatArray, 
+    d: FloatArray, 
+    a: FloatArray, 
+    alpha: FloatArray, 
+    b: FloatArray | None = ...
+    ) -> FloatArray: ...
+
+
+def transform_matrices(q, d, a, alpha, b = None):
     """
     Vectorized Standard DH transforms (Craig's convention).
 
@@ -71,10 +93,6 @@ def transform_matrices(q: Arr, d: Arr, a: Arr, alpha: Arr, b: Arr | None = None)
     The `b` shift is applied by adding b_i * z_new to the translation column.
     """
 
-    xp = XP.from_inputs(q, d, a, alpha)
-    xp.assert_consistent(q, d, a, alpha)
-
-
     if b is None: b = xp.zeros_like(q)
 
     assert q.ndim == d.ndim == a.ndim == alpha.ndim == b.ndim == 1, "All inputs must be 1-D"
@@ -84,7 +102,7 @@ def transform_matrices(q: Arr, d: Arr, a: Arr, alpha: Arr, b: Arr | None = None)
     cT, sT = xp.cos(q), xp.sin(q)
     cA, sA = xp.cos(alpha), xp.sin(alpha)
 
-    A = xp.zeros((n, 4, 4))
+    A = xp.zeros(q, (n, 4, 4))
 
     A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT
     A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT
@@ -120,7 +138,7 @@ def cumulative_transforms(q, d, a, alpha, b=None):
     
     if all(isinstance(x, torch.Tensor) for x in (d, a, alpha)):
         xp = torch
-    elif all(isinstance(x, np.ndarray) for x in (d, a, alpha)):
+    elif all(isinstance(x, FloatArray) for x in (d, a, alpha)):
         xp = np
     else:
         raise TypeError("all inputs must be either numpy arrays or torch tensors")
@@ -166,7 +184,7 @@ def jacobian(T_wf):
 
     if isinstance(T_wf, torch.Tensor):
         xp = torch
-    elif isinstance(T_wf, np.ndarray):
+    elif isinstance(T_wf, FloatArray):
         xp = np
     else:
         raise TypeError("input must be either a numpy array or a torch tensor")
