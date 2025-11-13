@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Any, Optional, Sequence, TypeVar
+from typing import Any, Optional, Sequence, TypeVar, reveal_type
 import torch
 from typing import overload, Optional
 
@@ -13,34 +13,6 @@ dtype = npu.dtype
 Arr = TypeVar("Arr", FloatArray, torch.Tensor)
 
 @overload
-def cumulative_transforms(
-    q: FloatArray, 
-    d: FloatArray, 
-    a: FloatArray, 
-    alpha: FloatArray, 
-    b: FloatArray | None = ...
-    ) -> FloatArray: ...
-
-@overload
-def cumulative_transforms(
-    q: torch.Tensor, 
-    d: torch.Tensor, 
-    a: torch.Tensor, 
-    alpha: torch.Tensor, 
-    b: torch.Tensor | None = ...
-    ) -> torch.Tensor: ...
-
-@overload
-def jacobian(
-    T_wf: FloatArray
-    ) -> FloatArray: ...
-
-@overload
-def jacobian(
-    T_wf: torch.Tensor
-    ) -> torch.Tensor: ...
-
-@overload
 def transform_matrices(
     q: torch.Tensor, 
     d: torch.Tensor, 
@@ -48,7 +20,6 @@ def transform_matrices(
     alpha: torch.Tensor, 
     b: torch.Tensor | None = ...
     ) -> torch.Tensor: ...
-
 @overload
 def transform_matrices(
     q: FloatArray, 
@@ -59,7 +30,13 @@ def transform_matrices(
     ) -> FloatArray: ...
 
 
-def transform_matrices(q, d, a, alpha, b = None):
+def transform_matrices(
+        q: Arr, 
+        d: Arr, 
+        a: Arr, 
+        alpha: Arr, 
+        b: Arr | None = None
+        ) -> Arr:
     """
     Vectorized Standard DH transforms (Craig's convention).
 
@@ -97,22 +74,52 @@ def transform_matrices(q, d, a, alpha, b = None):
 
     assert q.ndim == d.ndim == a.ndim == alpha.ndim == b.ndim == 1, "All inputs must be 1-D"
     assert q.shape == d.shape == a.shape == alpha.shape == b.shape, "All inputs must have the same length"
-    n = q.shape[0]
+    n: int = q.shape[0]
+
 
     cT, sT = xp.cos(q), xp.sin(q)
     cA, sA = xp.cos(alpha), xp.sin(alpha)
 
     A = xp.zeros(q, (n, 4, 4))
+    reveal_type(A)
 
     A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT
     A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT
     A[:, 2, 0] = 0.0;  A[:, 2, 1] = sA;    A[:, 2, 2] = cA;    A[:, 2, 3] = d
     A[:, 3, 0] = 0.0;  A[:, 3, 1] = 0.0;    A[:, 3, 2] = 0.0;    A[:, 3, 3] = 1.0
 
-    A[:, :3, 3] += b[:, None] * A[:, :3, 2] # type: ignore
+    A[:, :3, 3] += b[:, None] * A[:, :3, 2]
 
     return A
 
+
+@overload
+def cumulative_transforms(
+    q: FloatArray, 
+    d: FloatArray, 
+    a: FloatArray, 
+    alpha: FloatArray, 
+    b: FloatArray | None = ...
+    ) -> FloatArray: ...
+
+@overload
+def cumulative_transforms(
+    q: torch.Tensor, 
+    d: torch.Tensor, 
+    a: torch.Tensor, 
+    alpha: torch.Tensor, 
+    b: torch.Tensor | None = ...
+    ) -> torch.Tensor: ...
+
+@overload
+def jacobian(
+    T_wf: FloatArray
+    ) -> FloatArray: ...
+
+@overload
+def jacobian(
+    T_wf: torch.Tensor
+    ) -> torch.Tensor: ...
 
 
 def cumulative_transforms(q, d, a, alpha, b=None):
