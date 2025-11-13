@@ -4,31 +4,22 @@ import numpy as np
 import torch
 
 from functools import singledispatch
-from typing import Any, overload
+from typing import Any, TypeVar, overload
 
 from . import numpy_util as npu
 from . import pytorch_util as ptu
 FloatArray = npu.FloatArray
 Shape = int | tuple[int, ...]
-
+Arr = TypeVar("Arr", FloatArray, torch.Tensor)
 # ----------------------------- trigonometry -----------------------------
-
-@overload
-def cos(x: FloatArray) -> FloatArray: ...
-@overload
-def cos(x: torch.Tensor) -> torch.Tensor: ...
-@singledispatch
-def cos(x: Any):
-    raise NotImplementedError(f'cos not implemented for type {type(x)}')
-
-@cos.register(np.ndarray)  # type: ignore[attr-defined]
-def _(x: FloatArray) -> FloatArray:
-    return np.cos(x)
-
-@cos.register(torch.Tensor)  # type: ignore[attr-defined]
-def _(x: torch.Tensor) -> torch.Tensor:
-    return torch.cos(x)
-
+def cos(x: Arr) -> Arr:
+    """Compute the cosine of the input, dispatching based on type."""
+    if isinstance(x, np.ndarray):
+        return np.cos(x)
+    elif isinstance(x, torch.Tensor):
+        return torch.cos(x)
+    else:
+        raise NotImplementedError(f'cos not implemented for type {type(x)}')
 
 @overload
 def sin(x: FloatArray) -> FloatArray: ...
