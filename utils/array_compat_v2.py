@@ -6,10 +6,8 @@ import torch
 
 from typing import Any, Sequence, TypeVar, overload
 
-from . import numpy_util as npu
-FloatArray = npu.FloatArray
 Shape = int | tuple[int, ...]
-ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
+from ..utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
 
 def cos(x: ArrayT) -> ArrayT: 
     """Cosine function compatible with both numpy arrays and torch tensors."""
