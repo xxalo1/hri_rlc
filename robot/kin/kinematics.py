@@ -4,6 +4,8 @@ import numpy as np
 import torch
 from typing import Generic, TypeVar
 
+from robot.kin.kine import Arr
+
 
 from . import ops, ops_t
 from . import core_ops as cops
@@ -123,10 +125,6 @@ class Kinematics(Generic[ArrayT]):
 
         if inertia is None: inertia = {}
 
-        self.com_fl = inertia.get("com", None)
-        self.mass = inertia.get("mass", None)
-        self.Ic_fl = inertia.get("Ic", None)
-
         self.o_wb = o_wb  # origins in base frame
         self.axes_wb = axes_wb  # z axes in base frame
 
@@ -140,6 +138,10 @@ class Kinematics(Generic[ArrayT]):
 
         n = self.n
 
+        self.com_fl = inertia.get("com", xp.zeros_like(self.d, shape=(n+1, 3)))
+        self.mass = inertia.get("mass", xp.zeros_like(self.d, shape=n+1))
+        self.Ic_fl = inertia.get("Ic", xp.zeros_like(self.d, shape=(n+1, 3, 3)))
+
         self.T_wl: ArrayT = xp.empty_like(self.d, shape=(n, 4, 4))
         self.T_wf: ArrayT = xp.empty_like(self.d, shape=(n + 1, 4, 4))
         self.J: ArrayT = xp.empty_like(self.d, shape=(n, 6, n))
@@ -147,19 +149,9 @@ class Kinematics(Generic[ArrayT]):
         self._J_valid: bool = False
         self._array_cls = np.ndarray if isinstance(self.d, np.ndarray) else torch.Tensor
 
-
     @property
     def n(self) -> int:
         return len(self.d)
-    
-    @property
-    def q(self): return self._q
-    @q.setter
-    def q(self, v):
-        self._validate_array(v, self._q, "q")
-        self._q = v
-        self._invalidate_kinematics()
-
 
     @property
     def d(self): return self._d
@@ -169,6 +161,29 @@ class Kinematics(Generic[ArrayT]):
         self._d = v
         self._invalidate_kinematics()
 
+    @property
+    def alpha(self): return self._alpha
+    @alpha.setter
+    def alpha(self, v):
+        self._validate_array(v, self._alpha, "alpha")
+        self._alpha = v
+        self._invalidate_kinematics()
+
+    @property
+    def q0(self): return self._q0
+    @q0.setter
+    def q0(self, v):
+        self._validate_array(v, self._q0, "q0")
+        self._q0 = v
+        self._invalidate_kinematics()
+
+    @property
+    def a(self): return self._a
+    @a.setter
+    def a(self, v):
+        self._validate_array(v, self._a, "a")
+        self._a = v
+        self._invalidate_kinematics()
 
     @property
     def o_wb(self): return self._o_wb
@@ -180,7 +195,6 @@ class Kinematics(Generic[ArrayT]):
         self.T_wb[:3, 3] = v
         self._invalidate_kinematics()
 
-
     @property
     def axes_wb(self): return self._axes_wb
     @axes_wb.setter
@@ -190,18 +204,42 @@ class Kinematics(Generic[ArrayT]):
         self.T_wb[:3, :3] = v
         self._invalidate_kinematics()
 
+    @property
+    def q(self): return self._q
+    @q.setter
+    def q(self, v):
+        self._validate_array(v, self._q, "q")
+        self._q = v
+        self._invalidate_kinematics()
 
-    def _invalidate_fk(self) -> None:
-        self._fk_valid = False
+    @property
+    def qd(self): return self._qd
+    @qd.setter
+    def qd(self, v):
+        self._validate_array(v, self._qd, "qd")
+        self._qd = v
 
+    @property
+    def qdd(self): return self._qdd
+    @qdd.setter
+    def qdd(self, v):
+        self._validate_array(v, self._qdd, "qdd")
+        self._qdd = v
 
-    def _invalidate_jac(self) -> None:
-        self._J_valid = False
+    @property
+    def com_wl(self) -> ArrayT | None:
+        return self._compute_com_wl()
+
+    @property
+    def Ic_wl(self) -> ArrayT | None:
+        return self._compute_Ic_wl()
 
 
     def _invalidate_kinematics(self) -> None:
-        self._invalidate_fk()
-        self._invalidate_jac()
+        self._fk_valid = False
+        self._J_valid = False
+        self._com_valid = False
+        self._Ic_valid  = False
 
 
     def _validate_array(self, a, b, name: str | None = None) -> None:
@@ -245,7 +283,44 @@ class Kinematics(Generic[ArrayT]):
             raise ValueError(f"i must be in [0, {max_value - 1}]")
 
 
-    def prepend_base(self,
+    def _compute_com_wl(self) -> ArrayT | None:
+        """
+        Compute centers of mass (COM) positions in the world frame.
+        includes base at index 0.
+        """
+        if self._com_valid:
+            return self._com_wl
+
+        T_wf = self.forward_kinematics()
+        R = T_wf[:, :3, :3]            # (n+1, 3, 3)
+        p = T_wf[:, :3, 3]             # (n+1, 3)
+        com_wl = R @ self.com_fl + p          # (n+1, 3)
+
+        self._com_wl = com_wl
+        self._com_valid = True
+        return com_wl
+
+
+    def _compute_Ic_wl(self) -> ArrayT | None:
+        """
+        Inertia tensors rotated to world frame, shape (n+1, 3, 3).
+        includes base at index 0.
+        """
+        if self._Ic_valid:
+            return self._Ic_wl
+
+        T_wf = self.forward_kinematics()   # (n+1, 4, 4)
+        R = T_wf[:, :3, :3]                             # (n+1, 3, 3)
+        Ic_fl = self.Ic_fl                                  # (n+1, 3, 3)
+
+        Ic_wl = xp.einsum("kia, kab, kjb -> kij", R, Ic_fl, R)
+
+        self._Ic_wl = Ic_wl
+        self._Ic_valid = True
+        return Ic_wl
+
+
+    def _prepend_base(self,
         T_wl: ArrayT
         ) -> ArrayT:
         """Stack link transforms `T_wl` with base transform `T_wb`.
@@ -266,7 +341,7 @@ class Kinematics(Generic[ArrayT]):
         T_wf[1:] = T_wl
         return T_wf
 
-    # done
+
     def forward_kinematics(self, 
         q: ArrayT | None = None, 
         i: int | None = None,
@@ -309,7 +384,7 @@ class Kinematics(Generic[ArrayT]):
 
         T_bl = cops.cumulative_transforms(q, self.d, self.a, self.alpha, self.b)
         T_wl = self.T_wb @ T_bl
-        T_wf = self.prepend_base(T_wl)
+        T_wf = self._prepend_base(T_wl)
 
         if not use_cache: 
             return T_wf[:k]
@@ -318,16 +393,6 @@ class Kinematics(Generic[ArrayT]):
         self.T_wf = T_wf
         self._fk_valid = True
         return self.T_wf[:k]
-
-
-    def update_com(self) -> None:
-        """
-        Update the centers of mass (COM) positions 
-        from link frame to world frame.
-        """
-        if self.com_fl is None: return
-        T_w = self.forward_kinematics()
-        self.com_wl = cops.com_world(T_w, self.com_fl)
 
 
     def update_config(self,
