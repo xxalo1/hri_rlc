@@ -1,5 +1,5 @@
-from ...utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
-
+from ...utils import array_compat as xp
+from ...utils import ArrayT
 
 def transform_matrices(
     q: ArrayT, 

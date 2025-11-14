@@ -20,6 +20,7 @@ for key in dh_numpy:
 assert isinstance(dh_torch['d'], torch.Tensor), "dh_torch['d'] is not a torch Tensor"
 assert isinstance(inertia_torch['m'], torch.Tensor), "inertia_torch['m'] is not a torch Tensor"
 
-print("dh: \n", dh_torch)
 T_0 = torch.eye(4, dtype=ptu.dtype, device=ptu.device)
 kin = Kinematics(dh=dh_torch, o_wb = T_0[3:, 0:3], axes_wb = T_0[0:3, 0:3], inertia=inertia_torch)
+dyn = Dynamics(kin=kin, g_vec=torch.tensor([0, 0, -9.81]))
+
