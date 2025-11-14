@@ -12,14 +12,23 @@ FloatArray = npu.FloatArray
 Shape = int | tuple[int, ...]
 Arr = TypeVar("Arr", FloatArray, torch.Tensor)
 # ----------------------------- trigonometry -----------------------------
-def cos(x: Arr) -> Arr:
-    """Compute the cosine of the input, dispatching based on type."""
-    if isinstance(x, np.ndarray):
-        return np.cos(x)
-    elif isinstance(x, torch.Tensor):
-        return torch.cos(x)
-    else:
-        raise NotImplementedError(f'cos not implemented for type {type(x)}')
+
+@overload
+def cos(x: FloatArray) -> FloatArray: ...
+@overload
+def cos(x: torch.Tensor) -> torch.Tensor: ...
+@singledispatch
+def cos(x: Any):
+    raise NotImplementedError(f'cos not implemented for type {type(x)}')
+
+@cos.register(np.ndarray)  # type: ignore[attr-defined]
+def _(x: FloatArray) -> FloatArray:
+    return np.cos(x)
+
+@cos.register(torch.Tensor)  # type: ignore[attr-defined]
+def _(x: torch.Tensor) -> torch.Tensor:
+    return torch.cos(x)
+
 
 @overload
 def sin(x: FloatArray) -> FloatArray: ...
@@ -147,19 +156,19 @@ def _(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 # ---------------------------- shape utilities ---------------------------
 
 @overload
-def concatenate(a: FloatArray, *rest: FloatArray, axis: int = 0) -> FloatArray: ...
+def concatenate(a: FloatArray, *rest: FloatArray, axis: int | None = None) -> FloatArray: ...
 @overload
-def concatenate(a: torch.Tensor, *rest: torch.Tensor, axis: int = 0) -> torch.Tensor: ...
+def concatenate(a: torch.Tensor, *rest: torch.Tensor, axis: int | None = None) -> torch.Tensor: ...
 @singledispatch
-def concatenate(a: Any, *rest: Any, axis: int = 0):
+def concatenate(a: Any, *rest: Any, axis: int | None = None):
     raise NotImplementedError(f'concatenate not implemented for type {type(a)}')
 
 @concatenate.register(np.ndarray)  # type: ignore[attr-defined]
-def _(a: FloatArray, *rest: FloatArray, axis: int = 0) -> FloatArray:
+def _(a: FloatArray, *rest: FloatArray, axis: int | None = None) -> FloatArray:
     return np.concatenate((a, *rest), axis=axis)
 
 @concatenate.register(torch.Tensor)  # type: ignore[attr-defined]
-def _(a: torch.Tensor, *rest: torch.Tensor, axis: int = 0) -> torch.Tensor:
+def _(a: torch.Tensor, *rest: torch.Tensor, axis: int | None = None) -> torch.Tensor:
     return torch.cat((a, *rest), dim=axis)
 
 
@@ -197,21 +206,21 @@ def einsum(subscripts: str, *operands):
 # ------------------------------- zeros_like --------------------------------
 
 @overload
-def zeros_like(x: FloatArray) -> FloatArray: ...
+def zeros_like(x: FloatArray, shape: Shape | None = None) -> FloatArray: ...
 @overload
-def zeros_like(x: torch.Tensor) -> torch.Tensor: ...
+def zeros_like(x: torch.Tensor, shape: Shape | None = None) -> torch.Tensor: ...
 @singledispatch
-def zeros_like(x: Any):
+def zeros_like(x: Any, shape: Shape | None = None):
     raise NotImplementedError(f'zeros_like not implemented for type {type(x)}')
 
 @zeros_like.register(np.ndarray)  # type: ignore[attr-defined]
-def _(x: FloatArray) -> FloatArray:
-    return np.zeros_like(x)
+def _(x: FloatArray, shape: Shape | None = None) -> FloatArray:
+    return np.zeros_like(x, shape=shape)
 
 @zeros_like.register(torch.Tensor)  # type: ignore[attr-defined]
-def _(x: torch.Tensor) -> torch.Tensor:
-    return torch.zeros_like(x)
-
+def _(x: torch.Tensor, shape: Shape | None = None) -> torch.Tensor:
+    if shape is None: return torch.zeros_like(x)
+    else: return torch.zeros(shape, dtype=x.dtype, device=x.device)
 
 # --------------------------------- zeros -----------------------------------
 
@@ -287,3 +296,35 @@ def _(like: FloatArray, n: int, m: int | None = None) -> FloatArray:
 @eye.register(torch.Tensor)  # type: ignore[attr-defined]
 def _(like: torch.Tensor, n: int, m: int | None = None) -> torch.Tensor:
     return torch.eye(n, m if m is not None else n, dtype=like.dtype, device=like.device)
+
+@overload
+def eye_like(like: FloatArray, n: int, m: int | None = None) -> FloatArray: ...
+@overload
+def eye_like(like: torch.Tensor, n: int, m: int | None = None) -> torch.Tensor: ...
+@singledispatch
+def eye_like(like: Any, n: int, m: int | None = None):
+    raise NotImplementedError(f'eye_like not implemented for type {type(like)}')
+
+@eye_like.register(np.ndarray)  # type: ignore[attr-defined]
+def _(like: FloatArray, n: int, m: int | None = None) -> FloatArray:
+    return np.eye(n, m, dtype=like.dtype)
+
+@eye_like.register(torch.Tensor)  # type: ignore[attr-defined]
+def _(like: torch.Tensor, n: int, m: int | None = None) -> torch.Tensor:
+    return torch.eye(n, m if m is not None else n, dtype=like.dtype, device=like.device)
+
+# ------------------------------------ cross -----------------------------------
+
+@overload
+def cross(a: FloatArray, b: FloatArray, dim: int | None = None) -> FloatArray: ...
+@overload
+def cross(a: torch.Tensor, b: torch.Tensor, dim: int | None = None) -> torch.Tensor: ...
+@singledispatch
+def cross(a: Any, b: Any, dim: int | None = None):
+    raise NotImplementedError(f'cross not implemented for type {type(a)}')
+@cross.register(np.ndarray)  # type: ignore[attr-defined]
+def _(a: FloatArray, b: FloatArray, dim: int | None = None) -> FloatArray:
+    return np.cross(a, b, axis=dim)
+@cross.register(torch.Tensor)  # type: ignore[attr-defined]
+def _(a: torch.Tensor, b: torch.Tensor, dim: int | None = None) -> torch.Tensor:
+    return torch.cross(a, b, dim=dim)

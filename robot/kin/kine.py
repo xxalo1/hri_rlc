@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from typing import Generic, TypeVar
+from typing import Any, Generic, Optional, Sequence, Callable, TypeVar
+from numpy.typing import ArrayLike, NDArray
 
 
 from . import ops, ops_t
 from . import core_ops as cops
 from ...utils import numpy_util as npu
+from ...utils import pytorch_util as ptu
 from ...utils import xp
 FloatArray = npu.FloatArray
 dtype = npu.dtype
-ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
+Arr = TypeVar("Arr", FloatArray, torch.Tensor)
 
-class Kinematics(Generic[ArrayT]):
+class Kinematics(Generic[Arr]):
     """
     Kinematics class for representing and computing robot kinematics.
 
@@ -94,10 +96,10 @@ class Kinematics(Generic[ArrayT]):
     -------
     """
     def __init__(self, 
-        dh: dict[str, ArrayT],
-        o_wb: ArrayT | None = None,
-        axes_wb: ArrayT | None = None,
-        inertia: dict[str, ArrayT] | None = None,
+        dh: dict[str, Arr],
+        o_wb: Arr | None = None,
+        axes_wb: Arr | None = None,
+        inertia: dict[str, Arr] | None = None,
         dtype = dtype,
         ) -> None:
         """
@@ -134,120 +136,17 @@ class Kinematics(Generic[ArrayT]):
         self.T_wb[:3, :3] = axes_wb
         self.T_wb[:3, 3] = o_wb
 
-        self.q = xp.zeros_like(self.d)
-        self.qd = xp.zeros_like(self.d)
-        self.qdd = xp.zeros_like(self.d)
+        self.q = xp.zeros_like(self.q0)
+        self.qd = xp.zeros_like(self.q)
+        self.qdd = xp.zeros_like(self.q)
 
-        n = self.n
+        self._jac_fn: Callable[[torch.Tensor], torch.Tensor] | None = None
+        self.update_tensors()
 
-        self.T_wl: ArrayT = xp.empty_like(self.d, shape=(n, 4, 4))
-        self.T_wf: ArrayT = xp.empty_like(self.d, shape=(n + 1, 4, 4))
-        self.J: ArrayT = xp.empty_like(self.d, shape=(n, 6, n))
-        self._fk_valid: bool = False
-        self._J_valid: bool = False
-        self._array_cls = np.ndarray if isinstance(self.d, np.ndarray) else torch.Tensor
-
-
-    @property
-    def n(self) -> int:
-        return len(self.d)
-    
-    @property
-    def q(self): return self._q
-    @q.setter
-    def q(self, v):
-        self._validate_array(v, self._q, "q")
-        self._q = v
-        self._invalidate_kinematics()
-
-
-    @property
-    def d(self): return self._d
-    @d.setter
-    def d(self, v):
-        self._validate_array(v, self._d, "d")
-        self._d = v
-        self._invalidate_kinematics()
-
-
-    @property
-    def o_wb(self): return self._o_wb
-    @o_wb.setter
-    def o_wb(self, v):
-        self._validate_array(v, self._o_wb, "o_wb")
-        self._o_wb = v
-        # keep T_wb derived and consistent:
-        self.T_wb[:3, 3] = v
-        self._invalidate_kinematics()
-
-
-    @property
-    def axes_wb(self): return self._axes_wb
-    @axes_wb.setter
-    def axes_wb(self, v):
-        self._validate_array(v, self._axes_wb, "axes_wb")
-        self._axes_wb = v
-        self.T_wb[:3, :3] = v
-        self._invalidate_kinematics()
-
-
-    def _invalidate_fk(self) -> None:
-        self._fk_valid = False
-
-
-    def _invalidate_jac(self) -> None:
-        self._J_valid = False
-
-
-    def _invalidate_kinematics(self) -> None:
-        self._invalidate_fk()
-        self._invalidate_jac()
-
-
-    def _validate_array(self, a, b, name: str | None = None) -> None:
-        """
-        Validate that `x` is of the correct type and shape.
-
-        Parameters
-        ----------
-        x : ndarray | Tensor
-            Array to validate.
-        b : ndarray | Tensor
-            Reference array for shape checking.
-        name : str, optional
-            Name of the array for error messages.
-        """
-        ArrayT = self._array_cls
-        name = name or "array"
-        if not isinstance(a, ArrayT):
-            raise TypeError(f"{name} must be {ArrayT.__name__}")
-        if a.shape != b.shape:
-            raise ValueError(f"{name}.shape {a.shape} != expected {b.shape}")
-        if isinstance(a, torch.Tensor) and (a.dtype != b.dtype or a.device != b.device):
-            raise TypeError(f"{name} dtype/device must match instance")
-
-
-    def _validate_index_range(self, i: int, max_value: int | None = None) -> None:
-        """
-        Validate that index `i` is within the valid range.
-
-        Parameters
-        ----------
-        i : int
-            Index to validate.
-
-        max_value : int, optional
-            Maximum valid value for the index. Defaults to `self.n - 1`.
-        """
-        if max_value is None:
-            max_value = self.n - 1
-        if not (0 <= i < max_value):
-            raise ValueError(f"i must be in [0, {max_value - 1}]")
-
-
+    # done
     def prepend_base(self,
-        T_wl: ArrayT
-        ) -> ArrayT:
+        T_wl: FloatArray | torch.Tensor
+        ) -> FloatArray | torch.Tensor:
         """Stack link transforms `T_wl` with base transform `T_wb`.
         
         Parameters
@@ -256,30 +155,32 @@ class Kinematics(Generic[ArrayT]):
             3D array of world-frame transforms [T_w1, ..., T_wn].
         Returns
         -------
-        T_wf : ndarray | Tensor, shape (n+1, 4, 4)
+        T_w : ndarray | Tensor, shape (n+1, 4, 4)
             3D array of world-frame transforms including the base [T_w0, T_w1, ..., T_wn].
         """
 
-        T_wf = xp.empty_like(T_wl, shape=(T_wl.shape[0] + 1, 4, 4))
+        if isinstance(T_wl, torch.Tensor):
+            T_w = torch.empty(T_wl.shape[0] + 1, 4, 4, dtype=T_wl.dtype, device=T_wl.device)
+        elif isinstance(T_wl, np.ndarray):
+            T_w = np.empty((T_wl.shape[0] + 1, 4, 4), dtype=T_wl.dtype)
+        else: 
+            raise TypeError("T_wl must be a numpy array or torch tensor.")
         
-        T_wf[0]  = self.T_wb
-        T_wf[1:] = T_wl
-        return T_wf
+        T_w[0]  = self.T_wb # type: ignore
+        T_w[1:] = T_wl # type: ignore
+        return T_w
 
     # done
-    def forward_kinematics(self, 
-        q: ArrayT | None = None, 
-        i: int | None = None,
-        use_cache: bool = True
-        ) -> ArrayT:
+    def fk(self, 
+        q: Arr | None = None, 
+        i: int | None = None
+        ) -> Arr:
         """
         Compute cumulative forward kinematics in the world frame.
 
-        Stores results in 'self.T_wf' and 'self.T_wl'.
-
         Parameters
         ----------
-        q : ndarray | Tensor, shape (n,), optional
+        q : ndarray, shape (n,), optional
             Joint positions. Defaults to the internal state `self.q` if `None`.
         i : int, optional
             joint index up to which to compute the forward kinematics. 
@@ -287,72 +188,86 @@ class Kinematics(Generic[ArrayT]):
 
         Returns
         -------
-        T_wf : ndarray | Tensor, shape (i+2, 4, 4)
-            World-frame transforms [T_W_0, ..., T_W_(i+1)].
+        T_wl : ndarray, shape (i+1, 4, 4)
+            World-frame transforms [T_W_1, ..., T_W_(i+1)].
         """
-        if q is not None:
-            self._validate_array(q, self.q, name ="q")
-            use_cache = False
-        else:
-            q = self.q
-        n = self.n
+        if q is None: q = self.q
+        if i is None: i = len(q) -1
+        i+=1
 
-        if i is not None: 
-            self._validate_index_range(i)
-        else:
-            i = n -1
-
-        k = i + 2
-
-        if use_cache and self._fk_valid:
-            return self.T_wf[:k]
-
-        T_bl = cops.cumulative_transforms(q, self.d, self.a, self.alpha, self.b)
+        T_bl = cops.transform_matrices(q, self.d, self.a, self.alpha, self.b)
+        T_bl = T_bl[:i]
         T_wl = self.T_wb @ T_bl
-        T_wf = self.prepend_base(T_wl)
+        return T_wl
 
-        if not use_cache: 
-            return T_wf[:k]
+    # done
+    def fk_t(self, 
+        q: torch.Tensor | None = None, 
+        i: int | None = None
+        ) -> torch.Tensor:
+        """
+        Compute cumulative forward kinematics in the world frame (PyTorch).
 
-        self.T_wl = T_wl
-        self.T_wf = T_wf
-        self._fk_valid = True
-        return self.T_wf[:k]
+        Parameters
+        ----------
+        q : Tensor, shape (n,), optional
+            Joint positions. Defaults to the internal state `self.q_t` if None.
+        i : int, optional
+            joint index up to which to compute the forward kinematics. 
+            Defaults to all joints if `None`.
 
+        Returns
+        -------
+        T_wl : Tensor, shape (i+1, 4, 4)
+            World-frame transforms stacked as [T_W_1, ..., T_W_(i+1)].
+        """
+        if q is None: q = self.q_t
+        if i is None: i = len(q) -1
+        i+=1
 
+        T_bl = ops_t.cumulative_transforms(q, self.d_t, self.a_t, self.alpha_t, self.b_t)
+        T_bl = T_bl[:i]
+        T_wl = self.T_wb_t @ T_bl
+        return T_wl
+
+    # done
     def update_com(self) -> None:
         """
         Update the centers of mass (COM) positions 
         from link frame to world frame.
         """
         if self.com_fl is None: return
-        T_w = self.forward_kinematics()
-        self.com_wl = cops.com_world(T_w, self.com_fl)
+        T_wl = self.fk()
+        T_w = self.prepend_base(T_wl)
+        self.com_wl = ops.com_world(T_w, self.com_fl) # type: ignore
 
-
+    # done
     def update_config(self,
-        d: ArrayT | None = None,
-        a: ArrayT | None = None, 
-        alpha: ArrayT | None = None, 
-        o_0: ArrayT | None = None,
-        axes_o: ArrayT | None = None
+        d: FloatArray | None = None,
+        a: FloatArray | None = None, 
+        alpha: FloatArray | None = None, 
+        o_0: FloatArray | None = None,
+        axes_o: FloatArray | None = None
         ) -> None:
         """
         Update attributes d, a, alpha, o_0, axes_o.
 
         Parameters
         ----------
-        d : ndarray | Tensor | None
+        d : FloatArray | None
             Link offsets.
-        a : ndarray | Tensor | None
+        a : FloatArray | None
             Link lengths.
-        alpha : ndarray | Tensor | None
+        alpha : FloatArray | None
             Link twists.
-        o_0 : ndarray | Tensor | None
+        o_0 : FloatArray | None
             Base frame origin.
-        axes_o : ndarray | Tensor | None
+        axes_o : FloatArray | None
             Base frame axes.
         """
+
+        assert any(x is not None and not np.ndarray for x in (d, a, alpha, o_0, axes_o)),\
+              "any input provided must be a numpy array."
 
         if d is not None: self.d = d
         if a is not None: self.a = a
@@ -364,87 +279,57 @@ class Kinematics(Generic[ArrayT]):
             self.axes_wb = axes_o
             self.T_wb[:3, :3] = axes_o
 
+        if any(x is not None for x in (d, a, alpha, o_0, axes_o)):
+            self._jac_fn = None
+            self.update_tensors()
 
+    # done
     def step(self, 
-        q: ArrayT | None = None,
-        qd: ArrayT | None = None, 
-        qdd: ArrayT | None = None
+        q: FloatArray | None = None,
+        qd: FloatArray | None = None, 
+        qdd: FloatArray | None = None
         ) -> None:
         """
         Update current joint states `self.q`, `self.qd`, `self.qdd`.
+        and corresponding torch tensors. `self.q_t`, `self.qd_t`, `self.qdd_t`.
         updated if not None.
 
         Parameters
         ----------
-        q : ndarray | Tensor, shape (n,), optional
+        q : ndarray, shape (n,), optional
             Joint positions.
-        qd : ndarray | Tensor, shape (n,), optional
+        qd : ndarray, shape (n,), optional
             Joint velocities.
-        qdd : ndarray | Tensor, shape (n,), optional
+        qdd : ndarray, shape (n,), optional
             Joint accelerations.
         """
-        if q is not None: self.q = q
-        if qd is not None: self.qd = qd
-        if qdd is not None: self.qdd = qdd
-
-
-    def full_jac(self,
-        q: ArrayT | None = None,
-        i: int | None = None,
-        use_cache: bool = True
-        ) -> ArrayT:
-        """
-        Compute the full geometric Jacobian matrix for all joints
-        and store it in `self.J`.
-
-        This method computes the manipulator Jacobian at the current joint
-        configuration `self.q`.
-
-        Parameters
-        ----------
-        q : ndarray | Tensor, shape (n,), optional
-            Joint positions.
-        i : int, optional
-            Joint index to compute the Jacobian for.
-        use_cache : bool, optional
-            Whether to use cached results if available.
-
-        Returns
-        -------
-        J : ndarray | Tensor, shape (n, 6, n)
-            The geometric Jacobian matrix evaluated at the current configuration.
-            The top three rows correspond to linear velocity terms, and the bottom
-            three correspond to angular velocity terms.
-        """
+        assert any(x is not None and not np.ndarray for x in (q, qd, qdd)),\
+              "any input provided must be a numpy array."
 
         if q is not None: 
-            self._validate_array(q, self.q, name ="q")
-            use_cache = False
+            self.q = q
+            self.q_t = ptu.from_numpy(q, dtype=ptu.dtype)
+        if qd is not None:
+            self.qd = qd
+            self.qd_t = ptu.from_numpy(qd, dtype=ptu.dtype)
+        if qdd is not None:
+            self.qdd = qdd
+            self.qdd_t = ptu.from_numpy(qdd, dtype=ptu.dtype)
 
-        if i is not None: 
-            self._validate_index_range(i)
+    # done
+    def update_tensors(self):
+        """Update all attributes to PyTorch tensors for autograd."""
+        self.d_t = ptu.from_numpy(self.d, dtype=ptu.dtype)
+        self.a_t = ptu.from_numpy(self.a, dtype=ptu.dtype)
+        self.alpha_t = ptu.from_numpy(self.alpha, dtype=ptu.dtype)
+        self.b_t = ptu.from_numpy(self.b, dtype=ptu.dtype) if self.b is not None else None
+        self.T_wb_t = ptu.from_numpy(self.T_wb, dtype=ptu.dtype)
 
-        if use_cache and self._J_valid:
-            return self.J if i is None else self.J[i, ...]
-
-        n = self.n
-        T_wf = self.forward_kinematics(q)
-        J = xp.zeros_like(T_wf, shape=(n, 6, n))
-        for j in range(n):
-            J[j, :, :j+1] = cops.jacobian(T_wf[:j+2])  # pyright: ignore[reportArgumentType]
-
-        if not use_cache: 
-            return J if i is None else J[i, ...]
-
-        self.J = J
-        self._J_valid = True
-        return J
-
-
+    # done
     def jac(self, 
-        q: ArrayT | None = None,
+        q: FloatArray | None = None,
         i: int | None = None
-        ) -> ArrayT:
+        ) -> FloatArray:
         """
         Compute the geometric Jacobian matrix using NumPy operations.
 
@@ -459,7 +344,7 @@ class Kinematics(Generic[ArrayT]):
 
         Parameters
         ----------
-        q : ndarray | Tensor, shape (n,), optional
+        q : ndarray, shape (n,), optional
             Joint positions.
             If None, defaults to `self.q`.
         i : int, optional
@@ -468,29 +353,108 @@ class Kinematics(Generic[ArrayT]):
 
         Returns
         -------
-        J : ndarray | Tensor, shape (6, n)
+        J : ndarray, shape (6, n)
             The geometric Jacobian matrix evaluated at the specified configuration.
             The top three rows correspond to linear velocity terms, and the bottom
             three correspond to angular velocity terms.
         """
-        if q is not None: 
-            self._validate_array(q, "q")
-        else:
-            q = self.q
-        if i is not None: 
-            self._validate_index_range(i)
-        else:
-            i = self.n -1
-
-        T_wf = self.forward_kinematics(q, i=i)
-        J = cops.jacobian(T_wf)
+        if q is None: q = self.q
+        T_wl = self.fk(q, i=i)
+        T_wf = self.prepend_base(T_wl)
+        J = ops.jacobian(T_wf) # type: ignore
         return J
 
+    # add way to 
+    def jac_t(self, 
+        q: torch.Tensor | None = None,
+        i: int | None = None
+        ) -> torch.Tensor:
+        """
+        Compute the Jacobian matrix using a differentiable PyTorch implementation.
 
+        This method evaluates the autograd-compatible Jacobian function directly
+        using a provided `Tensor` joint configuration. If no configuration
+        is supplied, the internally stored tensor `self.q_t` is used.
+
+        Parameters
+        ----------
+        q : Tensor, shape (n,), optional
+            Joint configuration vector. If None, defaults to the internal joint
+            positions `self.q_t`.
+        i : int, optional
+            Joint index to which compute the Jacobian.
+            If None, defaults to end effector.
+
+        Returns
+        -------
+        J : Tensor, shape (6, n)
+            The geometric Jacobian matrix computed at the given configuration,
+            suitable for PyTorch autograd differentiation.
+
+        Notes
+        -----
+        This function calls `self.jac_fn` if available; otherwise it initializes
+        a callable via `self._init_jac_callable()`.
+        """
+        if q is None: q = self.q_t
+        jac = self.jac_fn or self._init_jac_callable()
+        return jac(q, i=i)
+
+    # done
+    def _init_jac_callable(self) -> Callable[[torch.Tensor, int | None], torch.Tensor]:
+        """
+        Initialize jacobian function callable `self.jac_fn` for autograd.
+        """
+        def jac(q: torch.Tensor, i: int | None = None) -> torch.Tensor:
+            T_bl = self.fk_t(q, i=i)
+            T_wf = self.prepend_base(T_bl)
+            return ops_t.jacobian(T_wf)   # type: ignore # (6,n)
+
+        self.jac_fn = jac
+        return jac
+
+    # done
+    def spatial_vel_t(self, 
+        q: torch.Tensor | None = None, 
+        qd: torch.Tensor | None = None
+        ) -> torch.Tensor:
+        """
+        Compute the spatial velocity of all joints in the manipulator. 
+        pytorch version for automatic differentiation.
+
+        Each joint's 6D spatial velocity is given as:
+        [vx, vy, vz, wx, wy, wz].
+
+        Parameters
+        ----------
+        q : Tensor, shape (n,), optional
+            Joint positions. Defaults to `self.q_t` if None.
+        qd : Tensor, shape (n,), optional
+            Joint velocities. Defaults to `self.qd_t` if None.
+
+        Returns
+        -------
+        v : Tensor, shape (n, 6)
+            Spatial velocities for all joints, stacked row-wise.
+            Each row corresponds to one joint's [linear, angular] velocity.
+        """
+
+        if q is None: q = self.q_t
+        if qd is None: qd = self.qd_t
+
+        n = len(q)
+        v = []
+        J_all = torch.zeros((n, 6, n), dtype=q.dtype, device=q.device)
+        for i in range(n):
+            J_all[i, :, : i + 1] = self.jac_t(q, i=i)  # (6, i+1)
+        v = J_all @ qd
+        return v
+
+    # done
     def spatial_vel(self, 
-        q: ArrayT | None = None, 
-        qd: ArrayT | None = None
-        ) -> ArrayT:
+        q: FloatArray | None = None, 
+        qd: FloatArray | None = None
+        ) -> FloatArray:
         """
         Compute the spatial velocity of all joints in the manipulator.
 
@@ -499,14 +463,14 @@ class Kinematics(Generic[ArrayT]):
 
         Parameters
         ----------
-        q : ndarray | Tensor, shape (n,), optional
+        q : ndarray, shape (n,), optional
             Joint positions. Defaults to `self.q_t` if None.
-        qd : ndarray | Tensor, shape (n,), optional
+        qd : ndarray, shape (n,), optional
             Joint velocities. Defaults to `self.qd_t` if None.
 
         Returns
         -------
-        v : ndarray | Tensor, shape (n, 6)
+        v : ndarray, shape (n, 6)
             Spatial velocities for all joints, stacked row-wise.
             Each row corresponds to one joint's [linear, angular] velocity.
         """
@@ -514,9 +478,12 @@ class Kinematics(Generic[ArrayT]):
         if q is None: q = self.q
         if qd is None: qd = self.qd
 
-        J = self.full_jac(q)  # (n, 6, n)
-        v = J @ qd            # (n, 6, n) @ (n,) -> (n, 6)
-        
+        n = len(q)
+        v = []
+        J_all = np.zeros((n, 6, n), dtype=q.dtype)
+        for i in range(n):
+            J_all[i, :, : i + 1] = self.jac(q, i=i)  # (6, i+1)
+        v = J_all @ qd
         return v
 
     # broken
@@ -570,7 +537,7 @@ class Kinematics(Generic[ArrayT]):
         q = self.q.copy()  # initial guess
         for iter in range(max_iters):
             self.step(q=q)
-            current_T = self.forward_kinematics(len(q)-1)[-1]
+            current_T = self.fk(len(q)-1)[-1]
             pos_err = target_T[:3, 3] - current_T[:3, 3]
             rot_err_matrix = current_T[:3, :3].T @ target_T[:3, :3]
             rot_err_axis, rot_err_angle = self._rotation_matrix_to_axis_angle(rot_err_matrix)

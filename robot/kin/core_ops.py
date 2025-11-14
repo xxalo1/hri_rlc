@@ -1,3 +1,4 @@
+from re import A
 import numpy as np
 from typing import Any, Optional, Sequence, TypeVar, reveal_type
 import torch
@@ -5,38 +6,20 @@ from typing import overload, Optional
 
 from ...backend import XP
 from ...utils import numpy_util as npu
-from ...utils import array_compat as xp
+from ...utils import xp
 FloatArray  = npu.FloatArray
 dtype = npu.dtype
 
 
-Arr = TypeVar("Arr", FloatArray, torch.Tensor)
-
-@overload
-def transform_matrices(
-    q: torch.Tensor, 
-    d: torch.Tensor, 
-    a: torch.Tensor, 
-    alpha: torch.Tensor, 
-    b: torch.Tensor | None = ...
-    ) -> torch.Tensor: ...
-@overload
-def transform_matrices(
-    q: FloatArray, 
-    d: FloatArray, 
-    a: FloatArray, 
-    alpha: FloatArray, 
-    b: FloatArray | None = ...
-    ) -> FloatArray: ...
-
+ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 
 def transform_matrices(
-        q: Arr, 
-        d: Arr, 
-        a: Arr, 
-        alpha: Arr, 
-        b: Arr | None = None
-        ) -> Arr:
+    q: ArrayT, 
+    d: ArrayT, 
+    a: ArrayT, 
+    alpha: ArrayT, 
+    b: ArrayT | None = None
+    ):
     """
     Vectorized Standard DH transforms (Craig's convention).
 
@@ -80,8 +63,7 @@ def transform_matrices(
     cT, sT = xp.cos(q), xp.sin(q)
     cA, sA = xp.cos(alpha), xp.sin(alpha)
 
-    A = xp.zeros(q, (n, 4, 4))
-    reveal_type(A)
+    A = xp.zeros_like(q, (n, 4, 4))
 
     A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT
     A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT
@@ -92,37 +74,13 @@ def transform_matrices(
 
     return A
 
-
-@overload
 def cumulative_transforms(
-    q: FloatArray, 
-    d: FloatArray, 
-    a: FloatArray, 
-    alpha: FloatArray, 
-    b: FloatArray | None = ...
-    ) -> FloatArray: ...
-
-@overload
-def cumulative_transforms(
-    q: torch.Tensor, 
-    d: torch.Tensor, 
-    a: torch.Tensor, 
-    alpha: torch.Tensor, 
-    b: torch.Tensor | None = ...
-    ) -> torch.Tensor: ...
-
-@overload
-def jacobian(
-    T_wf: FloatArray
-    ) -> FloatArray: ...
-
-@overload
-def jacobian(
-    T_wf: torch.Tensor
-    ) -> torch.Tensor: ...
-
-
-def cumulative_transforms(q, d, a, alpha, b=None):
+    q: ArrayT, 
+    d: ArrayT, 
+    a: ArrayT, 
+    alpha: ArrayT, 
+    b: ArrayT | None = None
+    ):
     """
     Cumulative DH transforms with respect to the base frame.
 
@@ -142,34 +100,20 @@ def cumulative_transforms(q, d, a, alpha, b=None):
     T_bl : ndarray, shape (n, 4, 4)
         Stack of base-to-link transforms.
     """
-    
-    if all(isinstance(x, torch.Tensor) for x in (d, a, alpha)):
-        xp = torch
-    elif all(isinstance(x, FloatArray) for x in (d, a, alpha)):
-        xp = np
-    else:
-        raise TypeError("all inputs must be either numpy arrays or torch tensors")
-
-    n = q.size
+    n: int = q.shape[0]
 
     A = transform_matrices(q, d, a, alpha, b)  # (n,4,4)
     T_bl = xp.empty_like(A)                      # (n,4,4)
 
-    if xp is np:
-        T_b = xp.eye((n, 4, 4), dtype=q.dtype)
-    else:
-        T_b = xp.eye((n, 4, 4), dtype=q.dtype, device=q.device)
+    T_b = xp.eye_like(q, 4)
 
-    T_b = xp.eye(4, dtype=A.dtype)
     for i in range(n):
         T_b = T_b @ A[i]
         T_bl[i] = T_b
 
     return T_bl
 
-
-
-def jacobian(T_wf):
+def jacobian(T_wf: ArrayT) -> ArrayT:
     """
     Compute the geometric Jacobian J(q) in the world frame. 
     pytorch version for automatic differentiation.
@@ -178,24 +122,16 @@ def jacobian(T_wf):
 
     Parameters
     ----------
-    T_wf : Tensor, shape (n+1, 4, 4)
+    T_wf : ndarray | Tensor, shape (n+1, 4, 4)
         World-to-frame transforms for all frames including base (frame 0).
     
     Returns
     -------
-    J : Tensor, shape (6, n)
+    J : ndarray | Tensor, shape (6, n)
         Geometric Jacobian expressed in the world frame.
         Rows 0..2 are the linear part Jv, rows 3..5 are the angular part Jw.
     """
     # shape checks
-
-    if isinstance(T_wf, torch.Tensor):
-        xp = torch
-    elif isinstance(T_wf, FloatArray):
-        xp = np
-    else:
-        raise TypeError("input must be either a numpy array or a torch tensor")
-
 
     assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n, 4, 4)"
 
@@ -207,6 +143,29 @@ def jacobian(T_wf):
     Jv = xp.cross(z_wf[:-1], (o_n - o_wf[:-1]), dim=1).T   # (3, n)
     Jw = z_wf[:-1].T                                          # (3, n)
 
-    J = np.vstack([Jv, Jw]) if xp is np else torch.cat([Jv, Jw])
+    J = xp.concatenate(Jv, Jw) # (6, n)
     return J
 
+def com_world(
+    T_wf: ArrayT,
+    com_fl: ArrayT,
+    ) -> ArrayT:
+    """
+    Compute centers of mass in the world frame.
+
+    Parameters
+    ----------
+    T_wf : ndarray | Tensor, shape (n+1, 4, 4)
+        World-to-frame transforms for base (0) and all links.
+    com_fl : ndarray | Tensor, shape (n+1, 3)
+        COM positions expressed in each frame's local coordinates.
+
+    Returns
+    -------
+    com_w : ndarray | Tensor, shape (n+1, 3)
+        COM positions for base and links, expressed in the world frame.
+    """
+    R = T_wf[:, :3, :3]            # (n+1, 3, 3)
+    p = T_wf[:, :3, 3]             # (n+1, 3)
+    com_w = R @ com_fl + p          # (n+1, 3)
+    return com_w

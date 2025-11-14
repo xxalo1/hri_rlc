@@ -145,6 +145,7 @@ def jacobian(
     J = torch.cat([Jv, Jw])  # (6, n)
     return J
 
+
 def spatial_acc(
     q: torch.Tensor, 
     qd: torch.Tensor, 
