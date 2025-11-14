@@ -4,15 +4,10 @@ import numpy as np
 import torch
 from typing import Generic, TypeVar
 
-from robot.kin.kine import Arr
-
-
 from . import ops, ops_t
 from . import core_ops as cops
-from ...utils import numpy_util as npu
-from ...utils import xp
-FloatArray = npu.FloatArray
-dtype = npu.dtype
+from ...utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
+
 ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 
 class Kinematics(Generic[ArrayT]):
@@ -100,7 +95,6 @@ class Kinematics(Generic[ArrayT]):
         o_wb: ArrayT | None = None,
         axes_wb: ArrayT | None = None,
         inertia: dict[str, ArrayT] | None = None,
-        dtype = dtype,
         ) -> None:
         """
         d, a, alpha: 1D array (length n)
@@ -111,7 +105,6 @@ class Kinematics(Generic[ArrayT]):
         o_0: optional 1d array, origin of base frame in world coords, defaults to [0,0,0]
         """
         
-        self.dtype = dtype
 
         self.d = dh["d"]
         self.a = dh["a"]
@@ -227,11 +220,11 @@ class Kinematics(Generic[ArrayT]):
         self._qdd = v
 
     @property
-    def com_wl(self) -> ArrayT | None:
+    def com_wl(self) -> ArrayT:
         return self._compute_com_wl()
 
     @property
-    def Ic_wl(self) -> ArrayT | None:
+    def Ic_wl(self) -> ArrayT:
         return self._compute_Ic_wl()
 
 
@@ -292,9 +285,7 @@ class Kinematics(Generic[ArrayT]):
             return self._com_wl
 
         T_wf = self.forward_kinematics()
-        R = T_wf[:, :3, :3]            # (n+1, 3, 3)
-        p = T_wf[:, :3, 3]             # (n+1, 3)
-        com_wl = R @ self.com_fl + p          # (n+1, 3)
+        com_wl = cops.com_world(T_wf, self.com_fl)
 
         self._com_wl = com_wl
         self._com_valid = True
@@ -550,6 +541,53 @@ class Kinematics(Generic[ArrayT]):
         T_wf = self.forward_kinematics(q, i=i)
         J = cops.jacobian(T_wf)
         return J
+
+
+    def jac_com(self, use_cache: bool = True) -> ArrayT:
+        """
+        Full-body Jacobians about each link COM instead of the link frame origin.
+
+        Uses the current state `self.q` and the stored COMs in link frame `self.com_fl`.
+
+        J_orig : about link frame origins
+            Jv_o = J[ :, 0:3, : ]
+            Jw   = J[ :, 3:6, : ]
+
+        J_com : about link COMs
+            Jv_com = Jv_o - [r_w] @ Jw
+            where r_w is the vector from link origin to COM in world frame.
+
+        Parameters
+        ----------
+        use_cache : bool, optional
+            Whether to use cached FK/J if valid. Defaults to True.
+
+        Returns
+        -------
+        J_com : ndarray | Tensor, shape (n, 6, n)
+            Full Jacobian for all links, linear part shifted to COMs.
+        """
+        
+        T_wf = self.forward_kinematics(use_cache=use_cache)
+        J = self.full_jac(use_cache=use_cache)
+        T_wl = T_wf[1:]
+        R_wl = T_wl[:, :3, :3]   # (n, 3, 3)
+        o_w  = T_wl[:, :3, 3]    # (n, 3)
+
+        com_l = self.com_fl
+        Rc = R_wl @ com_l                                # (n, 3)
+        com_w = Rc + o_w                                 # (n, 3)
+
+        r_w = com_w - o_w                                # (n, 3)
+
+        S = cops.skew(r_w)                               # (n, 3, 3)
+        Jv_o = J[:, 0:3, :]                              # (n, 3, n)
+        Jw   = J[:, 3:6, :]                              # (n, 3, n)
+        Jv_com = Jv_o - (S @ Jw)
+        J_com = xp.zeros_like(J)
+        J_com[:, 0:3, :] = Jv_com # pyright: ignore[reportArgumentType]
+        J_com[:, 3:6, :] = Jw # pyright: ignore[reportArgumentType]
+        return J_com
 
 
     def spatial_vel(self, 

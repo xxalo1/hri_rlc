@@ -4,6 +4,7 @@ from numpy import pi
 from pathlib import Path
 
 from..utils import numpy_util as npu
+from..utils import dtype, FloatArray, ArrayT
 dtype = npu.dtype
 
 HERE = Path(__file__).parent
@@ -19,7 +20,7 @@ def Rx(angle):
                      [0, s, c]], dtype=np.float32)
 
 
-def load_inertial(yaml_path, skip_links=SKIP_LINKS) -> dict:
+def load_inertial(yaml_path, skip_links=SKIP_LINKS) -> dict[str, FloatArray]:
     """
     Load inertial data and return stacked NumPy arrays.
 
@@ -36,15 +37,14 @@ def load_inertial(yaml_path, skip_links=SKIP_LINKS) -> dict:
     rows = [r for r in data["links"] if r.get("name") not in skip_links]
     n = len(rows)
 
-    ids = np.fromiter((int(r["id"]) for r in rows), dtype=np.int64, count=n)
     m   = np.fromiter((float(r["mass_kg"]) for r in rows), dtype=dtype, count=n)
     com = np.array([r["com_m"] for r in rows], dtype=dtype)        # (n,3)
     Ic  = np.array([r["Ic_kgm2"] for r in rows], dtype=dtype)      # (n,3,3)
 
-    return {"id": ids, "m": m, "com": com, "Ic": Ic}
+    return {"m": m, "com": com, "Ic": Ic}
 
 
-def rotated_inertials(model: dict, R_wf: np.ndarray) -> dict:
+def rotated_inertials(model: dict[str, FloatArray], R_wf: FloatArray) -> dict[str, FloatArray]:
     """
     Rotate COM and inertia for each link.
       com' = R com
@@ -78,7 +78,7 @@ def load_inertia() -> dict:
     return rotated_inertials(inertia, Rflip)
 
 
-def load_dh() -> dict[str, np.ndarray]:
+def load_dh() -> dict[str, FloatArray]:
     """
     Read a DH YAML (with key 'dh': list of rows) and return a dict of NumPy arrays:
       {'id': (n,), 'd': (n,), 'a': (n,), 'alpha': (n,), 'theta0': (n,), 'b': (n,)}
@@ -90,11 +90,10 @@ def load_dh() -> dict[str, np.ndarray]:
     rows.sort(key=lambda r: int(r.get("id", 0)))
     n = len(rows)
 
-    ids    = np.fromiter((int(r["id"])       for r in rows), dtype=np.int64,       count=n)
     d      = np.fromiter((float(r["d"])      for r in rows), dtype=dtype,    count=n)
     a      = np.fromiter((float(r["a"])      for r in rows), dtype=dtype,    count=n)
     alpha  = np.fromiter((float(r["alpha"])  for r in rows), dtype=dtype,    count=n)
     theta0 = np.fromiter((float(r["theta0"]) for r in rows), dtype=dtype,    count=n)
     b      = np.fromiter((float(r.get("b", 0.0)) for r in rows), dtype=dtype, count=n)
 
-    return {"id": ids, "d": d, "a": a, "alpha": alpha, "theta0": theta0, "b": b}
+    return {"d": d, "a": a, "alpha": alpha, "theta0": theta0, "b": b}

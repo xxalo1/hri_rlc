@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
-
+from typing import Any, Optional, Sequence, TypeVar
+import torch
 import numpy as np
 from numpy.typing import NDArray
 
 FloatArray = NDArray[np.floating]
 dtype = np.float32
+
+ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 
 def to_array(a: Sequence[float]) -> np.ndarray:
     """Convert input to a NumPy array if it is not already one."""

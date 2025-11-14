@@ -1,17 +1,5 @@
-from re import A
-import numpy as np
-from typing import Any, Optional, Sequence, TypeVar, reveal_type
-import torch
-from typing import overload, Optional
+from ...utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
 
-from ...backend import XP
-from ...utils import numpy_util as npu
-from ...utils import xp
-FloatArray  = npu.FloatArray
-dtype = npu.dtype
-
-
-ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 
 def transform_matrices(
     q: ArrayT, 
@@ -74,6 +62,7 @@ def transform_matrices(
 
     return A
 
+
 def cumulative_transforms(
     q: ArrayT, 
     d: ArrayT, 
@@ -113,6 +102,7 @@ def cumulative_transforms(
 
     return T_bl
 
+
 def jacobian(T_wf: ArrayT) -> ArrayT:
     """
     Compute the geometric Jacobian J(q) in the world frame. 
@@ -146,6 +136,7 @@ def jacobian(T_wf: ArrayT) -> ArrayT:
     J = xp.concatenate(Jv, Jw) # (6, n)
     return J
 
+
 def com_world(
     T_wf: ArrayT,
     com_fl: ArrayT,
@@ -169,3 +160,33 @@ def com_world(
     p = T_wf[:, :3, 3]             # (n+1, 3)
     com_w = R @ com_fl + p          # (n+1, 3)
     return com_w
+
+
+def skew(v: ArrayT) -> ArrayT:
+    """
+    Batched skew operator.
+
+    Parameters
+    ----------
+    r_w : (n, 3)
+        Vectors in world frame.
+
+    Returns
+    -------
+    S : (n, 3, 3)
+        where for each row vector [rx, ry, rz],
+        S = [[  0, -rz,  ry],
+            [ rz,   0, -rx],
+            [-ry,  rx,   0]]
+
+    """
+    x, y, z = v[..., 0], v[..., 1], v[..., 2]
+    S = xp.zeros_like(v, shape=(*v.shape[:-1], 3, 3))
+    S[..., 0, 1] = -z
+    S[..., 0, 2] =  y
+    S[..., 1, 0] =  z
+    S[..., 1, 2] = -x
+    S[..., 2, 0] = -y
+    S[..., 2, 1] =  x
+    return S
+

@@ -2,131 +2,102 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from typing import Any, Optional, Sequence, Callable
-from numpy.typing import ArrayLike, NDArray
+from typing import Any, Generic, Optional, Sequence, Callable, TypeVar
+
 
 from ...utils import numpy_util as npu
 from ...utils import pytorch_util as ptu
 from ..kin import Kinematics
 
-FloatArray = npu.FloatArray
-dtype = npu.dtype
+from ...utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
 
-def skew(v: FloatArray) -> FloatArray:
+class Dynamics():
 
-    x, y, z = v[..., 0], v[..., 1], v[..., 2]
-    S = np.zeros((*v.shape[:-1], 3, 3), dtype=v.dtype)
-    S[..., 0, 1] = -z
-    S[..., 0, 2] =  y
-    S[..., 1, 0] =  z
-    S[..., 1, 2] = -x
-    S[..., 2, 0] = -y
-    S[..., 2, 1] =  x
-    return S
-
-class Dynamics:
-    """
-    Minimal NumPy dynamics that *depends on* your Kinematics instance.
-    Implements:
-      - M(q) = Σ_i [ Jv_i^T m_i Jv_i + Jw_i^T I_Ci^w Jw_i ]
-      - g(q) = Σ_i Jv_i^T (m_i * g_w)
-    Notes:
-      - No inertial duplication: reads kin.mass, kin.com_fl, kin.Ic_fl directly.
-      - Per-link Jacobian is built via kin.jac(q, link_idx=i) (6 × (i+1)), then padded.
-      - Linear Jacobian is shifted to COM using Jv_com = Jv_origin + Jw @ [r]_x.
-      - I_C is rotated to world per link: Iw = R_wi @ Ic_link @ R_wi^T.
-    """
-
-    def __init__(self, kin: Kinematics, n: int, joint_to_link: np.ndarray | None = None,
-                 g_vec: np.ndarray = np.array([0.0, 0.0, -9.81], dtype=float)):
+    def __init__(self, kin: Kinematics[torch.Tensor],
+                 g_vec: torch.Tensor):
         self.kin = kin
-        self.n = int(n)
-        self.joint_to_link = np.arange(self.n, dtype=int) if joint_to_link is None \
-                             else np.asarray(joint_to_link, dtype=int)
-        self.g_vec = np.asarray(g_vec, dtype=float)
-        self.lib = np 
+        self.g_vec = g_vec
 
 
-    def J_full(self, q: FloatArray) -> FloatArray:
-        """
-        Full (n*6*n) Jacobian for all links.
-        """
-        n = len(q)
-        J = np.zeros((n, 6, n), dtype=q.dtype)
-        for i in range(n):
-            J[i, :, : i + 1] = self.kin.jac(q, i=i)  # (6, i+1)
-        return J
+    def inverse_dynamics(self, 
+        q: torch.Tensor, 
+        qd: torch.Tensor, 
+        qdd: torch.Tensor
+        ) -> torch.Tensor:
+        M, tau_g, C = self.Dynamics_matrices(q, qd)
+        return M @ qdd + C @ qd + tau_g
 
 
-    def shift_J_and_Ic(
-        self, 
-        J: FloatArray, 
-        T_wl: FloatArray, 
-        com_l: FloatArray, 
-        Ic: FloatArray
-        ) -> tuple[FloatArray, FloatArray]:
-        """
-        updates J to be at links com instead of frame origin
-        updates Ic to be in world frame
-
-        Parameters
-        ----------
-        J : FloatArray, shape (n, 6, n)
-            Full Jacobian for all links.
-        T_wl : FloatArray, shape (n, 4, 4)
-            World to link transforms for all links.
-            [T_w_1, T_w_2, ..., T_w_n]
-        com_l : FloatArray, shape (n, 3)
-            Link frame origins to COM in link frame.
-            [com_l1, com_l2, ..., com_ln]
-        Ic : FloatArray, shape (n, 3, 3)
-            Link inertia matrices in link frame.
-            [I_1, I_2, ..., I_n]   
-        Returns
-        -------
-        J : FloatArray, shape (n, 6, n)
-            full jacobian with linear part updated to COM
-
-        Ic_w : FloatArray, shape (n, 3, 3)
-            Link inertia matrices in world frame.
-        """
-
-        Jv_o = J[:, 0:3, :]
-        Jw   = J[:, 3:6, :]
-
-        R_wl = T_wl[:, :3, :3]   # (n, 3, 3)
-        r_w  = R_wl @ com_l      # (n, 3)
-
-        S = skew(r_w)            # (n, 3, 3)
-        Jv_com = Jv_o - (S @ Jw) # (n, 3, n)
-
-        Ic_w = R_wl @ Ic @ np.transpose(R_wl, (0, 2, 1))
-
-        return Jv_com, Ic_w
-
-
-    def Dynamics_matrices(self, q: FloatArray) -> FloatArray:
+    def Dynamics_matrices(self, 
+        q: torch.Tensor, 
+        qd: torch.Tensor
+        ) -> Sequence[torch.Tensor]:
         """Jacobian/energy-form M(q)."""
-        m  = self.kin.mass[1:]      # skip base
-        com_fl = self.kin.com_fl[1:]
-        Ic_fl  = self.kin.Ic_fl[1:]
-        g_w = self.g_w
-        n = len(q)
+        self.kin.step(q=q)
+        m  = self.kin.mass[1:]           # (n,)
+        g = self.g_vec
+        J_com = self.kin.jac_com()       # (n, 6, n)
+        Ic_wl = self.kin.Ic_wl[1:]       # (n, 3, 3)
+        M = self.inertia_matrix(J_com, m, Ic_wl)
+        tau_g = self.gravity_vector(J_com, m, g)
+        C = self.coriolis_matrix(q, qd)
+        return M, tau_g, C
 
-        J = self.J_full(q)         # (n, 6, n)
-        T_wl = self.kin.forward_kinematics(q)      # (n, 4, 4)
 
-        Jv_com, Ic_w = self.shift_J_and_Ic(J, T_wl, com_fl, Ic_fl)
-        Jw = J[:, 3:6, :]
-
-        Mv = np.einsum('ikn, i, ikm -> nm', Jv_com, m, Jv_com)  # (n,n)
-
-        IwJw = np.einsum('ijk, ikn -> ijn', Ic_w, Jw)          # (n, 3, n)
-        Mw   = np.einsum('ikn, ikm -> nm', Jw, IwJw)           # (n,n)
+    def inertia_matrix(self, 
+        J_com: torch.Tensor,
+        m: torch.Tensor,
+        Ic_wl: torch.Tensor,
+        ) -> torch.Tensor:
+        """Jacobian/energy-form M(q)."""
+        Jv_com = J_com[:, :3, :]         # (n, 3, n)
+        Jw     = J_com[:, 3:, :]         # (n, 3, n)
+        Mv = torch.einsum('ikn, i, ikm -> nm', Jv_com, m, Jv_com)  # (n,n)
+        IwJw = torch.einsum('ijk, ikn -> ijn', Ic_wl, Jw)          # (n, 3, n)
+        Mw   = torch.einsum('ikn, ikm -> nm', Jw, IwJw)           # (n,n)
         
         M = Mv + Mw
         M = 0.5 * (M + M.T)  # tidy symmetry
+        return M
 
-        tau_g = np.einsum('i, ikn , k -> n', m, Jv_com, g_w)  # (n,)
 
-        return M, tau_g
+    def gravity_vector(self,
+        J_com: torch.Tensor,
+        m: torch.Tensor,
+        g: torch.Tensor
+        ) -> torch.Tensor:
+        """Gravity vector tau_g(q)."""
+        Jv_com = J_com[:, :3, :]         # (n, 3, n)
+        tau_g = torch.einsum('i, ikn , k -> n', m, Jv_com, g)  # (n,)
+        return tau_g
+
+
+    def coriolis_matrix(self,
+        q: torch.Tensor,
+        qd: torch.Tensor,
+        ) -> torch.Tensor:
+        """
+        C(q, qd) such that tau_c = C(q, qd) @ qd.
+        """
+        q_req = q.detach().clone().requires_grad_(True)
+
+
+        def M_fn(q_in: torch.Tensor) -> torch.Tensor:
+            self.kin.step(q=q_in)
+            m  = self.kin.mass[1:]
+            J_com = self.kin.jac_com()
+            Ic_wl = self.kin.Ic_wl[1:]
+            return self.inertia_matrix(J_com, m, Ic_wl)  # (n, n)
+
+        dM_dq = torch.autograd.functional.jacobian(M_fn, q_req, create_graph=False)
+
+        term1 = dM_dq
+        term2 = dM_dq.permute(0, 2, 1)  # (i, k, j)
+        term3 = dM_dq.permute(1, 2, 0)  # (j, k, i)
+
+        c = 0.5 * (term1 + term2 - term3)   # (n, n, n)
+
+        C = torch.einsum('ijk,k->ij', c, qd)  # (n, n)
+        return C
+
+
