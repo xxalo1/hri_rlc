@@ -114,7 +114,7 @@ class Dynamics:
         n = len(q)
 
         J = self.J_full(q)         # (n, 6, n)
-        T_wl = self.kin.fk(q)      # (n, 4, 4)
+        T_wl = self.kin.forward_kinematics(q)      # (n, 4, 4)
 
         Jv_com, Ic_w = self.shift_J_and_Ic(J, T_wl, com_fl, Ic_fl)
         Jw = J[:, 3:6, :]
