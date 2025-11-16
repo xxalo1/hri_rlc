@@ -85,3 +85,6 @@ def from_numpy(*args, **kwargs):
 
 def to_numpy(tensor: torch.Tensor) -> FloatArray:
     return tensor.to('cpu').detach().numpy()
+
+def from_numpy_dict(d: dict[str, FloatArray]) -> dict[str, torch.Tensor]:
+    return {k: from_numpy(v) for k, v in d.items()}

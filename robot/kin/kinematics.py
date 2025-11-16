@@ -106,34 +106,34 @@ class Kinematics(Generic[ArrayT]):
         """
         
 
-        self.d = dh["d"]
-        self.a = dh["a"]
-        self.alpha = dh["alpha"]
-        self.q0 = dh["q0"]
-        self.b = dh.get("b")
+        self._d = dh["d"]
+        self._a = dh["a"]
+        self._alpha = dh["alpha"]
+        self._q0 = dh["q0"]
+        self._b = dh.get("b")
 
         if o_wb is None: o_wb = xp.array_like(self.d, [0, 0, 0])
         if axes_wb is None: axes_wb = xp.eye_like(self.d, 3)
-        if self.b is None: self.b = xp.zeros_like(self.d)
+        if self._b is None: self._b = xp.zeros_like(self.d)
 
         if inertia is None: inertia = {}
 
-        self.o_wb = o_wb  # origins in base frame
-        self.axes_wb = axes_wb  # z axes in base frame
+        self._o_wb = o_wb  # origins in base frame
+        self._axes_wb = axes_wb  # z axes in base frame
 
-        self.T_wb = xp.zeros_like(self.d, shape=(4, 4))
+        self.T_wb = xp.eye_like(self.d, 4)
         self.T_wb[:3, :3] = axes_wb
         self.T_wb[:3, 3] = o_wb
 
-        self.q = xp.zeros_like(self.d)
-        self.qd = xp.zeros_like(self.d)
-        self.qdd = xp.zeros_like(self.d)
+        self._q = xp.zeros_like(self.d)
+        self._qd = xp.zeros_like(self.d)
+        self._qdd = xp.zeros_like(self.d)
 
         n = self.n
 
-        self.com_fl = inertia.get("com", xp.zeros_like(self.d, shape=(n+1, 3)))
-        self.mass = inertia.get("mass", xp.zeros_like(self.d, shape=n+1))
-        self.Ic_fl = inertia.get("Ic", xp.zeros_like(self.d, shape=(n+1, 3, 3)))
+        self.com_fl = inertia.get("com", xp.zeros_like(self.d, shape=(n, 3)))
+        self.mass = inertia.get("mass", xp.zeros_like(self.d, shape=n))
+        self.Ic_fl = inertia.get("Ic", xp.zeros_like(self.d, shape=(n, 3, 3)))
 
         self.T_wl: ArrayT = xp.empty_like(self.d, shape=(n, 4, 4))
         self.T_wf: ArrayT = xp.empty_like(self.d, shape=(n + 1, 4, 4))
@@ -176,6 +176,14 @@ class Kinematics(Generic[ArrayT]):
     def a(self, v):
         self._validate_array(v, self._a, "a")
         self._a = v
+        self._invalidate_kinematics()
+
+    @property
+    def b(self): return self._b
+    @b.setter
+    def b(self, v):
+        self._validate_array(v, self._b, "b")
+        self._b = v
         self._invalidate_kinematics()
 
     @property
@@ -272,11 +280,11 @@ class Kinematics(Generic[ArrayT]):
         """
         if max_value is None:
             max_value = self.n - 1
-        if not (0 <= i < max_value):
+        if not (0 <= i <= max_value):
             raise ValueError(f"i must be in [0, {max_value - 1}]")
 
 
-    def _compute_com_wl(self) -> ArrayT | None:
+    def _compute_com_wl(self) -> ArrayT:
         """
         Compute centers of mass (COM) positions in the world frame.
         includes base at index 0.
@@ -285,14 +293,14 @@ class Kinematics(Generic[ArrayT]):
             return self._com_wl
 
         T_wf = self.forward_kinematics()
-        com_wl = cops.com_world(T_wf, self.com_fl)
+        com_wl = cops.com_world(T_wf[:-1, :, :], self.com_fl)
 
         self._com_wl = com_wl
         self._com_valid = True
         return com_wl
 
 
-    def _compute_Ic_wl(self) -> ArrayT | None:
+    def _compute_Ic_wl(self) -> ArrayT:
         """
         Inertia tensors rotated to world frame, shape (n+1, 3, 3).
         includes base at index 0.
@@ -301,8 +309,8 @@ class Kinematics(Generic[ArrayT]):
             return self._Ic_wl
 
         T_wf = self.forward_kinematics()   # (n+1, 4, 4)
-        R = T_wf[:, :3, :3]                             # (n+1, 3, 3)
-        Ic_fl = self.Ic_fl                                  # (n+1, 3, 3)
+        R = T_wf[:-1, :3, :3]                             # (n, 3, 3)
+        Ic_fl = self.Ic_fl                                  # (n, 3, 3)
 
         Ic_wl = xp.einsum("kia, kab, kjb -> kij", R, Ic_fl, R)
 
@@ -530,7 +538,7 @@ class Kinematics(Generic[ArrayT]):
             three correspond to angular velocity terms.
         """
         if q is not None: 
-            self._validate_array(q, "q")
+            self._validate_array(q, self.q, name="q")
         else:
             q = self.q
         if i is not None: 
@@ -570,15 +578,10 @@ class Kinematics(Generic[ArrayT]):
         
         T_wf = self.forward_kinematics(use_cache=use_cache)
         J = self.full_jac(use_cache=use_cache)
-        T_wl = T_wf[1:]
-        R_wl = T_wl[:, :3, :3]   # (n, 3, 3)
+        T_wl = T_wf[:-1]
         o_w  = T_wl[:, :3, 3]    # (n, 3)
 
-        com_l = self.com_fl
-        Rc = R_wl @ com_l                                # (n, 3)
-        com_w = Rc + o_w                                 # (n, 3)
-
-        r_w = com_w - o_w                                # (n, 3)
+        r_w = self.com_wl - o_w                        # (n, 3)
 
         S = cops.skew(r_w)                               # (n, 3, 3)
         Jv_o = J[:, 0:3, :]                              # (n, 3, n)

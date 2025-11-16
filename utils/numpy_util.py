@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 FloatArray = NDArray[np.floating]
-dtype = np.float32
+dtype = np.float64
 
 ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 

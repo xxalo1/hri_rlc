@@ -1,13 +1,12 @@
 from __future__ import annotations
-from re import A
 
 import numpy as np
 import torch
 
-from typing import Any, Sequence, TypeVar, overload
+from typing import Sequence
 
 Shape = int | tuple[int, ...]
-from ..utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
+from .numpy_util import ArrayT
 
 def cos(x: ArrayT) -> ArrayT: 
     """Cosine function compatible with both numpy arrays and torch tensors."""

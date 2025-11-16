@@ -4,12 +4,14 @@ import torch
 from typing import Sequence
 
 from ..kin import Kinematics
-
+from ...utils import pytorch_util as ptu
 class Dynamics():
 
     def __init__(self, kin: Kinematics[torch.Tensor],
-                 g_vec: torch.Tensor):
+                 g_vec: torch.Tensor | None = None) -> None:
         self.kin = kin
+        if g_vec is None:
+            g_vec = torch.tensor([0.0, 0.0, -9.81], device=ptu.device)
         self.g_vec = g_vec
 
 
@@ -28,10 +30,10 @@ class Dynamics():
         ) -> Sequence[torch.Tensor]:
         """Jacobian/energy-form M(q)."""
         self.kin.step(q=q)
-        m  = self.kin.mass[1:]           # (n,)
+        m  = self.kin.mass           # (n,)
         g = self.g_vec
         J_com = self.kin.jac_com()       # (n, 6, n)
-        Ic_wl = self.kin.Ic_wl[1:]       # (n, 3, 3)
+        Ic_wl = self.kin.Ic_wl       # (n, 3, 3)
         M = self.inertia_matrix(J_com, m, Ic_wl)
         tau_g = self.gravity_vector(J_com, m, g)
         C = self.coriolis_matrix(q, qd)
@@ -78,9 +80,9 @@ class Dynamics():
 
         def M_fn(q_in: torch.Tensor) -> torch.Tensor:
             self.kin.step(q=q_in)
-            m  = self.kin.mass[1:]
+            m  = self.kin.mass
             J_com = self.kin.jac_com()
-            Ic_wl = self.kin.Ic_wl[1:]
+            Ic_wl = self.kin.Ic_wl
             return self.inertia_matrix(J_com, m, Ic_wl)  # (n, n)
 
         dM_dq = torch.autograd.functional.jacobian(M_fn, q_req, create_graph=False)
