@@ -113,7 +113,7 @@ def jacobian(T_wf: ArrayT) -> ArrayT:
     Parameters
     ----------
     T_wf : ndarray | Tensor, shape (n+1, 4, 4)
-        World-to-frame transforms for all frames including base (frame 0).
+           World-to-frame transforms for all frames including base (frame 0).
     
     Returns
     -------
@@ -133,7 +133,7 @@ def jacobian(T_wf: ArrayT) -> ArrayT:
     Jv = xp.cross(z_wf[:-1], (o_n - o_wf[:-1]), dim=1).T   # (3, n)
     Jw = z_wf[:-1].T                                          # (3, n)
 
-    J = xp.concatenate(Jv, Jw) # (6, n)
+    J = xp.concatenate([Jv, Jw]) # (6, n)
     return J
 
 
@@ -146,19 +146,20 @@ def com_world(
 
     Parameters
     ----------
-    T_wf : ndarray | Tensor, shape (n+1, 4, 4)
-        World-to-frame transforms for base (0) and all links.
-    com_fl : ndarray | Tensor, shape (n+1, 3)
+    T_wf : ndarray | Tensor, shape (n, 4, 4)
+        World-to-frame transforms for base (0) to frame (n-1). 
+        doesn't include end-effector's frame
+    com_fl : ndarray | Tensor, shape (n, 3)
         COM positions expressed in each frame's local coordinates.
 
     Returns
     -------
-    com_w : ndarray | Tensor, shape (n+1, 3)
+    com_w : ndarray | Tensor, shape (n, 3)
         COM positions for base and links, expressed in the world frame.
     """
-    R = T_wf[:, :3, :3]            # (n+1, 3, 3)
-    p = T_wf[:, :3, 3]             # (n+1, 3)
-    com_w = R @ com_fl + p          # (n+1, 3)
+    R = T_wf[:, :3, :3]            # (n, 3, 3)
+    p = T_wf[:, :3, 3]             # (n, 3)
+    com_w = xp.einsum("nij,nj->ni", R, com_fl) + p          # (n, 3)
     return com_w
 
 

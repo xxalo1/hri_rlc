@@ -1,4 +1,4 @@
-"""Kinematics package public API."""
+"""utility package public API."""
 from . import numpy_util
 from . import pytorch_util
 from . import quat_util

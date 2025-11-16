@@ -4,6 +4,9 @@ import os, numpy as np
 import mujoco as mj
 import pandas as pd
 from IPython.display import display
+
+from .utils import numpy_util as npu
+FloatArray = npu.FloatArray
 class Gen3Env:
     def __init__(self, xml_path="world/world.xml", nsubsteps=10, seed: int | None = 0):
         self.m = mj.MjModel.from_xml_path(xml_path)
@@ -53,50 +56,54 @@ class Gen3Env:
         df = pd.DataFrame(data, columns=["Attribute", "Value"])
         display(df)
     
-    def reset(self, noise_std=0.0):
+    def reset(self):
         """Reset to 'home' keyframe if it exists; otherwise to default qpos=0."""
         if self.key_home >= 0:
             mj.mj_resetDataKeyframe(self.m, self.d, self.key_home)
         else:
             mj.mj_resetData(self.m, self.d)
 
-        if noise_std > 0:
-            self.d.qpos[:] += self.rng.normal(0, noise_std, size=self.m.nq)
-            self.d.qvel[:] += self.rng.normal(0, noise_std, size=self.m.nv)
         mj.mj_forward(self.m, self.d)
         return self.observe()
 
-    def step(self, action: np.ndarray):
+    def step(self, action: FloatArray, mode: str ="torque"):
         """Apply action then step physics."""
-        self.apply_action(action)
-        for _ in range(self.nsub):
-            mj.mj_step(self.m, self.d)
+        if mode == "torque":
+            self.apply_torque(action)
+        
+        mj.mj_step(self.m, self.d)
         return self.observe()
 
-    def apply_action(self, action: np.ndarray, mode="position"):
+    def apply_torque(self, tao: FloatArray):
         """
-        mode='position': Menagerie Gen3 uses <position> actuators, so
-        d.ctrl is interpreted as *target joint angle* (radians) with gains.
-        You can send either absolute targets or deltas (see below).
-        """
+        Apply torque control to active actuators.
 
-        a = np.asarray(action, dtype=float)
-        n = a.shape[0]
-        assert n == 8, f"Expected 8 (arm+grip) actions, got {n}"
+        Parameters
+        ----------
+        tao : ndarray, shape (n,)
+              the torque values to apply at each actuator.
+              where `n` is number of active joints
         
-        a = self.d.qpos[self.active_joints_idx] + a
+        returns:
+        -----------
+        None
 
-        for i in range(len(a)):
-            if self.m.actuator_ctrllimited[self.act_idx[i]]:
-                a[i] = np.clip(a[i], self.ctrl_min[i], self.ctrl_max[i])
+        -----------
+        Note: 
+        this method directly sets the torque values in the simulator.
+        it sets them to the corresponding indices in `self.d.ctrl`.
+        """
 
-        self.d.ctrl[self.act_idx[:len(a)]] = a
+        self.d.ctrl[self.act_idx[:len(tao)]] = tao
+        return
 
     def observe(self):
         """Return a simple state dict; extend as you need."""
         obs = {
-            "qpos": self.d.qpos.copy(),
+            "qpos": self.d.qpos.copy()[self.active_joints_idx],
             "qvel": self.d.qvel.copy()[self.active_joints_idx],
+            "qacc":  self.d.qacc.copy()[self.active_joints_idx],
+            "time": self.d.time,
         }
         # example: end-effector pose (replace name to match yours)
         ee_name = "gen3_pinch_site"
@@ -106,11 +113,7 @@ class Gen3Env:
 
         return obs
 
-    def get_state(self):
-        idx = self.active_joints_idx
-        return (self.d.qpos.copy()[idx], self.d.qvel.copy()[idx], self.d.act.copy()[idx], self.d.time)
-
     def set_state(self, state):
-        qpos, qvel, act, t = state
-        self.d.qpos[:], self.d.qvel[:], self.d.act[:], self.d.time = qpos, qvel, act, t
+        qpos, qvel, qacc, t = state
+        self.d.qpos[:], self.d.qvel[:], self.d.qacc[:], self.d.time = qpos, qvel, qacc, t
         mj.mj_forward(self.m, self.d)

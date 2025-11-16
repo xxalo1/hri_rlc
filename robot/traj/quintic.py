@@ -7,16 +7,19 @@ from ...utils import numpy_util as npu
 FloatArray = npu.FloatArray
 dtype = npu.dtype
 
-def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, dt: float,
+def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, freq: float,
                       v0: FloatArray, a0: FloatArray, vf: FloatArray, af: FloatArray
-                  ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
+                  ) -> tuple[FloatArray, FloatArray, FloatArray]:
         """
         Compute quintic polynomial coefficients and evaluate trajectories.  
         """
         A = quintic_coeffs(q0, qf, t0, tf, v0, a0, vf, af)
-        T = np.linspace(t0, tf, int((tf - t0) / dt) + 1, dtype=dtype)
+        
+        dt = 1.0 / freq
+        n_steps = int(np.round((tf - t0) * freq)) + 1
+        T = t0 + np.arange(n_steps, dtype=dtype) * dt
         Q, Qd, Qdd = eval_quintic(A, T)
-        return Q, Qd, Qdd, T
+        return Q, Qd, Qdd
 
 def quintic_coeffs(q0: FloatArray, qf: FloatArray, t0: float, tf: float,
                     v0: FloatArray, a0: FloatArray, vf: FloatArray, af: FloatArray
