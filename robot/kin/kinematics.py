@@ -293,7 +293,7 @@ class Kinematics(Generic[ArrayT]):
             return self._com_wl
 
         T_wf = self.forward_kinematics()
-        com_wl = cops.com_world(T_wf[:-1, :, :], self.com_fl)
+        com_wl = cops.com_world(T_wf[1:, :, :], self.com_fl)
 
         self._com_wl = com_wl
         self._com_valid = True
@@ -309,10 +309,10 @@ class Kinematics(Generic[ArrayT]):
             return self._Ic_wl
 
         T_wf = self.forward_kinematics()   # (n+1, 4, 4)
-        R = T_wf[:-1, :3, :3]                             # (n, 3, 3)
+        R = T_wf[1:, :3, :3]                             # (n, 3, 3)
         Ic_fl = self.Ic_fl                                  # (n, 3, 3)
 
-        Ic_wl = xp.einsum("kia, kab, kjb -> kij", R, Ic_fl, R)
+        Ic_wl = xp.einsum("iac,icd,ibd->iab", R, Ic_fl, R)     # R^T Ic R
 
         self._Ic_wl = Ic_wl
         self._Ic_valid = True
@@ -338,6 +338,31 @@ class Kinematics(Generic[ArrayT]):
         
         T_wf[0]  = self.T_wb
         T_wf[1:] = T_wl
+        return T_wf
+
+
+    def batch_forward_kinematics(self, 
+        Q: ArrayT
+        ) -> ArrayT:
+        """
+        Compute forward kinematics for a batch of joint configurations.
+
+        Parameters
+        ----------
+        Q : ndarray | Tensor, shape (N, n)
+            Batch of joint positions.
+        
+        Returns
+        -------
+        T_wf : ndarray | Tensor, shape (N, n+1, 4, 4)
+            Batch of world-frame transforms for each joint configuration.
+        """
+
+        N = Q.shape[0]
+        n = self.n
+        T_wf = xp.empty_like(Q, shape=(N, n + 1, 4, 4))
+        for i in range(N):
+            T_wf[i] = self.forward_kinematics(Q[i])
         return T_wf
 
 
@@ -578,7 +603,7 @@ class Kinematics(Generic[ArrayT]):
         
         T_wf = self.forward_kinematics(use_cache=use_cache)
         J = self.full_jac(use_cache=use_cache)
-        T_wl = T_wf[:-1]
+        T_wl = T_wf[1:]
         o_w  = T_wl[:, :3, 3]    # (n, 3)
 
         r_w = self.com_wl - o_w                        # (n, 3)

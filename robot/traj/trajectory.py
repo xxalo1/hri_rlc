@@ -1,4 +1,3 @@
-
 import numpy as np
 from typing import Any, Optional, Sequence
 from numpy.typing import ArrayLike, NDArray
@@ -72,5 +71,5 @@ class TrajPlanner:
             af = npu.to_n_array(0.0, n)
 
         Q, Qd, Qdd = qt.quintic_trajs(q0, qf, t0, tf, freq, v0, a0, vf, af)
-        T = np.concatenate([Q, Qd, Qdd], axis=0)
+        T = np.stack([Q, Qd, Qdd], axis=0)
         return T

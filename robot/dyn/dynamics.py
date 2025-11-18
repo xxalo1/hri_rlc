@@ -15,15 +15,6 @@ class Dynamics():
         self.g_vec = g_vec
 
 
-    def inverse_dynamics(self, 
-        q: torch.Tensor, 
-        qd: torch.Tensor, 
-        qdd: torch.Tensor
-        ) -> torch.Tensor:
-        M, tau_g, C = self.Dynamics_matrices(q, qd)
-        return M @ qdd + C @ qd + tau_g
-
-
     def Dynamics_matrices(self, 
         q: torch.Tensor, 
         qd: torch.Tensor
@@ -36,8 +27,9 @@ class Dynamics():
         Ic_wl = self.kin.Ic_wl       # (n, 3, 3)
         M = self.inertia_matrix(J_com, m, Ic_wl)
         tau_g = self.gravity_vector(J_com, m, g)
-        C = self.coriolis_matrix(q, qd)
-        return M, tau_g, C
+        # C = self.coriolis_matrix(q, qd)
+        h = self.coriolis_vector(q, qd)
+        return M, h, tau_g
 
 
     def inertia_matrix(self, 
@@ -97,3 +89,33 @@ class Dynamics():
         return C
 
 
+    def coriolis_vector(self, q: torch.Tensor, qd: torch.Tensor) -> torch.Tensor:
+        """
+        Compute h(q, qd) = C(q, qd) @ qd directly.
+        """
+
+        q_req = q.detach().clone().requires_grad_(True)
+
+        def M_fn(q_in: torch.Tensor) -> torch.Tensor:
+            self.kin.step(q=q_in)
+            m  = self.kin.mass
+            J_com = self.kin.jac_com()
+            Ic_wl = self.kin.Ic_wl
+            return self.inertia_matrix(J_com, m, Ic_wl)  # (n, n)
+
+        # Jacobian of M wrt q: shape (n, n, n)
+        dM_dq = torch.autograd.functional.jacobian(
+            M_fn,
+            q_req,
+            create_graph=False,
+            vectorize=True,        # important for speed
+        )
+
+        term1 = dM_dq
+        term2 = dM_dq.permute(0, 2, 1)
+        term3 = dM_dq.permute(1, 2, 0)
+
+        c = 0.5 * (term1 + term2 - term3)      # (n, n, n)
+
+        h = torch.einsum("ijk,j,k->i", c, qd, qd)   # (n,)
+        return h
