@@ -1,7 +1,7 @@
 <mujoco model="world">
   <compiler angle="radian"/>
     <!-- Add some fluid viscosity to prevent the hanging box from jiggling forever -->
-  <option viscosity="0.1" integrator="implicitfast"/>
+  <option viscosity="0.0" integrator="implicitfast"/>
 
   <statistic center="0 0 0.05" extent="5"/>
 
@@ -12,7 +12,7 @@
 
 
   <asset>
-    <model name="gen3"  file="gen3_kortex.xml"/>
+    <model name="gen3"  file="gen3_kortex_no_arm.xml"/>
 
     <texture type="skybox" builtin="gradient"
             rgb1="0.62 0.72 0.85" rgb2="0.05 0.08 0.12"

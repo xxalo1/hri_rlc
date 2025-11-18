@@ -36,6 +36,7 @@ class Gen3Env:
 
         # self.display()
 
+
     def display(self):
         """display attributes for debugging as a panda table"""
         data = [
@@ -48,7 +49,11 @@ class Gen3Env:
             ("ctrl_min", self.ctrl_min),
             ("ctrl_max", self.ctrl_max),
             ("act_idx", self.act_idx),
-            ("limited_act_idx", self.m.actuator_ctrllimited[self.act_idx])
+            ("limited_act_idx", self.m.actuator_ctrllimited[self.act_idx]),
+            ("active_joints", self.active_joints),
+            ("actuator_gear:", self.m.actuator_gear[self.act_idx]),
+            ("actuator_ctrllimited:", self.m.actuator_ctrllimited[self.act_idx]),
+            ("actuator_ctrlrange:", self.m.actuator_ctrlrange[self.act_idx]),
         ]
         pd.set_option('display.max_colwidth', None)   # show full cell contents
         pd.set_option('display.max_rows', None)       # optional: show all rows
@@ -56,6 +61,7 @@ class Gen3Env:
         df = pd.DataFrame(data, columns=["Attribute", "Value"])
         display(df)
     
+
     def reset(self):
         """Reset to 'home' keyframe if it exists; otherwise to default qpos=0."""
         if self.key_home >= 0:
@@ -66,12 +72,15 @@ class Gen3Env:
         mj.mj_forward(self.m, self.d)
         return self.observe()
 
+
     def step(self, action: FloatArray, mode: str ="torque"):
         """Apply action then step physics."""
         if mode == "torque":
             self.apply_torque(action)
-        
-        mj.mj_step(self.m, self.d)
+
+        for _ in range(self.nsub):
+            mj.mj_step(self.m, self.d)
+
         return self.observe()
 
     def apply_torque(self, tao: FloatArray):
@@ -113,7 +122,7 @@ class Gen3Env:
 
         return obs
 
-    def set_state(self, state):
-        qpos, qvel, qacc, t = state
-        self.d.qpos[:], self.d.qvel[:], self.d.qacc[:], self.d.time = qpos, qvel, qacc, t
+    def set_state(self, qpos, qvel, t):
+        aji = self.active_joints_idx
+        self.d.qpos[aji], self.d.qvel[aji], self.d.time = qpos, qvel, t
         mj.mj_forward(self.m, self.d)
