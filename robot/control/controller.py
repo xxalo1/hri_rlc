@@ -68,7 +68,7 @@ class Controller:
                                tau, e, de, v, 
                                inertia_com, h, tau_g, 
                                Mjd, mjd["b"], b)
-        return taumj
+        return tau
 
 
     def set_trajectory(self, 
