@@ -3,7 +3,6 @@ import numpy as np
 import math
 
 from ..dyn import Dynamics
-from ..traj import TrajPlanner
 from ...utils import pytorch_util as ptu
 from ...utils import numpy_util as npu
 FloatArray = npu.FloatArray
@@ -14,6 +13,7 @@ class Controller:
         dynamics: Dynamics, 
         Kv: float | None = None, 
         Kp: float | None = None,
+        Ki: float | None = None,
     ) -> None:
         
         self.dyn = dynamics
@@ -22,19 +22,61 @@ class Controller:
             Kv = 2.0
         if Kp is None:
             Kp = 5.0
+        if Ki is None:
+            Ki = 0.0
         self.Kv : torch.Tensor = Kv * I
         self.Kp : torch.Tensor = Kp * I
+        self.Ki : torch.Tensor = Ki * I
+
+        self.e_int = torch.zeros((dynamics.kin.n,), device=ptu.device)
         # lightweight in-memory logger (append-only, fast)
+
+
+    def set_gains(self,
+        Kp: float | torch.Tensor,
+        Kv: float | torch.Tensor,
+        Ki: float | torch.Tensor = 0.0,
+    ) -> None:
+        """
+        Set proportional, derivative, and integral gains.
+        
+        Parameters
+        -----------
+        Kp: float | Tensor, (n, n)
+            Proportional gain.
+        Kv: float | Tensor, (n, n)
+            Derivative gain.
+        Ki: float | Tensor, (n, n)
+            Integral gain.
+        
+        --------
+        Notes:
+        Stores gains as Tensors in self.Kp, self.Kv, self.Ki.
+        1- If a float is provided, it is multiplied by identity.
+        2- otherwise, the provided Tensor is used directly.
+        """
+        I = torch.eye(self.dyn.kin.n, device=ptu.device)
+        if isinstance(Kp, float):
+            Kp = Kp * I
+        if isinstance(Kv, float):
+            Kv = Kv * I
+        if isinstance(Ki, float):
+            Ki = Ki * I
+        
+        self.Kp = Kp
+        self.Kv = Kv
+        self.Ki = Ki
 
 
     def computed_torque(self, 
         q: torch.Tensor, 
         qd: torch.Tensor, 
-        t: float,
+        qt: torch.Tensor, 
+        qdt: torch.Tensor,
+        ddqt: torch.Tensor,
         mjd: dict[str, torch.Tensor]
     ) -> torch.Tensor:
         """Compute torque using computed torque control."""
-        qt, qdt, ddqt = self.get_desired_state(t)
         e = qt - q
         de = qdt - qd
         v = ddqt + self.Kv @ de + self.Kp @ e
@@ -44,90 +86,42 @@ class Controller:
 
         tau_rnea = self.dyn.inverse_dynamics_rnea(q, qd, v)
 
-        dict_out = {
-                    "qt": qt, "qdt": qdt, "ddqt": ddqt, "q": q, "qd": qd, "qdd": mjd["qdd"], "t": t, 
-                    "e": e, "de": de, "v": v, "Mjd": Mjd, "bjd": mjd["b"], "taumj": taumj, "tau_rnea": tau_rnea
-                    }
+        dict_out = {"e": e, "de": de, "v": v}
 
         return taumj, tau_rnea, dict_out
 
 
-    def set_trajectory(self, 
-        T: torch.Tensor | FloatArray,
-        freq: float,
-        ti: float = 0.0
-    ) -> None:
+    def pid(self,
+        q: torch.Tensor,
+        qd: torch.Tensor,
+        qt: torch.Tensor,
+        qdt: torch.Tensor,
+        dt: float,
+    ) -> torch.Tensor:
         """
-        Set the trajectory to follow.
-        
-        Parameters
-        -----------
-        T: ndarray | Tensor, (3, N, n)
-            T[0]: desired positions.
-            T[1]: desired velocities.
-            T[2]: desired accelerations.
-        freq: float:
-            frequency at which the trajectory is sampled.
-        ti: float
-            initial time offset of the trajectory.
-        
-        --------
-        Notes:
-        Stores T as a Tensor in self.T.
-        """
-        if isinstance(T, np.ndarray):
-            T = ptu.from_numpy(T)
-        self.T = T
-        self.freq = freq
-        self.ti = ti
-
-
-    def get_desired_state(self,
-        t: float
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Get desired state at a given time.
+        Joint-space PID controller.
 
         Parameters
-        -----------
-        t: float
-            Time in seconds.
+        ----------
+        q  : (n,)  current joint positions
+        qd : (n,)  current joint velocities
+        t  : float current time (s)
+        dt : float time step since last call (s)
 
         Returns
-        ----------
-        qt: Tensor, (n,)
-            Desired joint positions at time step.
-        qdt: Tensor, (n,)
-            Desired joint velocities at time step.
-        ddqt: Tensor, (n,)
-            Desired joint accelerations at time step.
-
-        ----------
-        Notes
-        --
-            1- Assumes self.T has shape (3, N, n) and self.freq is the
-            sampling frequency (Hz) of the trajectory.
-            2- Times outside [self.ti, self.ti + (N-1)/self.freq] are clamped to the first/last sample.
+        -------
+        tau : (n,) torque command
         """
 
-        s = (t - self.ti) * self.freq  # continuous index
-        N = self.T.shape[1]
+        e  = qt  - q
+        de = qdt - qd
 
-        if s <= 0.0:
-            i0 = i1 = 0
-            alpha = 0.0
-        elif s >= N - 1:
-            i0 = i1 = N - 1
-            alpha = 0.0
-        else:
-            i0 = int(math.floor(s))      # lower index
-            i1 = i0 + 1                  # upper index
-            alpha = s - i0               # interpolation factor in [0,1)
+        self.e_int = self.e_int + e * dt
 
-        # linear interpolation between i0 and i1
-        qt   = (1.0 - alpha) * self.T[0, i0] + alpha * self.T[0, i1]
-        qdt  = (1.0 - alpha) * self.T[1, i0] + alpha * self.T[1, i1]
-        ddqt = (1.0 - alpha) * self.T[2, i0] + alpha * self.T[2, i1]
+        tau_p = self.Kp @ e
+        tau_d = self.Kv @ de
+        tau_i = self.Ki @ self.e_int
 
-        return qt, qdt, ddqt
+        tau = tau_p + tau_d + tau_i
 
+        return tau
