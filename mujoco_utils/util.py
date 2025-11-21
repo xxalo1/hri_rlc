@@ -71,6 +71,8 @@ def draw_ee_traj(
 def draw_all_frames(
     scn: mj.MjvScene,
     T_wf: FloatArray,
+    com_wl: FloatArray,
+    show_com: bool = False,
     axis_len: float = 0.2,
     width: float = 0.004,
     segid: int = FRAME_SEGID,
@@ -97,8 +99,11 @@ def draw_all_frames(
 
     # 2) Append new frame geoms, tagged with segid
     for i in range(T_wf.shape[0]):
+        if show_com and i != 0:
+            o = com_wl[i-1]
+        else:
+            o = T_wf[i][:3, 3]
         T = T_wf[i]
-        o = T[:3, 3]
         R = T[:3, :3]
 
         cols = (

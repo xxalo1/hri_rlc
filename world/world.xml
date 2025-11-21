@@ -39,6 +39,10 @@
     <texture name="mossy_cobblestone_diff_8k_tex" type="2d" file="textures/mossy_cobblestone_diff_8k.png"/>
     <material name="mossy_cobblestone" texture="mossy_cobblestone_diff_8k_tex" texuniform="true" texrepeat="0.8 0.8" reflectance="0"/>
 
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+
   </asset>
 
   <visual>
@@ -55,7 +59,7 @@
       <site name="bottle_grasp" pos="0 0 0" size="0.005" rgba="0.9 0.2 0.2 1"/>
     </body>
 
-    <geom name="ground" size="0 0 0.05" type="plane" material="mossy_cobblestone"/>
+    <geom name="ground" size="0 0 0.05" type="plane" material="groundplane"/>
 
     <light name="key" pos="0 0 3" dir="-0.4 -0.2 -1"
         directional="true" castshadow="true"
@@ -76,7 +80,4 @@
     
   </worldbody>
 
-  <equality>
-    <weld body1="gen3_base_link" body2="robot_mount" relpose="0 0 0  1 0 0 0"/>
-  </equality>
 </mujoco>
