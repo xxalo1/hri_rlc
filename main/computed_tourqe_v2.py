@@ -6,14 +6,14 @@ import logging
 import matplotlib.pyplot as plt
 import mujoco as mj
 from mujoco import viewer
+import mujoco_viewer
 
-from .mujoco_utils import draw_all_frames, draw_ee_traj
-from .env import Gen3Env, Plotter
-from .robot import Kinematics, Dynamics, Controller, TrajPlanner
-from .kinova_gen3 import load_kinova_gen3_v2
-from .utils import pytorch_util as ptu
-from .utils import numpy_util as npu
-from .kinova_gen3 import mj_util as mju
+from ..mujoco_utils import draw_all_frames, draw_ee_traj, Plotter
+from .env import Gen3Env
+from ..robot import Kinematics, Dynamics, Controller, TrajPlanner
+from ..kinova_gen3 import load_kinova_gen3_v2
+from ..utils import pytorch_util as ptu
+from ..utils import numpy_util as npu
 
 FloatArray = npu.FloatArray
 ptu.init_gpu(use_gpu=False)
@@ -37,7 +37,8 @@ logger.propagate = False
 
 
 def key_callback(keycode):
-    global paused, want_plot, reset, show_frames, show_jacobian, show_dynamics, show_inertia, show_com, use_rnea
+    global paused, want_plot, reset, show_frames, show_jacobian
+    global pid, show_dynamics, show_inertia, show_com, use_rnea
     c = chr(keycode)
     if c == ' ':
         paused = not paused
@@ -59,6 +60,8 @@ def key_callback(keycode):
         show_com = not show_com
     elif c in ("e", "E"):
         use_rnea = not use_rnea
+    elif c in ("t", "T"):
+        pid = not pid
 
 
 def wait_if_paused():
@@ -319,8 +322,30 @@ def log_ic_mass_compare(logger, kin, env):
     logger.info("\n".join(msg))
 
 
+def draw_overlay(viewer):
+    # top-left corner
+    viewer.add_overlay(
+        mj.mjtGridPos.mjGRID_TOPLEFT,
+        "Sim",
+        f"paused={paused}  reset={reset}  want_plot={want_plot}"
+    )
+    viewer.add_overlay(
+        mj.mjtGridPos.mjGRID_TOPLEFT,
+        "Vis",
+        f"frames={show_frames}  jacobian={show_jacobian}"
+    )
+    viewer.add_overlay(
+        mj.mjtGridPos.mjGRID_TOPLEFT,
+        "Ctrl",
+        f"pid={pid}  use_rnea={use_rnea}  show_dyn={show_dynamics}  "
+        f"show_M={show_inertia}  show_com={show_com}"
+    )
+
+
 def main():
-    global paused, v, reset, want_plot, show_frames, show_jacobian, show_dynamics, show_inertia, show_com, use_rnea
+    global paused, v, reset, want_plot, show_frames, show_jacobian
+    global pid, show_dynamics, show_inertia, show_com, use_rnea
+
     paused = True
     want_plot = False
     reset = False
@@ -330,7 +355,9 @@ def main():
     show_inertia = True
     show_com = False
     use_rnea = True
-    kin, dyn, ctrl, planner = init_system(kv = 5.0, kp = 5.0)
+    pid = True
+
+    kin, dyn, ctrl, planner = init_system(kv = 0.10, kp = 0.10)
     plotter = Plotter()
 
     freq = 1000.0  # trajectory frequency
@@ -357,6 +384,7 @@ def main():
     dq0 = np.zeros_like(q0)
     env.set_state(q0, dq0, t0)
     env.display()
+    t_pref = t0
 
     log_ic_mass_compare(logger, kin, env)
 
@@ -374,7 +402,6 @@ def main():
                 with v.lock():
                     plotter.clear_log()
                     env.set_state(q0, dq0, t0)
-                    obs = env.observe()
                     v.sync()
 
             with v.lock():
@@ -418,12 +445,19 @@ def main():
                 tau, tau_rnea, dict_out = ctrl.computed_torque(q, qd, t, mjd)
                 for key, value in dict_out.items():
                     plotter.log(key, value)
-                
+
                 if use_rnea:
                     tau = tau_rnea
 
+                if pid:
+                    dt = t - t_pref
+                    tau_pid = ctrl.pid(q, qd, t, dt)
+                    tau = tau + tau_pid
+
                 tau_n = ptu.to_numpy(tau)
                 obs = env.step(tau_n)
+                t_pref = t
+                draw_overlay(v)
                 v.sync()
             wait_if_paused()
 

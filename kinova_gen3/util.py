@@ -5,6 +5,8 @@ import yaml, copy, pandas as pd
 from numpy import pi
 from pathlib import Path
 
+from ..robot.core import RobotSpec
+
 from..utils import numpy_util as npu
 from..utils import dtype, FloatArray, ArrayT
 from ..utils import pytorch_util as ptu
@@ -136,7 +138,7 @@ def change_of_basis(d: dict[str, FloatArray], dh: dict[str, FloatArray]) -> tupl
     return out, T[0]
 
 
-def load_kinova_gen3_v2() -> tuple[dict[str, FloatArray], dict[str, FloatArray], FloatArray, dict[str, torch.Tensor], dict[str, torch.Tensor], torch.Tensor]:
+def load_kinova_gen3() -> tuple[dict[str, FloatArray], dict[str, FloatArray], FloatArray, dict[str, torch.Tensor], dict[str, torch.Tensor], torch.Tensor]:
     """Load both DH and inertial parameters for Kinova Gen3 robot."""
     dh = load_dh(DH_FILE)
     inertia = load_inertia(INERT_FILE)
@@ -148,3 +150,26 @@ def load_kinova_gen3_v2() -> tuple[dict[str, FloatArray], dict[str, FloatArray],
     inertia_torch = ptu.from_numpy_dict(inertia)
     T_base_torch = ptu.from_numpy(T_base)
     return dh, inertia, T_base, dh_torch, inertia_torch, T_base_torch
+
+
+def kinova_gen3_spec() -> RobotSpec:
+    """Return a RobotSpec for Kinova Gen3 using numpy arrays."""
+    dh, inertia, T_base, _, _, _ = load_kinova_gen3()
+
+    joint_names = [
+        "joint_1",
+        "joint_2",
+        "joint_3",
+        "joint_4",
+        "joint_5",
+        "joint_6",
+        "joint_7",
+    ]
+
+    return RobotSpec(
+        name="kinova_gen3",
+        dh=dh,
+        inertia=inertia,
+        T_base=T_base,
+        joint_names=joint_names,
+    )
