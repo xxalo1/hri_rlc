@@ -92,8 +92,7 @@ class Kinematics(Generic[ArrayT]):
     """
     def __init__(self, 
         dh: dict[str, ArrayT],
-        o_wb: ArrayT | None = None,
-        axes_wb: ArrayT | None = None,
+        T_wb: ArrayT | None = None,
         inertia: dict[str, ArrayT] | None = None,
         ) -> None:
         """
@@ -105,25 +104,19 @@ class Kinematics(Generic[ArrayT]):
         o_0: optional 1d array, origin of base frame in world coords, defaults to [0,0,0]
         """
         
-
         self._d = dh["d"]
         self._a = dh["a"]
         self._alpha = dh["alpha"]
         self._q0 = dh["q0"]
         self._b = dh.get("b")
 
-        if o_wb is None: o_wb = xp.array_like(self.d, [0, 0, 0])
-        if axes_wb is None: axes_wb = xp.eye_like(self.d, 3)
         if self._b is None: self._b = xp.zeros_like(self.d)
 
         if inertia is None: inertia = {}
 
-        self._o_wb = o_wb  # origins in base frame
-        self._axes_wb = axes_wb  # z axes in base frame
-
-        self.T_wb = xp.eye_like(self.d, 4)
-        self.T_wb[:3, :3] = axes_wb
-        self.T_wb[:3, 3] = o_wb
+        if T_wb is None:
+            T_wb = xp.eye_like(self.d, 4)
+        self._T_wb = T_wb
 
         self._q = xp.zeros_like(self.d)
         self._qd = xp.zeros_like(self.d)
@@ -132,7 +125,7 @@ class Kinematics(Generic[ArrayT]):
         n = self.n
 
         self.com_fl = inertia.get("com", xp.zeros_like(self.d, shape=(n, 3)))
-        self.mass = inertia.get("mass", xp.zeros_like(self.d, shape=n))
+        self.mass = inertia.get("m", xp.zeros_like(self.d, shape=n))
         self.Ic_fl = inertia.get("Ic", xp.zeros_like(self.d, shape=(n, 3, 3)))
 
         self.T_wl: ArrayT = xp.empty_like(self.d, shape=(n, 4, 4))
@@ -141,6 +134,8 @@ class Kinematics(Generic[ArrayT]):
         self._fk_valid: bool = False
         self._J_valid: bool = False
         self._array_cls = np.ndarray if isinstance(self.d, np.ndarray) else torch.Tensor
+        self._Ic_valid: bool = False
+        self._com_valid: bool = False
 
     @property
     def n(self) -> int:
@@ -187,22 +182,12 @@ class Kinematics(Generic[ArrayT]):
         self._invalidate_kinematics()
 
     @property
-    def o_wb(self): return self._o_wb
-    @o_wb.setter
-    def o_wb(self, v):
-        self._validate_array(v, self._o_wb, "o_wb")
-        self._o_wb = v
+    def T_wb(self): return self._T_wb
+    @T_wb.setter
+    def T_wb(self, v):
+        self._validate_array(v, self._T_wb, "T_wb")
+        self._T_wb = v
         # keep T_wb derived and consistent:
-        self.T_wb[:3, 3] = v
-        self._invalidate_kinematics()
-
-    @property
-    def axes_wb(self): return self._axes_wb
-    @axes_wb.setter
-    def axes_wb(self, v):
-        self._validate_array(v, self._axes_wb, "axes_wb")
-        self._axes_wb = v
-        self.T_wb[:3, :3] = v
         self._invalidate_kinematics()
 
     @property
@@ -406,7 +391,7 @@ class Kinematics(Generic[ArrayT]):
         if use_cache and self._fk_valid:
             return self.T_wf[:k]
 
-        T_bl = cops.cumulative_transforms(q, self.d, self.a, self.alpha, self.b)
+        T_bl = cops.cumulative_transforms(self.q0 + q, self.d, self.a, self.alpha, self.b)
         T_wl = self.T_wb @ T_bl
         T_wf = self._prepend_base(T_wl)
 
@@ -423,12 +408,10 @@ class Kinematics(Generic[ArrayT]):
         d: ArrayT | None = None,
         a: ArrayT | None = None, 
         alpha: ArrayT | None = None, 
-        o_0: ArrayT | None = None,
-        axes_o: ArrayT | None = None
+        T_wb: ArrayT | None = None
         ) -> None:
         """
-        Update attributes d, a, alpha, o_0, axes_o.
-
+        Update attributes d, a, alpha, T_wb.
         Parameters
         ----------
         d : ndarray | Tensor | None
@@ -446,12 +429,7 @@ class Kinematics(Generic[ArrayT]):
         if d is not None: self.d = d
         if a is not None: self.a = a
         if alpha is not None: self.alpha = alpha
-        if o_0 is not None: 
-            self.o_wb = o_0; 
-            self.T_wb[:3, 3] = o_0
-        if axes_o is not None: 
-            self.axes_wb = axes_o
-            self.T_wb[:3, :3] = axes_o
+        if T_wb is not None: self.T_wb = T_wb
 
 
     def step(self, 

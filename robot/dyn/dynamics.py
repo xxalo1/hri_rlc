@@ -40,9 +40,9 @@ class Dynamics():
         """Jacobian/energy-form M(q)."""
         Jv_com = J_com[:, :3, :]         # (n, 3, n)
         Jw     = J_com[:, 3:, :]         # (n, 3, n)
-        Mv = torch.einsum('ikn, i, ikm -> nm', Jv_com, m, Jv_com)  # (n,n)
-        IwJw = torch.einsum('ijk, ikn -> ijn', Ic_wl, Jw)          # (n, 3, n)
-        Mw   = torch.einsum('ikn, ikm -> nm', Jw, IwJw)           # (n,n)
+
+        Mv = torch.einsum('ian, iam, i -> nm', Jv_com, Jv_com, m)
+        Mw = torch.einsum('ian, iab, ibm -> nm', Jw, Ic_wl, Jw)
         
         M = Mv + Mw
         M = 0.5 * (M + M.T)  # tidy symmetry
@@ -57,7 +57,7 @@ class Dynamics():
         """Gravity vector tau_g(q)."""
         Jv_com = J_com[:, :3, :]         # (n, 3, n)
         tau_g = torch.einsum('i, ikn , k -> n', m, Jv_com, g)  # (n,)
-        return tau_g
+        return -tau_g
 
 
     def coriolis_matrix(self,
@@ -91,31 +91,202 @@ class Dynamics():
 
     def coriolis_vector(self, q: torch.Tensor, qd: torch.Tensor) -> torch.Tensor:
         """
-        Compute h(q, qd) = C(q, qd) @ qd directly.
-        """
+        Compute h(q, qd) so that tau = M(q) qdd + h(q, qd) + tau_g(q).
 
+        Uses Christoffel symbols from the gradient of M(q):
+            c_ijk = 0.5 * ( dM_ij/dq_k + dM_ik/dq_j - dM_jk/dq_i )
+        and
+            h_i   = sum_{j,k} c_ijk * qd_j * qd_k
+        """
         q_req = q.detach().clone().requires_grad_(True)
 
         def M_fn(q_in: torch.Tensor) -> torch.Tensor:
             self.kin.step(q=q_in)
-            m  = self.kin.mass
+            m     = self.kin.mass
             J_com = self.kin.jac_com()
             Ic_wl = self.kin.Ic_wl
             return self.inertia_matrix(J_com, m, Ic_wl)  # (n, n)
 
-        # Jacobian of M wrt q: shape (n, n, n)
+        # dM_dq[k, i, j] = ∂M[i, j] / ∂q[k]
         dM_dq = torch.autograd.functional.jacobian(
             M_fn,
             q_req,
             create_graph=False,
-            vectorize=True,        # important for speed
-        )
+            vectorize=True,
+        )  # shape (n, n, n) = (k, i, j)
 
-        term1 = dM_dq
-        term2 = dM_dq.permute(0, 2, 1)
-        term3 = dM_dq.permute(1, 2, 0)
+        A = dM_dq  # just to match the math notation
 
-        c = 0.5 * (term1 + term2 - term3)      # (n, n, n)
+        # term1[i,j,k] = ∂M_ij / ∂q_k = A[k, i, j]
+        term1 = A.permute(1, 2, 0)
 
-        h = torch.einsum("ijk,j,k->i", c, qd, qd)   # (n,)
+        # term2[i,j,k] = ∂M_ik / ∂q_j = A[j, i, k]
+        term2 = A.permute(1, 0, 2)
+
+        # term3[i,j,k] = ∂M_jk / ∂q_i = A[i, j, k]
+        term3 = A
+
+        c = 0.5 * (term1 + term2 - term3)   # (n, n, n) with indices (i, j, k)
+
+        # h_i = sum_{j,k} c_ijk qd_j qd_k
+        h = torch.einsum("ijk,j,k->i", c, qd, qd)
+
         return h
+
+
+    @staticmethod
+    def _cross(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        """Small wrapper: cross product for (3,) vectors."""
+        return torch.cross(a, b, dim=-1)
+
+
+    def inverse_dynamics_rnea(
+        self,
+        q: torch.Tensor,
+        qd: torch.Tensor,
+        qdd: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Recursive Newton–Euler inverse dynamics.
+
+        Computes joint torques tau(q, qd, qdd) for a fixed-base, all-revolute
+        manipulator using link quantities expressed in the WORLD frame.
+
+        Assumes:
+            - joint i rotates about z_{i-1} (z-axis of frame i-1)
+            - forward_kinematics() returns T_wf[k] for frames k = 0..n
+              (0: base, k: joint k origin)
+            - kin.mass, kin.com_wl, kin.Ic_wl correspond to links 1..n.
+
+        Parameters
+        ----------
+        q   : (n,) joint positions
+        qd  : (n,) joint velocities
+        qdd : (n,) joint accelerations
+
+        Returns
+        -------
+        tau : (n,) joint torques
+        """
+        device = q.device
+        n = self.kin.n
+
+        assert q.shape == (n,)
+        assert qd.shape == (n,)
+        assert qdd.shape == (n,)
+
+        # --- update kinematics cache ---
+        self.kin.step(q=q)
+
+        # world-to-frame transforms (0..n), positions and joint z-axes
+        T_wf = self.kin.forward_kinematics()            # (n+1, 4, 4)
+        p = T_wf[:, :3, 3]                              # (n+1, 3) origins
+        z = T_wf[:, :3, 2]                              # (n+1, 3) z-axes
+
+        # link data in WORLD frame
+        m = self.kin.mass                               # (n,)
+        com_wl = self.kin.com_wl                        # (n, 3)
+        Ic_wl = self.kin.Ic_wl                          # (n, 3, 3)
+
+        # --- forward recursion: velocities & accelerations ---
+
+        w   = torch.zeros((n, 3), device=device)        # angular velocity
+        dw  = torch.zeros((n, 3), device=device)        # angular accel
+        dvJ = torch.zeros((n, 3), device=device)        # linear accel at joint origin
+        a_c = torch.zeros((n, 3), device=device)        # linear accel at COM
+
+        # base (frame 0) state
+        w_prev  = torch.zeros(3, device=device)
+        dw_prev = torch.zeros(3, device=device)
+        dv_prev = -self.g_vec.to(device)                # a_0 = -g
+
+        for i in range(n):
+            # joint i+1: parent frame index = i, joint frame index = i+1
+            idx_parent = i
+            idx_joint = i + 1
+
+            z_im1 = z[idx_parent]                       # axis of joint i+1 in world
+            qdi   = qd[i]
+            qddi  = qdd[i]
+
+            # angular velocity & acceleration
+            w_i = w_prev + qdi * z_im1
+            dw_i = dw_prev + qddi * z_im1 + self._cross(w_prev, qdi * z_im1)
+
+            # linear accel of joint origin i+1
+            r_prev_to_joint = p[idx_joint] - p[idx_parent]
+            dv_i = (
+                dv_prev
+                + self._cross(dw_prev, r_prev_to_joint)
+                + self._cross(w_prev, self._cross(w_prev, r_prev_to_joint))
+            )
+
+            # COM accel for link i+1
+            r_joint_to_com = com_wl[i] - p[idx_joint]
+            a_c_i = (
+                dv_i
+                + self._cross(dw_i, r_joint_to_com)
+                + self._cross(w_i, self._cross(w_i, r_joint_to_com))
+            )
+
+            w[i]   = w_i
+            dw[i]  = dw_i
+            dvJ[i] = dv_i
+            a_c[i] = a_c_i
+
+            # propagate for next link
+            w_prev, dw_prev, dv_prev = w_i, dw_i, dv_i
+
+        # --- link wrenches in world frame ---
+
+        F = torch.zeros((n, 3), device=device)          # linear force at COM
+        N_c = torch.zeros((n, 3), device=device)        # moment about COM
+
+        for i in range(n):
+            I_i = Ic_wl[i]                              # (3, 3)
+            w_i = w[i]
+            dw_i = dw[i]
+            a_c_i = a_c[i]
+
+            F_i = m[i] * a_c_i
+            N_ci = I_i @ dw_i + self._cross(w_i, I_i @ w_i)
+
+            F[i] = F_i
+            N_c[i] = N_ci
+
+        # --- backward recursion: joint torques ---
+
+        f = torch.zeros((n, 3), device=device)          # net force at joint origin
+        n_m = torch.zeros((n, 3), device=device)        # net moment at joint origin
+        tau = torch.zeros(n, device=device)
+
+        for i in reversed(range(n)):
+            idx_joint = i + 1    # origin of joint i+1
+            # vector from joint origin to COM
+            r_joint_to_com = com_wl[i] - p[idx_joint]
+
+            # moment about joint origin from this link alone
+            N0_i = N_c[i] + self._cross(r_joint_to_com, F[i])
+
+            if i == n - 1:
+                # last link: no child
+                f_i = F[i]
+                n_i = N0_i
+            else:
+                # include child wrench transported to this joint origin
+                f_child = f[i + 1]
+                n_child = n_m[i + 1]
+
+                r_joint_to_next = p[idx_joint + 1] - p[idx_joint]
+
+                f_i = F[i] + f_child
+                n_i = N0_i + n_child + self._cross(r_joint_to_next, f_child)
+
+            f[i] = f_i
+            n_m[i] = n_i
+
+            # joint axis for joint i+1 is z_{i} (parent frame)
+            axis = z[i]
+            tau[i] = torch.dot(axis, n_i)
+
+        return tau
