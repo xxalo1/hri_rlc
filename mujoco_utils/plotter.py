@@ -51,25 +51,25 @@ class Plotter():
         t    = log["t"]
         qt   = log["qt"]
         q    = log["q"]
-        qdt  = log["qdt"]
-        qd   = log["qd"]
+        dqt  = log["dqt"]
+        dq   = log["dq"]
         e    = log["e"]
         de   = log["de"]
         v = log["v"]
-        Mjd = log["Mjd"]
-        bjd = log["bjd"]
         taumj = log["taumj"]
         ddqt = log["ddqt"]
-        qdd = log["qdd"]
+        ddq = log["ddq"]
         tau_rnea = log.get("tau_rnea", None)
-
+        tau_diff = log.get("tau_diff", None)
+        tau_diff_per = log.get("tau_diff_per", None)
         N, n = q.shape
 
         plots = [
-            ("Joint Positions",       [(qt, "qt"), (q, "q"), (qd, "qd"), (qdt, "qdt")]),
-            ("tarking error e and dt with v", [(e, "e"), (de, "de"), (v, "v"), (ddqt, "ddqt")]),
-            ("Computed MuJoCo Torque", [(taumj, "taumj"), (tau_rnea, "tau_rnea")]),
-            ("Joint Accelerations", [(qdd, "qdd"), (ddqt, "ddqt"), (v, "v")]),
+            ("Joint Positions",       [(qt, "qt"), (q, "q"), (dq, "dq"), (dqt, "dqt")]),
+            ("tracking error e and dt with v", [(e, "e"), (de, "de"), (v, "v"), (ddqt, "ddqt")]),
+            ("Torque difference", [(tau_diff, "tau_diff")]),
+            ("Torque difference percentage", [(tau_diff_per, "tau_diff_per")]),
+            ("Joint Accelerations", [(ddq, "ddq"), (ddqt, "ddqt"), (v, "v")]),
         ]
 
         cols = 3                                # change to 2 if you want
