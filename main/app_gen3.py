@@ -128,6 +128,10 @@ class Gen3App:
         taumj, tau_rnea, dict_out = self.robot.ctrl.computed_torque(q, dq, qt, dqt, ddqt, mjd)
         self.plotter.log("tau_rnea", tau_rnea)
         self.plotter.log("taumj", taumj)
+        diff = (tau_rnea - taumj) 
+        diff_per = diff / (taumj + 1e-8)
+        self.plotter.log("tau_diff", diff)
+        self.plotter.log("tau_diff_per", diff_per)
 
         match self.control_mode:
             case ControlMode.RNEA:
@@ -136,6 +140,7 @@ class Gen3App:
             case ControlMode.CT:
                 self.robot.ctrl.set_gains(Kp=2.0, Kv=2.0)
                 tau = taumj
+                tau = taumj + 0.05 * torch.sign(taumj)
             case ControlMode.PID:
                 self.robot.ctrl.set_gains(Kp=0.1, Kv=0.1, Ki=1.0)
                 dt = t - self.t_prev
@@ -143,9 +148,10 @@ class Gen3App:
             case ControlMode.GC:
                 M, h, tau_g = self.robot.dyn.Dynamics_matrices(q, dq)
                 tau = tau_g
-        
+
         for k, v in dict_out.items():
             self.log_data(**{k: v})
+        
         return tau
 
 
@@ -182,17 +188,18 @@ class Gen3App:
 
     def step_once(self, v):
         
-        if self.want_plot:
-            self.want_plot = False
-            self.plotter.draw_plots()
-            self.reset = True
-
         if self.reset:
             self.reset = False
             with v.lock():
                 self.plotter.clear_log()
                 self.env.set_state(self.q0_np, self.dq0_np, 0.0)
                 v.sync()
+
+
+        if self.want_plot:
+            self.want_plot = False
+            self.plotter.draw_plots()
+            self.reset = True
 
 
         obs = self.env.observe()
