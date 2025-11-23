@@ -62,7 +62,7 @@ class Gen3App:
         self.Q_EF_np = self.robot.get_ee_traj()
 
         dt_sim = self.env.m.opt.timestep          # MuJoCo integration step
-        dt_ctrl = 1.0 / self.robot.freq                 # 0.01 s for 100 Hz
+        dt_ctrl = 1.0 / self.robot.freq           # 0.01 s for 100 Hz
         nsub = max(1, int(round(dt_ctrl / dt_sim)))
         self.env.nsub = nsub
 
@@ -119,7 +119,7 @@ class Gen3App:
 
         self.plotter.log("M", M_mj)
         self.plotter.log("b", b_mj)
-        
+
         mjd = {
             "M": ptu.from_numpy(M_mj),
             "b": ptu.from_numpy(b_mj),
@@ -140,7 +140,6 @@ class Gen3App:
             case ControlMode.CT:
                 self.robot.ctrl.set_gains(Kp=2.0, Kv=2.0)
                 tau = taumj
-                tau = taumj + 0.05 * torch.sign(taumj)
             case ControlMode.PID:
                 self.robot.ctrl.set_gains(Kp=0.1, Kv=0.1, Ki=1.0)
                 dt = t - self.t_prev
@@ -151,7 +150,7 @@ class Gen3App:
 
         for k, v in dict_out.items():
             self.log_data(**{k: v})
-        
+
         return tau
 
 
