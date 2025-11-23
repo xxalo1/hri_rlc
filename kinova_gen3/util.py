@@ -14,10 +14,10 @@ from ..robot.kin import core_ops as cops
 dtype = npu.dtype
 
 HERE = Path(__file__).parent
-INERT_FILE = HERE / "inertial.yaml"
+INERT_FILE = HERE / "inertial_mj.yaml"
 DH_FILE = HERE / "dh_v2.yaml"
 ZD =      [0,  0,     0,    0,     0,    0,     0,    -0.0615]
-YD =      [0, -0.1284, 0, -0.2104, 0,  -0.1059, 0,    0]
+YD =      [0, -0.1284, -0.0064, -0.2104, -0.0064,  -0.1059, 0,    0]
 THETA_Z = [0,  0,     pi,   0,     pi,   0,     pi,   0]
 THETA_X = [pi, pi/2, -pi/2, pi/2, -pi/2, pi/2, -pi/2, -pi]
 SKIP_LINKS = ("ee_no_vision",)

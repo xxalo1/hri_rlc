@@ -1,153 +1,93 @@
 from __future__ import annotations
 
 import torch
-from typing import Sequence
+from typing import Dict, Sequence, Tuple
+import numpy as np
 
 from ..kin import Kinematics
 from ...utils import pytorch_util as ptu
+from ...utils import numpy_util as npu
+
+
+FloatArray  = npu.FloatArray
+
+
 class Dynamics():
 
-    def __init__(self, kin: Kinematics[torch.Tensor],
-                 g_vec: torch.Tensor | None = None) -> None:
+    def __init__(self, kin: Kinematics[FloatArray],
+                 g_vec: FloatArray | None = None
+                 ) -> None:
         self.kin = kin
         if g_vec is None:
-            g_vec = torch.tensor([0.0, 0.0, -9.81], device=ptu.device)
+            g_vec = np.array([0.0, 0.0, -9.81], dtype=npu.dtype)
         self.g_vec = g_vec
 
 
-    def Dynamics_matrices(self, 
-        q: torch.Tensor, 
-        qd: torch.Tensor
-        ) -> Sequence[torch.Tensor]:
-        """Jacobian/energy-form M(q)."""
-        self.kin.step(q=q)
-        m  = self.kin.mass           # (n,)
-        g = self.g_vec
-        J_com = self.kin.jac_com()       # (n, 6, n)
-        Ic_wl = self.kin.Ic_wl       # (n, 3, 3)
-        M = self.inertia_matrix(J_com, m, Ic_wl)
-        tau_g = self.gravity_vector(J_com, m, g)
-        # C = self.coriolis_matrix(q, qd)
-        h = self.coriolis_vector(q, qd)
-        return M, h, tau_g
+    @staticmethod
+    def _cross(a: FloatArray, b: FloatArray) -> FloatArray:
+        """Small wrapper: cross product for (3,) vectors."""
+        return np.cross(a, b, axis=-1)
 
 
-    def inertia_matrix(self, 
-        J_com: torch.Tensor,
-        m: torch.Tensor,
-        Ic_wl: torch.Tensor,
-        ) -> torch.Tensor:
+    def Dynamics_matrices(self) -> Tuple[FloatArray, FloatArray]:
         """Jacobian/energy-form M(q)."""
+        M = self.inertia_matrix()
+        tau_g = self.gravity_vector()
+        return M, tau_g
+
+
+    def inertia_matrix(self) -> FloatArray:
+        """
+        Compute the joint-space inertia matrix M(q).
+
+        This method uses the link masses, center-of-mass Jacobians, and world-frame
+        inertia tensors provided by the associated Kinematics object at its current
+        configuration self.kin.q.
+
+        Internally, M(q) is assembled from the translational and rotational
+        kinetic-energy contributions of each link, expressed via the COM Jacobian:
+
+            M(q) = Σ_i [ m_i Jv_i(q)^T Jv_i(q) + Jw_i(q)^T I_i(q) Jw_i(q) ]
+
+        To evaluate M at a different configuration, call self.kin.step(q=...) before
+        calling this method.
+
+        Returns
+        -------
+        M : ndarray, shape (n, n)
+            Symmetric joint-space inertia matrix at the current configuration.
+        """
+        m  = self.kin.mass
+        J_com = self.kin.jac_com()
+        Ic_wl = self.kin.Ic_wl
         Jv_com = J_com[:, :3, :]         # (n, 3, n)
         Jw     = J_com[:, 3:, :]         # (n, 3, n)
 
-        Mv = torch.einsum('ian, iam, i -> nm', Jv_com, Jv_com, m)
-        Mw = torch.einsum('ian, iab, ibm -> nm', Jw, Ic_wl, Jw)
+        Mv = np.einsum('ian, iam, i -> nm', Jv_com, Jv_com, m)
+        Mw = np.einsum('ian, iab, ibm -> nm', Jw, Ic_wl, Jw)
         
         M = Mv + Mw
         M = 0.5 * (M + M.T)  # tidy symmetry
         return M
 
 
-    def gravity_vector(self,
-        J_com: torch.Tensor,
-        m: torch.Tensor,
-        g: torch.Tensor
-        ) -> torch.Tensor:
+    def gravity_vector(self) -> FloatArray:
         """Gravity vector tau_g(q)."""
+        J_com = self.kin.jac_com()
+        m = self.kin.mass
+        g = self.g_vec
         Jv_com = J_com[:, :3, :]         # (n, 3, n)
-        tau_g = torch.einsum('i, ikn , k -> n', m, Jv_com, g)  # (n,)
+        tau_g = np.einsum('i, ikn , k -> n', m, Jv_com, g)  # (n,)
         return -tau_g
 
 
-    def coriolis_matrix(self,
-        q: torch.Tensor,
-        qd: torch.Tensor,
-        ) -> torch.Tensor:
+    def inverse_dynamics_rnea(self,
+        q: FloatArray,
+        qd: FloatArray,
+        qdd: FloatArray,
+    ) -> FloatArray:
         """
-        C(q, qd) such that tau_c = C(q, qd) @ qd.
-        """
-        q_req = q.detach().clone().requires_grad_(True)
-
-
-        def M_fn(q_in: torch.Tensor) -> torch.Tensor:
-            self.kin.step(q=q_in)
-            m  = self.kin.mass
-            J_com = self.kin.jac_com()
-            Ic_wl = self.kin.Ic_wl
-            return self.inertia_matrix(J_com, m, Ic_wl)  # (n, n)
-
-        dM_dq = torch.autograd.functional.jacobian(M_fn, q_req, create_graph=False)
-
-        term1 = dM_dq
-        term2 = dM_dq.permute(0, 2, 1)  # (i, k, j)
-        term3 = dM_dq.permute(1, 2, 0)  # (j, k, i)
-
-        c = 0.5 * (term1 + term2 - term3)   # (n, n, n)
-
-        C = torch.einsum('ijk,k->ij', c, qd)  # (n, n)
-        return C
-
-
-    def coriolis_vector(self, q: torch.Tensor, qd: torch.Tensor) -> torch.Tensor:
-        """
-        Compute h(q, qd) so that tau = M(q) qdd + h(q, qd) + tau_g(q).
-
-        Uses Christoffel symbols from the gradient of M(q):
-            c_ijk = 0.5 * ( dM_ij/dq_k + dM_ik/dq_j - dM_jk/dq_i )
-        and
-            h_i   = sum_{j,k} c_ijk * qd_j * qd_k
-        """
-        q_req = q.detach().clone().requires_grad_(True)
-
-        def M_fn(q_in: torch.Tensor) -> torch.Tensor:
-            self.kin.step(q=q_in)
-            m     = self.kin.mass
-            J_com = self.kin.jac_com()
-            Ic_wl = self.kin.Ic_wl
-            return self.inertia_matrix(J_com, m, Ic_wl)  # (n, n)
-
-        # dM_dq[k, i, j] = ∂M[i, j] / ∂q[k]
-        dM_dq = torch.autograd.functional.jacobian(
-            M_fn,
-            q_req,
-            create_graph=False,
-            vectorize=True,
-        )  # shape (n, n, n) = (k, i, j)
-
-        A = dM_dq  # just to match the math notation
-
-        # term1[i,j,k] = ∂M_ij / ∂q_k = A[k, i, j]
-        term1 = A.permute(1, 2, 0)
-
-        # term2[i,j,k] = ∂M_ik / ∂q_j = A[j, i, k]
-        term2 = A.permute(1, 0, 2)
-
-        # term3[i,j,k] = ∂M_jk / ∂q_i = A[i, j, k]
-        term3 = A
-
-        c = 0.5 * (term1 + term2 - term3)   # (n, n, n) with indices (i, j, k)
-
-        # h_i = sum_{j,k} c_ijk qd_j qd_k
-        h = torch.einsum("ijk,j,k->i", c, qd, qd)
-
-        return h
-
-
-    @staticmethod
-    def _cross(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-        """Small wrapper: cross product for (3,) vectors."""
-        return torch.cross(a, b, dim=-1)
-
-
-    def inverse_dynamics_rnea(
-        self,
-        q: torch.Tensor,
-        qd: torch.Tensor,
-        qdd: torch.Tensor,
-    ) -> torch.Tensor:
-        """
-        Recursive Newton–Euler inverse dynamics.
+        Recursive Newton-Euler inverse dynamics.
 
         Computes joint torques tau(q, qd, qdd) for a fixed-base, all-revolute
         manipulator using link quantities expressed in the WORLD frame.
@@ -155,7 +95,7 @@ class Dynamics():
         Assumes:
             - joint i rotates about z_{i-1} (z-axis of frame i-1)
             - forward_kinematics() returns T_wf[k] for frames k = 0..n
-              (0: base, k: joint k origin)
+                (0: base, k: joint k origin)
             - kin.mass, kin.com_wl, kin.Ic_wl correspond to links 1..n.
 
         Parameters
@@ -168,37 +108,26 @@ class Dynamics():
         -------
         tau : (n,) joint torques
         """
-        device = q.device
+        dtype = q.dtype
         n = self.kin.n
 
-        assert q.shape == (n,)
-        assert qd.shape == (n,)
-        assert qdd.shape == (n,)
-
-        # --- update kinematics cache ---
-        self.kin.step(q=q)
-
-        # world-to-frame transforms (0..n), positions and joint z-axes
         T_wf = self.kin.forward_kinematics()            # (n+1, 4, 4)
         p = T_wf[:, :3, 3]                              # (n+1, 3) origins
         z = T_wf[:, :3, 2]                              # (n+1, 3) z-axes
 
-        # link data in WORLD frame
         m = self.kin.mass                               # (n,)
         com_wl = self.kin.com_wl                        # (n, 3)
         Ic_wl = self.kin.Ic_wl                          # (n, 3, 3)
 
-        # --- forward recursion: velocities & accelerations ---
-
-        w   = torch.zeros((n, 3), device=device)        # angular velocity
-        dw  = torch.zeros((n, 3), device=device)        # angular accel
-        dvJ = torch.zeros((n, 3), device=device)        # linear accel at joint origin
-        a_c = torch.zeros((n, 3), device=device)        # linear accel at COM
+        w   = np.zeros((n, 3), dtype=dtype)        # angular velocity
+        dw  = np.zeros((n, 3), dtype=dtype)        # angular accel
+        dvJ = np.zeros((n, 3), dtype=dtype)        # linear accel at joint origin
+        a_c = np.zeros((n, 3), dtype=dtype)        # linear accel at COM
 
         # base (frame 0) state
-        w_prev  = torch.zeros(3, device=device)
-        dw_prev = torch.zeros(3, device=device)
-        dv_prev = -self.g_vec.to(device)                # a_0 = -g
+        w_prev  = np.zeros(3, dtype=dtype)
+        dw_prev = np.zeros(3, dtype=dtype)
+        dv_prev = -self.g_vec                # a_0 = -g
 
         for i in range(n):
             # joint i+1: parent frame index = i, joint frame index = i+1
@@ -239,8 +168,8 @@ class Dynamics():
 
         # --- link wrenches in world frame ---
 
-        F = torch.zeros((n, 3), device=device)          # linear force at COM
-        N_c = torch.zeros((n, 3), device=device)        # moment about COM
+        F = np.zeros((n, 3), dtype=dtype)          # linear force at COM
+        N_c = np.zeros((n, 3), dtype=dtype)        # moment about COM
 
         for i in range(n):
             I_i = Ic_wl[i]                              # (3, 3)
@@ -256,9 +185,9 @@ class Dynamics():
 
         # --- backward recursion: joint torques ---
 
-        f = torch.zeros((n, 3), device=device)          # net force at joint origin
-        n_m = torch.zeros((n, 3), device=device)        # net moment at joint origin
-        tau = torch.zeros(n, device=device)
+        f = np.zeros((n, 3), dtype=dtype)          # net force at joint origin
+        n_m = np.zeros((n, 3), dtype=dtype)        # net moment at joint origin
+        tau = np.zeros(n, dtype=dtype)
 
         for i in reversed(range(n)):
             idx_joint = i + 1    # origin of joint i+1
@@ -287,6 +216,98 @@ class Dynamics():
 
             # joint axis for joint i+1 is z_{i} (parent frame)
             axis = z[i]
-            tau[i] = torch.dot(axis, n_i)
+            tau[i] = np.dot(axis, n_i)
 
         return tau
+
+
+    def dyn_pinv(self, J_task: FloatArray) -> Tuple[FloatArray, FloatArray]:
+        """
+        Dynamically consistent pseudo-inverse of a task Jacobian.
+
+        J_dyn = M^{-1} J^{T} (J M^{-1} J^{T})^{-1}
+
+        Parameters
+        ----------
+        J_task : ndarray, shape (m, n) 
+            task Jacobian
+
+        Returns
+        -------
+        J_dyn : ndarray, shape (n, m)
+            Dynamic pseudo-inverse of J_task.
+        Lambda : ndarray, shape (m, m)
+            Task-space inertia matrix Λ = (J M^{-1} J^{T})^{-1}.
+        """
+        M = self.inertia_matrix()
+
+        # Solve M X = J^T  → X = M^{-1} J^T   (n, m)
+        X = np.linalg.solve(M, J_task.T)
+
+        # Λ^{-1} = J M^{-1} J^{T} = J X       (m, m)
+        Lambda_inv = J_task @ X
+        Lambda = np.linalg.inv(Lambda_inv)
+
+        # J_dyn = M^{-1} J^{T} Λ = X Λ        (n, m)
+        J_dyn = X @ Lambda
+
+        return J_dyn, Lambda
+
+
+    def task_to_joint(self,
+        xdd: FloatArray,
+        J_task: FloatArray,
+        xdd_sec: FloatArray | None = None,
+        J_sec: FloatArray | None = None,
+    ) -> FloatArray:
+        """
+        Map main + secondary task accelerations to a joint acceleration:
+
+            qdd* = J1_dyn xdd  +  N1 (J2_pinv xdd_sec)
+
+        where
+            J1_dyn  = dynamic pseudo-inverse for main task
+            J2_pinv = (possibly) kinematic pseudo-inverse for secondary
+            N1      = I - J1_dyn J1
+
+        Parameters
+        ----------
+        xdd : ndarray, shape (m1,)  
+            desired accel in main task space
+        J_task : ndarray, shape (m1, n) 
+            main task Jacobian
+        xdd_sec : ndarray, shape (m2,), optional
+            secondary task accel
+        J_sec : ndarray, shape (m2, n), optional 
+            secondary task Jacobian
+
+        Returns
+        -------
+        qdd_star : ndarray, shape (n,)
+        """
+        n = J_task.shape[1]
+        I = np.eye(n, dtype=xdd.dtype)
+
+        J1_dyn, Lambda1 = self.dyn_pinv(J_task)   # (n, m1), (m1, m1)
+        qdd_main = J1_dyn @ xdd                     # (n,)
+        
+        qdd_sec = np.zeros(n, dtype=xdd.dtype)
+        
+        if xdd_sec is not None and J_sec is not None:
+            # simplest: use kinematic pseudoinverse for secondary
+            # J2_pinv = J2^T (J2 J2^T)^-1
+            J2 = J_sec
+            JJt = J2 @ J2.T                    # (m2, m2)
+            JJt_inv = np.linalg.inv(JJt)
+            J2_pinv = J2.T @ JJt_inv           # (n, m2)
+
+            qdd_sec_candidate = J2_pinv @ xdd_sec  # (n,)
+
+            # nullspace projector of main task
+            N1 = I - J1_dyn @ J_task
+
+            qdd_sec = qdd_sec + N1 @ qdd_sec_candidate
+        
+        qdd_star = qdd_main + qdd_sec
+
+        return qdd_star

@@ -12,7 +12,7 @@ from ..robot.kin import core_ops as cops
 dtype = npu.dtype
 
 HERE = Path(__file__).parent
-INERT_FILE = HERE / "inertial.yaml"
+INERT_FILE = HERE / "inertial_mj.yaml"
 DH_FILE = HERE / "dh.yaml"
 THETA_X = [0, pi, pi, pi, pi, pi, pi, pi]
 THETA_Y = [0, 0, 0, 0, 0, 0, 0, 0]
