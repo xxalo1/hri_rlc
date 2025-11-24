@@ -49,27 +49,27 @@ class Plotter():
     def draw_plots(self):
         log = self.get_log()
         t    = log["t"]
-        qt   = log["qt"]
+        q_des   = log["q_des"]
         q    = log["q"]
-        dqt  = log["dqt"]
-        dq   = log["dq"]
+        qd_des  = log["qd_des"]
+        qd   = log["qd"]
         e    = log["e"]
         de   = log["de"]
         v = log["v"]
         taumj = log["taumj"]
-        ddqt = log["ddqt"]
-        ddq = log["ddq"]
+        qdd_des = log["qdd_des"]
+        qdd = log["qdd"]
         tau_rnea = log.get("tau_rnea", None)
         tau_diff = log.get("tau_diff", None)
         tau_diff_per = log.get("tau_diff_per", None)
         N, n = q.shape
 
         plots = [
-            ("Joint Positions",       [(qt, "qt"), (q, "q"), (dq, "dq"), (dqt, "dqt")]),
-            ("tracking error e and dt with v", [(e, "e"), (de, "de"), (v, "v"), (ddqt, "ddqt")]),
+            ("Joint Positions",       [(q_des, "q_des"), (q, "q"), (qd, "qd"), (qd_des, "qd_des")]),
+            ("tracking error e and dt with v", [(e, "e"), (de, "de"), (v, "v"), (qdd_des, "qdd_des")]),
             ("Torque difference", [(tau_diff, "tau_diff")]),
             ("Torque difference percentage", [(tau_diff_per, "tau_diff_per")]),
-            ("Joint Accelerations", [(ddq, "ddq"), (ddqt, "ddqt"), (v, "v")]),
+            ("Joint Accelerations", [(qdd, "qdd"), (qdd_des, "qdd_des"), (v, "v")]),
         ]
 
         cols = 3                                # change to 2 if you want

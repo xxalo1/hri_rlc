@@ -108,9 +108,9 @@ class Kinematics(Generic[ArrayT]):
         self._a = dh["a"]
         self._alpha = dh["alpha"]
         self._q0 = dh["q0"]
-        self._b = dh.get("b")
 
-        if self._b is None: self._b = xp.zeros_like(self.d)
+        if "b" in dh: self._b = dh["b"]
+        else: self._b = xp.zeros_like(self.d)
 
         if inertia is None: inertia = {}
 
@@ -142,58 +142,58 @@ class Kinematics(Generic[ArrayT]):
         return len(self.d)
 
     @property
-    def d(self): return self._d
+    def d(self) -> ArrayT: return self._d
     @d.setter
-    def d(self, v):
+    def d(self, v: ArrayT) -> None:
         self._validate_array(v, self._d, "d")
         self._d = v
         self._invalidate_kinematics()
 
     @property
-    def alpha(self): return self._alpha
+    def alpha(self) -> ArrayT: return self._alpha
     @alpha.setter
-    def alpha(self, v):
+    def alpha(self, v: ArrayT) -> None:
         self._validate_array(v, self._alpha, "alpha")
         self._alpha = v
         self._invalidate_kinematics()
 
     @property
-    def q0(self): return self._q0
+    def q0(self) -> ArrayT: return self._q0
     @q0.setter
-    def q0(self, v):
+    def q0(self, v: ArrayT) -> None:
         self._validate_array(v, self._q0, "q0")
         self._q0 = v
         self._invalidate_kinematics()
 
     @property
-    def a(self): return self._a
+    def a(self) -> ArrayT: return self._a
     @a.setter
-    def a(self, v):
+    def a(self, v: ArrayT) -> None:
         self._validate_array(v, self._a, "a")
         self._a = v
         self._invalidate_kinematics()
 
     @property
-    def b(self): return self._b
+    def b(self) -> ArrayT: return self._b
     @b.setter
-    def b(self, v):
+    def b(self, v: ArrayT) -> None:
         self._validate_array(v, self._b, "b")
         self._b = v
         self._invalidate_kinematics()
 
     @property
-    def T_wb(self): return self._T_wb
+    def T_wb(self) -> ArrayT: return self._T_wb
     @T_wb.setter
-    def T_wb(self, v):
+    def T_wb(self, v: ArrayT) -> None:
         self._validate_array(v, self._T_wb, "T_wb")
         self._T_wb = v
         # keep T_wb derived and consistent:
         self._invalidate_kinematics()
 
     @property
-    def q(self): return self._q
+    def q(self) -> ArrayT: return self._q
     @q.setter
-    def q(self, v):
+    def q(self, v: ArrayT) -> None:
         self._validate_array(v, self._q, "q")
         if xp.array_equal(v, self._q):
             return
@@ -201,22 +201,21 @@ class Kinematics(Generic[ArrayT]):
         self._invalidate_kinematics()
 
     @property
-    def qd(self): return self._qd
+    def qd(self) -> ArrayT: return self._qd
     @qd.setter
-    def qd(self, v):
+    def qd(self, v: ArrayT) -> None:
         self._validate_array(v, self._qd, "qd")
         if xp.array_equal(v, self._qd):
             return
         self._qd = v
 
     @property
-    def qdd(self): return self._qdd
+    def qdd(self) -> ArrayT: return self._qdd
     @qdd.setter
-    def qdd(self, v):
+    def qdd(self, v: ArrayT) -> None:
         self._validate_array(v, self._qdd, "qdd")
-        if xp.array_equal(v, self._qd):
+        if xp.array_equal(v, self._qdd):
             return
-
         self._qdd = v
 
     @property

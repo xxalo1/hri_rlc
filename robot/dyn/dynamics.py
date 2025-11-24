@@ -81,7 +81,7 @@ class Dynamics():
         return -tau_g
 
 
-    def inverse_dynamics_rnea(self,
+    def rnea(self,
         q: FloatArray,
         qd: FloatArray,
         qdd: FloatArray,

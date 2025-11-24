@@ -1,6 +1,7 @@
 import numpy as np
 
 from ..dyn import Dynamics
+from ..kin import Kinematics
 from ...utils import numpy_util as npu
 FloatArray = npu.FloatArray
 
@@ -31,25 +32,39 @@ class Controller:
         self.set_task_gains(Kx, Dx, Kix)
 
     @property
-    def kin(self):
+    def kin(self) -> Kinematics[FloatArray]:
         return self.dyn.kin
 
     @staticmethod
     def _orientation_error(R: FloatArray, R_des: FloatArray) -> FloatArray:
         """
-        Orientation error vector in so(3):
+        Compute orientation error between current and desired rotation.
+
+        The error is defined in so(3) as::
 
             e_R = 0.5 * vee( R_des^T R - R^T R_des )
-        """
-        R_err = R_des @ R.T
 
-        e = 0.5 * np.array([
+        where vee(.) maps a 3x3 skew-symmetric matrix to R^3.
+
+        Parameters
+        ----------
+        R : ndarray, shape (3, 3)
+            Current end effector rotation matrix in the world frame.
+        R_des : ndarray, shape (3, 3)
+            Desired end effector rotation matrix in the world frame.
+
+        Returns
+        -------
+        e_R : ndarray, shape (3,)
+            Orientation error vector in so(3).
+        """
+        R_err = R_des.T @ R
+
+        return 0.5 * np.array([
             R_err[2, 1] - R_err[1, 2],
             R_err[0, 2] - R_err[2, 0],
             R_err[1, 0] - R_err[0, 1],
         ], dtype=npu.dtype)
-
-        return e
 
 
     def set_joint_gains(self,
@@ -165,14 +180,15 @@ class Controller:
         Mjd = mjd["M"] @ v
         taumj = Mjd + mjd["b"]
 
-        tau_rnea = self.dyn.inverse_dynamics_rnea(q, qd, v)
+        tau_rnea = self.dyn.rnea(q, qd, v)
 
         dict_out = {"e": e, "de": de, "v": v}
 
         return taumj, tau_rnea, dict_out
 
 
-    def impedance_ee(self,
+    def impedance_ee(
+        self,
         q: FloatArray,
         qd: FloatArray,
         T_des: FloatArray,
@@ -183,21 +199,44 @@ class Controller:
         J_sec: FloatArray | None = None,
     ) -> FloatArray:
         """
-        6D end-effector impedance controller in task space.
+        6D end effector impedance controller in task space.
 
-        Main task: EE pose [position; orientation] in world frame.
-        Secondary task (optional): any task with Jacobian J_sec, injected in
-        the nullspace of the main EE task.
+        This controller regulates the end effector pose [position; orientation]
+        in the world frame using an acceleration level impedance law in task
+        space. The desired task acceleration is mapped to joint accelerations
+        via a dynamic pseudo inverse, and joint torques are obtained from
+        inverse dynamics.
 
-        Steps:
-            1) Compute task error e = [e_pos; e_ori] and e_dot.
-            2) Build desired task acceleration:
-                   xdd_main = xddot_des + Dx e_dot + Kx e + Kix ∫ e dt
-            3) Map to joint acceleration with nullspace secondary (if given):
-                   qdd* = two_task_to_qdd(xdd_main, J_ee, xdd_sec, J_sec)
-            4) Use RNEA to get joint torques τ(q, qd, qdd*).
+        Parameters
+        ----------
+        q : ndarray, shape (n,)
+            Current joint position.
+        qd : ndarray, shape (n,)
+            Current joint velocity.
+        T_des : ndarray, shape (4, 4)
+            Desired end effector pose in the world frame as a homogeneous
+            transform.
+        xd_des : ndarray, shape (6,), optional
+            Desired end effector spatial velocity [v; omega] in the world
+            frame. Default is zeros if None.
+        xdd_des : ndarray, shape (6,), optional
+            Desired end effector spatial acceleration in the world frame.
+            Default is zeros if None.
+        dt : float
+            Controller sampling time in seconds, used to integrate the task
+            space error for the integral term.
+        xdd_sec : ndarray, shape (m2,), optional
+            Desired secondary task acceleration in its own task space. This
+            secondary task is injected in the dynamic nullspace of the main
+            end effector task. Default is None.
+        J_sec : ndarray, shape (m2, n), optional
+            Jacobian of the secondary task. Default is None.
 
-        Assumes Kinematics has been updated: kin.step(q=q, qd=qd).
+        Returns
+        -------
+        tau : ndarray, shape (n,)
+            Joint torques computed by inverse dynamics to realize the desired
+            main task and the secondary behavior.
         """
 
         if xd_des is None: xd_des = np.zeros(6, dtype=npu.dtype)
@@ -205,7 +244,7 @@ class Controller:
 
         self.kin.step(q=q, qd=qd)
         T_wf = self.kin.forward_kinematics()   # (n+1, 4, 4)
-        T_ee = T_wf[-1]                   # last frame is EE
+        T_ee = T_wf[-1]                        # last frame is EE
 
         R = T_ee[:3, :3]
         p = T_ee[:3, 3]
@@ -214,28 +253,33 @@ class Controller:
         p_des = T_des[:3, 3]
 
         # position and orientation errors
-        e_pos = p_des - p                    # (3,)
-        e_ori = self._orientation_error(R, R_des)  # (3,)
-        e_task = np.concatenate((e_pos, e_ori))    # (6,)
+        e_pos = p_des - p
+        e_ori = self._orientation_error(R, R_des)
+        e = np.concatenate((e_pos, e_ori))    # (6,)
 
         # EE spatial velocity
         J = self.kin.full_jac()              # (n, 6, n), world-frame geometric Jacobian
         J_ee = J[-1, :, :]                   # (6, n), EE Jacobian
-        xdot = J_ee @ qd                     # (6,)
+        xd = J_ee @ qd                     # (6,)
 
-        e_dot = xd_des - xdot
-        self.e_task_int += e_task * dt
+        de = xd_des - xd
+        self.e_task_int += e * dt
 
         # desired task acceleration
         xdd_main = (
             xdd_des
-            + self.Dx @ e_dot
-            + self.Kx @ e_task
+            + self.Dx @ de
+            + self.Kx @ e
             + self.Kix @ self.e_task_int
         )  # (6,)
 
-        qdd_star = self.dyn.task_to_joint(xdd_main, J_ee, xdd_sec=xdd_sec, J_sec=J_sec) 
+        qdd_star = self.dyn.task_to_joint(
+            xdd_main,
+            J_ee,
+            xdd_sec=xdd_sec,
+            J_sec=J_sec,
+        )
 
-        tau = self.dyn.inverse_dynamics_rnea(q, qd, qdd_star)
+        tau = self.dyn.rnea(q, qd, qdd_star)
 
         return tau

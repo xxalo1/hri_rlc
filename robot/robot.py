@@ -28,56 +28,49 @@ class RobotSpec:
 @dataclass
 class Robot:
     spec: RobotSpec
-    kin: Kinematics[torch.Tensor]
+    kin: Kinematics[FloatArray]
     dyn: Dynamics
     ctrl: Controller
     planner: TrajPlanner
 
+
     def __post_init__(self) -> None:
         n = self.kin.n
-        device = self.kin.d.device
+        self.q_des = np.zeros(n, dtype=npu.dtype)
 
-        self.qt = torch.zeros(n, device=device)
 
     @classmethod
     def from_spec(cls, 
         spec: RobotSpec
     ) -> Robot:
-        T_base_t = ptu.from_numpy(spec.T_base)
-        dh_t = ptu.from_numpy_dict(spec.dh)
-        inertia_t = ptu.from_numpy_dict(spec.inertia)
-
-        kin = Kinematics(dh=dh_t, T_wb=T_base_t, inertia=inertia_t)
+        kin = Kinematics(dh=spec.dh, T_wb=spec.T_base, inertia=spec.inertia)
         dyn = Dynamics(kin)
         ctrl = Controller(dyn)
         planner = TrajPlanner()
         return cls(spec, kin, dyn, ctrl, planner)
-    
 
-    def set_target(self, 
-        qt: torch.Tensor
+
+    def set_target(self,
+        q_des: FloatArray
     ) -> None:
-        self.qt = qt
-        self.dqt = torch.zeros_like(qt)
-        self.ddqt = torch.zeros_like(qt)
+        self.q_des = q_des
+        self.qd_des = np.zeros_like(q_des)
+        self.qdd_des = np.zeros_like(q_des)
 
 
     def setup_quintic_traj(self, 
-        q: torch.Tensor | None = None,
-        qt: torch.Tensor | None = None,
+        q: FloatArray | None = None,
+        q_des: FloatArray | None = None,
         freq: float = 100.0,
         ti: float = 0.0,
         tf: float  = 10.0,
     ) -> None:
         
         if q is None: q = self.kin.q
-        if qt is None: qt = self.qt
-        else: self.set_target(qt)
+        if q_des is None: q_des = self.q_des
+        else: self.set_target(q_des)
         
-
-        q = ptu.to_numpy(q)
-        qt = ptu.to_numpy(qt)
-        T = self.planner.quintic_trajs(q, qt, ti, tf, freq)
+        T = self.planner.quintic_trajs(q, q_des, ti, tf, freq)
 
         self.set_trajectory(T, freq=freq, ti=ti)
 
@@ -86,13 +79,13 @@ class Robot:
         T = self.T
         T_wf_traj = self.kin.batch_forward_kinematics(T[0])
         Q_EF = T_wf_traj[:, -1, :3, 3]
-        self.Q_EF_np = ptu.to_numpy(Q_EF)
+        self.Q_EF_np = Q_EF
 
         return self.Q_EF_np
     
 
     def set_trajectory(self, 
-        T: torch.Tensor | FloatArray,
+        T: FloatArray,
         freq: float,
         ti: float = 0.0
     ) -> None:
@@ -101,7 +94,7 @@ class Robot:
         
         Parameters
         -----------
-        T: ndarray | Tensor, (3, N, n)
+        T: ndarray, (3, N, n)
             T[0]: desired positions.
             T[1]: desired velocities.
             T[2]: desired accelerations.
@@ -112,10 +105,8 @@ class Robot:
         
         --------
         Notes:
-        Stores T as a Tensor in self.T.
+        Stores T as an ndarray in self.T.
         """
-        if isinstance(T, np.ndarray):
-            T = ptu.from_numpy(T)
         self.T = T
         self.freq = freq
         self.ti = ti
@@ -123,7 +114,7 @@ class Robot:
 
     def get_desired_state(self,
         t: float
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[FloatArray, FloatArray, FloatArray]:
         """
         Get desired state at a given time.
 
@@ -134,11 +125,11 @@ class Robot:
 
         Returns
         ----------
-        qt: Tensor, (n,)
+        q_des: ndarray, (n,)
             Desired joint positions at time step.
-        qdt: Tensor, (n,)
+        qd_des: ndarray, (n,)
             Desired joint velocities at time step.
-        ddqt: Tensor, (n,)
+        qdd_des: ndarray, (n,)
             Desired joint accelerations at time step.
 
         ----------
@@ -164,8 +155,8 @@ class Robot:
             alpha = s - i0               # interpolation factor in [0,1)
 
         # linear interpolation between i0 and i1
-        qt   = (1.0 - alpha) * self.T[0, i0] + alpha * self.T[0, i1]
-        qdt  = (1.0 - alpha) * self.T[1, i0] + alpha * self.T[1, i1]
-        ddqt = (1.0 - alpha) * self.T[2, i0] + alpha * self.T[2, i1]
+        q_des   = (1.0 - alpha) * self.T[0, i0] + alpha * self.T[0, i1]
+        qd_des  = (1.0 - alpha) * self.T[1, i0] + alpha * self.T[1, i1]
+        qdd_des = (1.0 - alpha) * self.T[2, i0] + alpha * self.T[2, i1]
 
-        return qt, qdt, ddqt
+        return q_des, qd_des, qdd_des
