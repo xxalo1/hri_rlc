@@ -1,13 +1,22 @@
 import numpy as np
 
+
 from ..kinova_gen3 import kinova_gen3_spec
-from ..robot import Robot, RobotSpec
+from ..robot import Robot, RobotSpec, Kinematics, Dynamics
 
 from ..robot import Robot
 from ..utils import pytorch_util as ptu
 from ..utils import numpy_util as npu
+from .env import Gen3Env
+
+
+FloatArray = npu.FloatArray
+
 
 def init_kinova_robot() -> Robot:
+    """
+    initialize and return a Kinova Gen3 robot instance
+    """
     robot_spec: RobotSpec = kinova_gen3_spec()
 
     o_wb = np.array([1., 0., 0.75], dtype=npu.dtype)
@@ -23,12 +32,15 @@ def init_kinova_robot() -> Robot:
     return robot
 
 
-def compare_jacs(kin, env):
+def compare_jacs(
+    kin: Kinematics, 
+    env: Gen3Env
+) -> str:
     model, data = env.m, env.d
     link_i = 2   # for example
 
-    J_com = kin.jac_com()                     # xp backend
-    J_my = ptu.to_numpy(J_com[link_i])        # (6, n)
+    J_com = kin.jac_com()             
+    J_my = J_com[link_i]              # (6, n)
 
     joint_name = env.joint_names[link_i]
     jid = env.joint_ids[joint_name]           # joint id
@@ -64,7 +76,12 @@ def compare_jacs(kin, env):
     return msg
 
 
-def compare_dynamics(q, dq, dyn, env):
+def compare_dynamics(
+    q: FloatArray, 
+    dq: FloatArray, 
+    dyn: Dynamics, 
+    env: Gen3Env
+) -> str:
     model = env.m
 
     nv = model.nv
@@ -111,7 +128,11 @@ def compare_dynamics(q, dq, dyn, env):
     return msg
 
 
-def log_ic_mass_compare(logger, kin, env):
+def log_ic_mass_compare(
+    logger, 
+    kin: Kinematics, 
+    env: Gen3Env
+) -> None:
     """
     Compare inertial parameters between your model and MuJoCo, both in local
     link frames and in the world frame.

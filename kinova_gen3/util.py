@@ -1,11 +1,10 @@
-from typing import Sequence
 import numpy as np
 import torch
-import yaml, copy, pandas as pd
+import yaml
 from numpy import pi
 from pathlib import Path
 
-from ..robot.core import RobotSpec
+from ..robot import RobotSpec
 
 from..utils import numpy_util as npu
 from..utils import dtype, FloatArray, ArrayT
