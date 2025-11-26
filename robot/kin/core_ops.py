@@ -53,12 +53,12 @@ def transform_matrices(
 
     A = xp.zeros_like(q, (n, 4, 4))
 
-    A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT
-    A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT
+    A[:, 0, 0] = cT;   A[:, 0, 1] = -sT * cA; A[:, 0, 2] = sT * sA; A[:, 0, 3] = a * cT # type: ignore
+    A[:, 1, 0] = sT;   A[:, 1, 1] = cT * cA; A[:, 1, 2] = -cT * sA; A[:, 1, 3] = a * sT # type: ignore
     A[:, 2, 0] = 0.0;  A[:, 2, 1] = sA;    A[:, 2, 2] = cA;    A[:, 2, 3] = d
     A[:, 3, 0] = 0.0;  A[:, 3, 1] = 0.0;    A[:, 3, 2] = 0.0;    A[:, 3, 3] = 1.0
 
-    A[:, :3, 3] += b[:, None] * A[:, :3, 2]
+    A[:, :3, 3] += b[:, None] * A[:, :3, 2] # type: ignore
 
     return A
 
@@ -121,9 +121,7 @@ def jacobian(T_wf: ArrayT) -> ArrayT:
         Geometric Jacobian expressed in the world frame.
         Rows 0..2 are the linear part Jv, rows 3..5 are the angular part Jw.
     """
-    # shape checks
-
-    assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n, 4, 4)"
+    assert T_wf.ndim == 3 and T_wf.shape[1:] == (4, 4), "T_wf must be (n+1, 4, 4)"
 
     o_wf = T_wf[:, :3, 3]   # (n+1, 3) origins in world
     z_wf = T_wf[:, :3, 2]   # (n+1, 3) z-axes in world
@@ -134,7 +132,7 @@ def jacobian(T_wf: ArrayT) -> ArrayT:
     Jw = z_wf[:-1].T                                          # (3, n)
 
     J = xp.concatenate([Jv, Jw]) # (6, n)
-    return J
+    return J # type: ignore
 
 
 def com_world(

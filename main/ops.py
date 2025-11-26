@@ -77,8 +77,6 @@ def compare_jacs(
 
 
 def compare_dynamics(
-    q: FloatArray, 
-    dq: FloatArray, 
     dyn: Dynamics, 
     env: Gen3Env
 ) -> str:
@@ -90,10 +88,10 @@ def compare_dynamics(
     M_mj = np.empty((nv, nv), dtype=npu.dtype)
     mj.mj_fullM(env.m, M_mj, env.d.qM)
     b_mj = env.d.qfrc_bias.copy()
-    m, h, tau_g = dyn.Dynamics_matrices(q, dq)
+    m, tau_g = dyn.Dynamics_matrices()
 
-    M_dyn = ptu.to_numpy(m)      # (n, n)
-    b_dyn = ptu.to_numpy(h + tau_g)  # (n,)
+    M_dyn = m      # (n, n)
+    b_dyn = tau_g  # (n,)
     M_dyn = M_dyn  # skip first row/col for fixed joint
     b_dyn = b_dyn      # skip first element for fixed joint
 
@@ -162,10 +160,10 @@ def log_ic_mass_compare(
     m = env.m        # mjModel
     d = env.d        # mjData
 
-    your_m_local  = ptu.to_numpy(kin.mass)      # (n,)
-    your_I_local  = ptu.to_numpy(kin.Ic_fl)     # (n, 3, 3)
-    your_I_world  = ptu.to_numpy(kin.Ic_wl)     # (n, 3, 3)
-    your_com_world = ptu.to_numpy(kin.com_wl)   # (n, 3)
+    your_m_local  = kin.mass      # (n,)
+    your_I_local  = kin.Ic_fl     # (n, 3, 3)
+    your_I_world  = kin.Ic_wl     # (n, 3, 3)
+    your_com_world = kin.com_wl   # (n, 3)
 
     mj_m      = m.body_mass                     # (nbodies,)
     mj_I_diag = m.body_inertia                  # (nbodies, 3)
