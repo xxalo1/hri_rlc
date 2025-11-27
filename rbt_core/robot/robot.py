@@ -5,7 +5,6 @@ import numpy as np
 import torch
 
 
-# robot/robot.py
 from dataclasses import dataclass
 from .kin import Kinematics
 from .dyn import Dynamics
