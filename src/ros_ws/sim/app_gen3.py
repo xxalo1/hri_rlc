@@ -6,11 +6,12 @@ import mujoco as mj
 from mujoco import viewer
 from enum import Enum, auto
 
-from .ops import init_kinova_robot, compare_jacs, compare_dynamics, log_ic_mass_compare
-
+from .ops import compare_jacs, compare_dynamics, log_ic_mass_compare
+from ...robots.kinova_gen3 import init_kinova_robot
 from .env import Gen3Env
-from ..mujoco_utils import draw_all_frames, draw_ee_traj, Plotter
-from ..utils import numpy_util as npu
+from ...sim_backend.mujoco.util import draw_all_frames, draw_ee_traj
+
+from ...common_utils import numpy_util as npu
 
 FloatArray = npu.FloatArray
 
@@ -49,7 +50,6 @@ class Gen3App:
         # build robot classes
         self.robot = init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0, Ki=1.0)
-        self.plotter = Plotter()
         self.env = Gen3Env(xml_path=str(self.xml_path))
 
         # basic trajectory

@@ -1,13 +1,12 @@
 from __future__ import annotations
 import numpy as np
 
-from ..mujoco_utils.env_base import BaseMujocoEnv
-from ..utils import numpy_util as npu
-
-FloatArray = npu.FloatArray
+from ...sim_backend.mujoco.mujoco_base import BaseMujocoEnv
+from ...common_utils import numpy_util as npu
+from ...common_utils import FloatArray
 
 class Gen3Env(BaseMujocoEnv):
-    def __init__(self, xml_path, nsubsteps=10, seed: int | None = 0):
+    def __init__(self, xml_path, nsubsteps=1, seed: int | None = 0):
         super().__init__(xml_path, nsubsteps, seed)
 
         self.joint_names = ["joint_1", "joint_2", "joint_3",
