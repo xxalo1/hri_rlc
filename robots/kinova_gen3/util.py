@@ -4,22 +4,11 @@ import yaml
 from numpy import pi
 from pathlib import Path
 
-from ..robot import RobotSpec
+from ...rbt_core import RobotSpec, Robot
 
-from..utils import numpy_util as npu
-from..utils import dtype, FloatArray, ArrayT
-from ..utils import pytorch_util as ptu
-from ..robot.kin import core_ops as cops
-dtype = npu.dtype
-
-HERE = Path(__file__).parent
-INERT_FILE = HERE / "inertial_mj.yaml"
-DH_FILE = HERE / "dh_v2.yaml"
-ZD =      [0,  0,     0,    0,     0,    0,     0,    -0.0615]
-YD =      [0, -0.1284, -0.0064, -0.2104, -0.0064,  -0.1059, 0,    0]
-THETA_Z = [0,  0,     pi,   0,     pi,   0,     pi,   0]
-THETA_X = [pi, pi/2, -pi/2, pi/2, -pi/2, pi/2, -pi/2, -pi]
-SKIP_LINKS = ("ee_no_vision",)
+from ...common_utils import numpy_util as npu
+from ...common_utils import FloatArray
+from ...common_utils import pytorch_util as ptu
 
 def compute_Rx(angle):
     c, s = np.cos(angle), np.sin(angle)
@@ -59,7 +48,7 @@ def compute_Tz(distance):
     return T
 
 
-def load_inertia(yaml_path, skip_links=SKIP_LINKS) -> dict[str, FloatArray]:
+def load_inertia(yaml_path, skip_links) -> dict[str, FloatArray]:
     """
     Load inertial data and return stacked NumPy arrays.
 
@@ -76,9 +65,9 @@ def load_inertia(yaml_path, skip_links=SKIP_LINKS) -> dict[str, FloatArray]:
     rows = [r for r in data["links"] if r.get("name") not in skip_links]
     n = len(rows)
 
-    m   = np.fromiter((float(r["mass_kg"]) for r in rows), dtype=dtype, count=n)
-    com = np.array([r["com_m"] for r in rows], dtype=dtype)        # (n,3)
-    Ic  = np.array([r["Ic_kgm2"] for r in rows], dtype=dtype)      # (n,3,3)
+    m   = np.fromiter((float(r["mass_kg"]) for r in rows), dtype=npu.dtype, count=n)
+    com = np.array([r["com_m"] for r in rows], dtype=npu.dtype)        # (n,3)
+    Ic  = np.array([r["Ic_kgm2"] for r in rows], dtype=npu.dtype)      # (n,3,3)
 
     return {"m": m, "com": com, "Ic": Ic}
 
@@ -95,28 +84,29 @@ def load_dh(file) -> dict[str, FloatArray]:
     rows.sort(key=lambda r: int(r.get("id", 0)))
     n = len(rows)
 
-    d      = np.fromiter((float(r["d"])      for r in rows), dtype=dtype,    count=n)
-    a      = np.fromiter((float(r["a"])      for r in rows), dtype=dtype,    count=n)
-    alpha  = np.fromiter((float(r["alpha"])  for r in rows), dtype=dtype,    count=n)
-    q0 = np.fromiter((float(r["q0"]) for r in rows), dtype=dtype,    count=n)
-    b      = np.fromiter((float(r.get("b", 0.0)) for r in rows), dtype=dtype, count=n)
+    d      = np.fromiter((float(r["d"])      for r in rows), dtype=npu.dtype,    count=n)
+    a      = np.fromiter((float(r["a"])      for r in rows), dtype=npu.dtype,    count=n)
+    alpha  = np.fromiter((float(r["alpha"])  for r in rows), dtype=npu.dtype,    count=n)
+    q0 = np.fromiter((float(r["q0"]) for r in rows), dtype=npu.dtype,    count=n)
+    b      = np.fromiter((float(r.get("b", 0.0)) for r in rows), dtype=npu.dtype, count=n)
 
     return {"d": d, "a": a, "alpha": alpha, "q0": q0, "b": b}
 
 
-def change_of_basis(d: dict[str, FloatArray], dh: dict[str, FloatArray]) -> tuple[dict[str, FloatArray], FloatArray]:
+def change_of_basis(d: dict[str, FloatArray]) -> tuple[dict[str, FloatArray], FloatArray]:
 
-    angles_x = np.asarray(THETA_X, dtype=dtype)
-    angles_z = np.asarray(THETA_Z, dtype=dtype)
-    y_d      = np.asarray(YD,      dtype=dtype)
-    z_d      = np.asarray(ZD,      dtype=dtype)
+    Dz =      [0,  0,     0,    0,     0,    0,     0,    -0.0615]
+    Dy =      [0, -0.1284, -0.0064, -0.2104, -0.0064,  -0.1059, 0,    0]
+    Rz = [0,  0,     pi,   0,     pi,   0,     pi,   0]
+    Rx = [pi, pi/2, -pi/2, pi/2, -pi/2, pi/2, -pi/2, -pi]
 
-    Ty  = np.stack([compute_Ty(distance) for distance in y_d], axis=0).astype(d["com"].dtype)
-    TRx = np.stack([compute_Rx(theta)    for theta in angles_x], axis=0).astype(d["com"].dtype)
-    TRz = np.stack([compute_Rz(theta)    for theta in angles_z], axis=0).astype(d["com"].dtype)
-    Tz  = np.stack([compute_Tz(distance) for distance in z_d], axis=0).astype(d["com"].dtype)
+    Ty  = np.stack([compute_Ty(distance) for distance in Dy], axis=0)
+    TRx = np.stack([compute_Rx(theta)    for theta in Rx], axis=0)
+    TRz = np.stack([compute_Rz(theta)    for theta in Rz], axis=0)
+    Tz  = np.stack([compute_Tz(distance) for distance in Dz], axis=0)
 
     T = Tz @ TRx @ TRz @ Ty              # (n, 4, 4)
+
     com = d["com"]                       # (n, 3)
     Ic  = d["Ic"]                        # (n, 3, 3)
 
@@ -139,10 +129,15 @@ def change_of_basis(d: dict[str, FloatArray], dh: dict[str, FloatArray]) -> tupl
 
 def load_kinova_gen3() -> tuple[dict[str, FloatArray], dict[str, FloatArray], FloatArray, dict[str, torch.Tensor], dict[str, torch.Tensor], torch.Tensor]:
     """Load both DH and inertial parameters for Kinova Gen3 robot."""
-    dh = load_dh(DH_FILE)
-    inertia = load_inertia(INERT_FILE)
-    inertia, T_base = change_of_basis(inertia, dh)
-    # take out the first dimension (base link) of both dh and inertia
+    here = Path(__file__).parent
+    inertia_file = here / "inertial_mj.yaml"
+    dh_file = here / "dh_v2.yaml"
+    skip_links = ("ee_no_vision",)
+
+    dh = load_dh(dh_file)
+    inertia = load_inertia(inertia_file, skip_links)
+    inertia, T_base = change_of_basis(inertia)
+
     dh = {k: v[1:] for k, v in dh.items()}
     inertia = {k: v[1:] for k, v in inertia.items()}
     dh_torch = ptu.from_numpy_dict(dh)
@@ -172,3 +167,22 @@ def kinova_gen3_spec() -> RobotSpec:
         T_base=T_base,
         joint_names=joint_names,
     )
+
+
+def init_kinova_robot() -> Robot:
+    """
+    initialize and return a Kinova Gen3 robot instance
+    """
+    robot_spec: RobotSpec = kinova_gen3_spec()
+
+    o_wb = np.array([1., 0., 0.75], dtype=npu.dtype)
+    axes_wb = np.eye(3, dtype=npu.dtype)
+
+    T_world_base = np.eye(4, dtype=npu.dtype)
+    T_world_base[:3, :3] = axes_wb
+    T_world_base[:3, 3] = o_wb
+    T_wb = T_world_base @ robot_spec.T_base
+    robot_spec.T_base = T_wb
+
+    robot = Robot.from_spec(robot_spec)
+    return robot

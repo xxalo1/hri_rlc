@@ -1,5 +1,5 @@
 <mujoco model="gen3">
-  <compiler angle="radian" meshdir="assets/kinova_gen3/assets"/>
+  <compiler angle="radian" meshdir="assets"/>
 
   <option integrator="implicitfast"/>
 

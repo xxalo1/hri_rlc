@@ -2,5 +2,5 @@
 from . import numpy_util
 from . import pytorch_util
 from . import array_compat
-from .numpy_util import ArrayT, FloatArray, dtype
-__all__ = ["numpy_util", "pytorch_util", "array_compat", "ArrayT", "FloatArray", "dtype"]
+from .numpy_util import ArrayT, FloatArray
+__all__ = ["numpy_util", "pytorch_util", "array_compat", "ArrayT", "FloatArray"]
