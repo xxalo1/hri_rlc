@@ -16,13 +16,13 @@ class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_sim")
 
-        self.declare_parameter("xml_path", None)
+        self.declare_parameter("xml_path", "")
         self.declare_parameter("nsubsteps", 10)
         self.declare_parameter("publish_rate_hz", 200.0)
         self.declare_parameter("realtime_factor", 1.0)
 
         xml_path = self.get_parameter("xml_path").get_parameter_value().string_value
-        if xml_path is None:
+        if not xml_path:
             xml_path = "/home/g201951870/projects/hri_rlc/src/sim_env/kinova_gen3_table.xml"
 
         self.publish_rate = self.get_parameter("publish_rate_hz").get_parameter_value().double_value
