@@ -4,9 +4,7 @@ import numpy as np
 
 from .kin import Kinematics
 from ..common_utils import numpy_util as npu
-
-
-FloatArray  = npu.FloatArray
+from ..common_utils import FloatArray
 
 
 class Dynamics():

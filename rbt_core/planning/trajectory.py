@@ -1,9 +1,9 @@
 import numpy as np
 
 from . import quintic as qt
+
 from ...common_utils import numpy_util as npu
-FloatArray = npu.FloatArray
-dtype = npu.dtype
+from ...common_utils import FloatArray
 
 
 class TrajPlanner:

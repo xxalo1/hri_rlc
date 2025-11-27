@@ -1,14 +1,12 @@
-from typing import Sequence
 import numpy as np
 import torch
-import yaml, copy, pandas as pd
+import yaml
 from numpy import pi
 from pathlib import Path
-
-from..utils import numpy_util as npu
-from..utils import dtype, FloatArray, ArrayT
-from ..utils import pytorch_util as ptu
-from ..robot.kin import core_ops as cops
+from ...common_utils import numpy_util as npu
+from ...common_utils import FloatArray
+from ...common_utils import pytorch_util as ptu
+from ...rbt_core.kin import ops as ops
 dtype = npu.dtype
 
 HERE = Path(__file__).parent
@@ -30,13 +28,14 @@ def compute_Rz(angle):
     return np.array([[ c,-s, 0],
                      [ s, c, 0],
                      [ 0, 0, 1]], dtype=npu.dtype)
+
 def compute_Ry(angle):
     c, s = np.cos(angle), np.sin(angle)
     return np.array([[ c, 0, s],
                      [ 0, 1, 0],
                      [-s, 0, c]], dtype=npu.dtype)
 
-def load_inertial(yaml_path, skip_links=SKIP_LINKS) -> dict[str, FloatArray]:
+def load_inertia(yaml_path, skip_links=SKIP_LINKS) -> dict[str, FloatArray]:
     """
     Load inertial data and return stacked NumPy arrays.
 
@@ -58,14 +57,6 @@ def load_inertial(yaml_path, skip_links=SKIP_LINKS) -> dict[str, FloatArray]:
     Ic  = np.array([r["Ic_kgm2"] for r in rows], dtype=dtype)      # (n,3,3)
 
     return {"m": m, "com": com, "Ic": Ic}
-
-
-def load_inertia() -> dict[str, FloatArray]:
-    """Load Kinova Gen3 inertial model and apply per-link flips (R @ com, R Ic R^T)."""
-    inertia = load_inertial(INERT_FILE)
-
-
-    return inertia
 
 
 def load_dh() -> dict[str, FloatArray]:
@@ -107,7 +98,7 @@ def change_of_basis(d: dict[str, FloatArray], dh: dict[str, FloatArray]) -> dict
     Ic_new = np.einsum("nji,njk,nlk->nil", R, Ic, R)      # R Ic R^T
 
     ## apply change of basis express those to link's i frame.
-    A = cops.transform_matrices(dh["q0"], dh["d"], dh["a"], dh["alpha"], dh["b"])   # (n,4,4)
+    A = ops.transform_matrices(dh["q0"], dh["d"], dh["a"], dh["alpha"], dh["b"])   # (n,4,4)
 
     R = A[:, :3, :3]
     p = A[:, :3, 3]
@@ -124,7 +115,7 @@ def change_of_basis(d: dict[str, FloatArray], dh: dict[str, FloatArray]) -> dict
 def load_kinova_gen3() -> tuple[dict[str, FloatArray], dict[str, FloatArray], dict[str, torch.Tensor],   dict[str, torch.Tensor]]:
     """Load both DH and inertial parameters for Kinova Gen3 robot."""
     dh = load_dh()
-    inertia = load_inertia()
+    inertia = load_inertia(INERT_FILE)
     inertia = change_of_basis(inertia, dh)
     dh_torch = ptu.from_numpy_dict(dh)
     inertia_torch = ptu.from_numpy_dict(inertia)

@@ -181,11 +181,11 @@ def skew(v: ArrayT) -> ArrayT:
     """
     x, y, z = v[..., 0], v[..., 1], v[..., 2]
     S = xp.zeros_like(v, shape=(*v.shape[:-1], 3, 3))
-    S[..., 0, 1] = -z
-    S[..., 0, 2] =  y
-    S[..., 1, 0] =  z
-    S[..., 1, 2] = -x
-    S[..., 2, 0] = -y
-    S[..., 2, 1] =  x
+    S[..., 0, 1] = -z # type: ignore
+    S[..., 0, 2] =  y # type: ignore
+    S[..., 1, 0] =  z # type: ignore
+    S[..., 1, 2] = -x # type: ignore
+    S[..., 2, 0] = -y # type: ignore
+    S[..., 2, 1] =  x # type: ignore
     return S
 

@@ -1,9 +1,8 @@
 import numpy as np
 
 from ...common_utils import numpy_util as npu
+from ...common_utils import FloatArray
 
-FloatArray = npu.FloatArray
-dtype = npu.dtype
 
 def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, freq: float,
                       v0: FloatArray, a0: FloatArray, vf: FloatArray, af: FloatArray
@@ -15,7 +14,7 @@ def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, freq: fl
         
         dt = 1.0 / freq
         n_steps = int(np.round((tf - t0) * freq)) + 1
-        T = t0 + np.arange(n_steps, dtype=dtype) * dt
+        T = t0 + np.arange(n_steps, dtype=npu.dtype) * dt
         Q, Qd, Qdd = eval_quintic(A, T)
         return Q, Qd, Qdd
 
@@ -37,7 +36,7 @@ def quintic_coeffs(q0: FloatArray, qf: FloatArray, t0: float, tf: float,
         [1, tf, tf**2,   tf**3,     tf**4,      tf**5],
         [0,  1,  2*tf,   3*tf**2,   4*tf**3,    5*tf**4],
         [0,  0,     2,   6*tf,     12*tf**2,   20*tf**3],
-    ], dtype=dtype)
+    ], dtype=npu.dtype)
 
     B = np.vstack([q0, v0, a0, qf, vf, af,]) # (6, n)
 

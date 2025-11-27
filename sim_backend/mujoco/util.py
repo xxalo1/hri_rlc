@@ -2,7 +2,7 @@ import numpy as np
 import mujoco as mj
 
 from ...common_utils import numpy_util as npu
-FloatArray = npu.FloatArray
+from ...common_utils import FloatArray
 EE_TRAJ_SEGID = 1001
 FRAME_SEGID    = 1002
 FRAME_AT_COM_SEGID    = 1003
@@ -83,7 +83,7 @@ def draw_all_frames(
     - First remove any old geoms with this segid.
     - Then append new geoms tagged with this segid.
     """
-    D = npu.dtype
+    D = npu.npu.dtype
 
     # 1) Remove old "frame" geoms (segid == FRAME_SEGID) by compacting the array
     write = 0
