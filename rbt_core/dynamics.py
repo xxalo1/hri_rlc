@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import torch
-from typing import Dict, Sequence, Tuple
 import numpy as np
 
-from ..kin import Kinematics
-from ...utils import pytorch_util as ptu
-from ...utils import numpy_util as npu
+from .kin import Kinematics
+from ..common_utils import numpy_util as npu
 
 
 FloatArray  = npu.FloatArray
@@ -29,7 +26,7 @@ class Dynamics():
         return np.cross(a, b, axis=-1)
 
 
-    def Dynamics_matrices(self) -> Tuple[FloatArray, FloatArray]:
+    def Dynamics_matrices(self) -> tuple[FloatArray, FloatArray]:
         """Jacobian/energy-form M(q)."""
         M = self.inertia_matrix()
         tau_g = self.gravity_vector()
@@ -221,7 +218,7 @@ class Dynamics():
         return tau
 
 
-    def dyn_pinv(self, J_task: FloatArray) -> Tuple[FloatArray, FloatArray]:
+    def dyn_pinv(self, J_task: FloatArray) -> tuple[FloatArray, FloatArray]:
         """
         Dynamically consistent pseudo-inverse of a task Jacobian.
 

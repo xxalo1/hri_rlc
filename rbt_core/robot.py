@@ -1,17 +1,16 @@
 from __future__ import annotations
 import math
-
 import numpy as np
-import torch
-
-
 from dataclasses import dataclass
-from .kin import Kinematics
-from .dyn import Dynamics
-from .control import Controller
+
+
+from .kin.kinematics import Kinematics
+from .dynamics import Dynamics
+from .controller import Controller
 from .planning import TrajPlanner
-from ..utils import pytorch_util as ptu
-from ..utils import numpy_util as npu
+from ..common_utils import numpy_util as npu
+
+
 FloatArray = npu.FloatArray
 
 

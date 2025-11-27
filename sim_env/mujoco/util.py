@@ -1,7 +1,7 @@
 import numpy as np
 import mujoco as mj
 
-from ..utils import numpy_util as npu
+from ...common_utils import numpy_util as npu
 FloatArray = npu.FloatArray
 EE_TRAJ_SEGID = 1001
 FRAME_SEGID    = 1002

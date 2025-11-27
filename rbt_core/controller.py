@@ -1,8 +1,8 @@
 import numpy as np
 
-from ..dyn import Dynamics
-from ..kin import Kinematics
-from ...utils import numpy_util as npu
+from .dynamics import Dynamics
+from .kin import Kinematics
+from ..common_utils import numpy_util as npu
 FloatArray = npu.FloatArray
 
 class Controller:
