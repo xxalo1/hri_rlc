@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import math
-from ..utils import numpy_util as npu
-from ..utils import pytorch_util as ptu
+from . import numpy_util as npu
+from . import pytorch_util as ptu
 FloatArray = npu.FloatArray
 
 class Plotter():

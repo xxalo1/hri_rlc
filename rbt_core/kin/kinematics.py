@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from typing import Generic, TypeVar
 
-from . import core_ops as cops
-from ...utils import(numpy_util as npu, array_compat as xp, ArrayT, FloatArray, dtype)
+from . import ops as ops
+from ...common_utils import array_compat as xp, ArrayT, FloatArray
 
 ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 
@@ -283,7 +283,7 @@ class Kinematics(Generic[ArrayT]):
             return self._com_wl
 
         T_wf = self.forward_kinematics()
-        com_wl = cops.com_world(T_wf[1:, :, :], self.com_fl)
+        com_wl = ops.com_world(T_wf[1:, :, :], self.com_fl)
 
         self._com_wl = com_wl
         self._com_valid = True
@@ -396,7 +396,7 @@ class Kinematics(Generic[ArrayT]):
         if use_cache and self._fk_valid:
             return self.T_wf[:k]
 
-        T_bl = cops.cumulative_transforms(self.q0 + q, self.d, self.a, self.alpha, self.b)
+        T_bl = ops.cumulative_transforms(self.q0 + q, self.d, self.a, self.alpha, self.b)
         T_wl = self.T_wb @ T_bl
         T_wf = self._prepend_base(T_wl)
 
@@ -503,7 +503,7 @@ class Kinematics(Generic[ArrayT]):
         T_wf = self.forward_kinematics(q)
         J = xp.zeros_like(T_wf, shape=(n, 6, n))
         for j in range(n):
-            J[j, :, :j+1] = cops.jacobian(T_wf[:j+2])  # pyright: ignore[reportArgumentType]
+            J[j, :, :j+1] = ops.jacobian(T_wf[:j+2])  # pyright: ignore[reportArgumentType]
 
         if not use_cache: 
             return J if i is None else J[i, ...]
@@ -555,7 +555,7 @@ class Kinematics(Generic[ArrayT]):
             i = self.n -1
 
         T_wf = self.forward_kinematics(q, i=i)
-        J = cops.jacobian(T_wf)
+        J = ops.jacobian(T_wf)
         return J
 
 
@@ -591,7 +591,7 @@ class Kinematics(Generic[ArrayT]):
 
         r_w = self.com_wl - o_w                        # (n, 3)
 
-        S = cops.skew(r_w)                               # (n, 3, 3)
+        S = ops.skew(r_w)                               # (n, 3, 3)
         Jv_o = J[:, 0:3, :]                              # (n, 3, n)
         Jw   = J[:, 3:6, :]                              # (n, 3, n)
         Jv_com = Jv_o - (S @ Jw)
@@ -633,7 +633,7 @@ class Kinematics(Generic[ArrayT]):
         
         return v
 
-    # broken
+    
     def spatial_acc(self, 
         q: torch.Tensor, 
         qd: torch.Tensor, 
@@ -660,42 +660,4 @@ class Kinematics(Generic[ArrayT]):
             Spatial accelerations for all joints, shape (n, 6).
         """
 
-        if q is None: q = self.q_t
-        if qd is None: qd = self.qd_t
-        if qdd is None: qdd = self.qdd_t
-
-        n = q.shape[0]
-        a = []
-        for i in range(n):
-            a_i = ops_t.spatial_acc(q[: i + 1], qd[: i + 1], qdd[: i + 1], self.jac_fn)
-            a.append(a_i.unsqueeze(0))   # (1, 6)
-        a = torch.cat(a, dim=0)       # (n, 6)
-        return a
-
-    # broken
-    def ik_7dof(self, target_T: FloatArray, max_iters: int = 1000, 
-                tol: float = 1e-4, alpha: float = 0.1) -> FloatArray:
-        """
-        Inverse kinematics for 7-DOF arm using iterative Jacobian pseudo-inverse method.
-        target_T: desired end-effector transform (4x4)
-        q_init: initial joint angles (7,)
-        Returns q_sol: joint angles achieving target_T within tolerance.
-        """
-        q = self.q.copy()  # initial guess
-        for iter in range(max_iters):
-            self.step(q=q)
-            current_T = self.forward_kinematics(len(q)-1)[-1]
-            pos_err = target_T[:3, 3] - current_T[:3, 3]
-            rot_err_matrix = current_T[:3, :3].T @ target_T[:3, :3]
-            rot_err_axis, rot_err_angle = self._rotation_matrix_to_axis_angle(rot_err_matrix)
-            err = np.hstack((pos_err, rot_err_axis * rot_err_angle))
-
-            if np.linalg.norm(err) < tol:
-                break
-
-            J = self.jac()
-            J_pinv = np.linalg.pinv(J)
-            delta_q = alpha * (J_pinv @ err)
-            q += delta_q
-
-        return q
+        raise NotImplementedError("spatial_acc is not implemented yet.")

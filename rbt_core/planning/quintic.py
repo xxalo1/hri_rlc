@@ -1,8 +1,6 @@
 import numpy as np
-from typing import Any, Optional, Sequence
-from numpy.typing import ArrayLike, NDArray
 
-from ...utils import numpy_util as npu
+from ...common_utils import numpy_util as npu
 
 FloatArray = npu.FloatArray
 dtype = npu.dtype

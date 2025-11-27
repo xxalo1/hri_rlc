@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, TypeVar
+from typing import Sequence, TypeVar
 import torch
 import numpy as np
 from numpy.typing import NDArray
