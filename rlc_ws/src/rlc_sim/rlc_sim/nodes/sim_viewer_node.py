@@ -12,7 +12,7 @@ from rclpy.node import Node
 from rlc_interfaces.msg import JointStateSim
 from std_srvs.srv import Trigger, SetBool
 
-from .. import topics
+from ....rlc_common import topics
 from ..envs.env import Gen3Env
 
 
