@@ -10,7 +10,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from ......src.common_utils import numpy_util as npu
-from .. import topics
+from ....rlc_common import topics
 from ..envs.env import Gen3Env
 
 
