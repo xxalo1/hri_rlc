@@ -1,8 +1,8 @@
 import numpy as np
 import mujoco as mj
 
-from ...common_utils import numpy_util as npu
-from ...common_utils import FloatArray
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
 EE_TRAJ_SEGID = 1001
 FRAME_SEGID    = 1002
 FRAME_AT_COM_SEGID    = 1003

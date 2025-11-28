@@ -3,10 +3,10 @@ import torch
 import yaml
 from numpy import pi
 from pathlib import Path
-from ...common_utils import numpy_util as npu
-from ...common_utils import FloatArray
-from ...common_utils import pytorch_util as ptu
-from ...rbt_core.kin import ops as ops
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
+from common_utils import pytorch_util as ptu
+from rbt_core.kin import ops as ops
 dtype = npu.dtype
 
 HERE = Path(__file__).parent
