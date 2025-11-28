@@ -5,8 +5,9 @@ from enum import Enum, auto
 
 import rclpy
 from rclpy.node import Node
+from trajectory_msgs.msg import JointTrajectory
+
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-from rlc_interfaces.srv import SetTrajectory
 
 from rlc_common import topics
 from robots.kinova_gen3 import init_kinova_robot
@@ -66,10 +67,11 @@ class Gen3ControllerNode(Node):
             self.publish_period, self.publish_effort_cmd
         )
 
-        self.set_traj_service = self.create_service(
-            SetTrajectory,
+        self.traj_sub = self.create_subscription(
+            JointTrajectory,
             topics.SET_TRAJECTORY_SERVICE,
             self.set_trajectory_callback,
+            10,
         )
 
         self.get_logger().info(
@@ -90,52 +92,84 @@ class Gen3ControllerNode(Node):
     def publish_effort_cmd(self) -> None:
         tau = self.compute_effort()
         self.tau = tau
+
         cmd = JointEffortCmd()
         cmd.header.stamp = self.get_clock().now().to_msg()
         cmd.name = self.joint_names
         cmd.effort = tau.tolist()
         self.effort_pub.publish(cmd)
+        
         self.t_pref = self.t
 
 
-    def set_trajectory_callback(
-        self,
-        request: SetTrajectory.Request,
-        response: SetTrajectory.Response,
-    ) -> SetTrajectory.Response:
+    def set_trajectory_callback(self, msg: JointTrajectory) -> None:
         n = self.n
-        n_pts = int(request.n_points)
+        points = list(msg.points)
+        n_pts = len(points)
 
-        if n_pts <= 0:
-            response.success = False
-            response.message = "n_points must be positive"
-            return response
-        if request.freq <= 0.0:
-            response.success = False
-            response.message = "freq must be positive"
-            return response
+        if n_pts == 0:
+            self.get_logger().warning("Received JointTrajectory with no points")
+            return
 
-        expected_len = n_pts * n
-        try:
-            q = np.asarray(request.positions, dtype=npu.dtype).reshape(n_pts, n)
-            qd = np.asarray(request.velocities, dtype=npu.dtype).reshape(n_pts, n)
-            qdd = np.asarray(request.accelerations, dtype=npu.dtype).reshape(n_pts, n)
-        except ValueError:
-            response.success = False
-            response.message = (
-                f"positions/velocities/accelerations must have length {expected_len}"
+        def build_vector(values, label: str, *, required: bool) -> np.ndarray | None:
+            count = len(values)
+            if count == 0:
+                if required:
+                    self.get_logger().error(
+                        f"JointTrajectory point missing {label} for {n} joints"
+                    )
+                    return None
+                return np.zeros(n, dtype=npu.dtype)
+            if count != n:
+                self.get_logger().error(
+                    f"JointTrajectory {label} has {count} elements, expected {n}"
+                )
+                return None
+            return np.asarray(values, dtype=npu.dtype)
+
+        q_rows = []
+        qd_rows = []
+        qdd_rows = []
+        for i, point in enumerate(points):
+            pos = build_vector(point.positions, f"positions[{i}]", required=True)
+            if pos is None:
+                return
+            vel = build_vector(point.velocities, f"velocities[{i}]", required=False)
+            if vel is None:
+                return
+            acc = build_vector(
+                point.accelerations, f"accelerations[{i}]", required=False
             )
-            return response
+            if acc is None:
+                return
+
+            q_rows.append(pos)
+            qd_rows.append(vel)
+            qdd_rows.append(acc)
+
+        q = np.vstack(q_rows)
+        qd = np.vstack(qd_rows)
+        qdd = np.vstack(qdd_rows)
+
+        time_to_end = float(points[-1].time_from_start.sec) + float(
+            points[-1].time_from_start.nanosec
+        ) * 1e-9
+        if time_to_end <= 0.0:
+            self.get_logger().error(
+                "Final JointTrajectory point must have positive time_from_start"
+            )
+            return
+
+        steps = max(n_pts - 1, 1)
+        freq = steps / time_to_end
 
         T = np.stack([q, qd, qdd], axis=0)
-        self.robot.set_trajectory(T, freq=request.freq, ti=0.0)
+        self.robot.set_trajectory(T, freq=freq, ti=0.0)
         self.has_traj = True
 
-        response.success = True
-        response.message = (
-            f"Trajectory loaded: {n_pts} points, {n} joints, freq={request.freq} Hz"
+        self.get_logger().info(
+            f"Trajectory loaded: {n_pts} points, {n} joints, freq={freq:.3f} Hz"
         )
-        return response
 
 
     def compute_effort(self) -> FloatArray:
