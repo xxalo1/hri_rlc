@@ -5,11 +5,10 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
-from std_msgs.msg import Float64MultiArray
-from sensor_msgs.msg import JointState
-from std_srvs.srv import Trigger
 from std_srvs.srv import SetBool
+from std_srvs.srv import Trigger
 import mujoco as mj
+from rlc_interfaces.msg import JointTorqueCommand, SimJointState
 from ..envs.env import Gen3Env
 
 
@@ -38,16 +37,17 @@ class Gen3MujocoSimNode(Node):
         self.n_joints = len(self.joint_names)
 
         self.tau_cmd = np.zeros(self.n_joints, dtype=np.float64)
+        self.paused = False
 
         self.torque_sub = self.create_subscription(
-            Float64MultiArray,
+            JointTorqueCommand,
             "/sim/gen3/torque_cmd",
             self.torque_cmd_callback,
             10,
         )
 
         self.joint_state_pub = self.create_publisher(
-            JointState, "/sim/gen3/joint_states", 10
+            SimJointState, "/sim/gen3/joint_states", 10
         )
 
         self.publish_period = 1.0 / self.publish_rate
@@ -98,8 +98,8 @@ class Gen3MujocoSimNode(Node):
         return response
 
 
-    def torque_cmd_callback(self, msg: Float64MultiArray) -> None:
-        tau = np.asarray(msg.data, dtype=np.float64)
+    def torque_cmd_callback(self, msg: JointTorqueCommand) -> None:
+        tau = np.asarray(msg.effort, dtype=np.float64)
         if tau.size != self.n_joints:
             self.get_logger().warn(
                 f"Received tau size {tau.size}, expected {self.n_joints}"
@@ -114,13 +114,13 @@ class Gen3MujocoSimNode(Node):
         qd = obs["qvel"]
         t = obs["time"]
 
-        msg = JointState()
+        msg = SimJointState()
         msg.header.stamp = self.get_clock().now().to_msg()
+        msg.sim_time = t
         msg.name = self.joint_names
         msg.position = q.tolist()
         msg.velocity = qd.tolist()
         msg.effort = self.tau_cmd.tolist()
-        msg.time = t
 
         self.joint_state_pub.publish(msg)
 
