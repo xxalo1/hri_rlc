@@ -1,39 +1,28 @@
 cmake_minimum_required(VERSION 3.8)
-project(interfaces)
+project(rlc_interfaces)
 
-if(NOT CMAKE_C_STANDARD)
-  set(CMAKE_C_STANDARD 99)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
-endif()
-
-# Dependencies for interface generation
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(builtin_interfaces REQUIRED)
-
-# Message files
-set(msg_files
-  "msg/JointTorqueCommand.msg"
-  "msg/SimJointState.msg"
-  "msg/CartesianState.msg"
-)
-
-# Service files
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  ${msg_files}
-  ${srv_files}
-  DEPENDENCIES
-    std_msgs
-    geometry_msgs
-    builtin_interfaces
+  "src/msg/JointEffortCmd.msg"
+  "src/msg/CartesianState.msg"
+  "src/msg/JointStateSim.msg"
+  "src/srv/SetTrajectory.srv"
+  DEPENDENCIES std_msgs
 )
 
-ament_export_dependencies(rosidl_default_runtime)
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  set(ament_cmake_copyright_FOUND TRUE)
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()

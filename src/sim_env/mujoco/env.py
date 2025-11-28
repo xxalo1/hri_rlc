@@ -1,9 +1,10 @@
 from __future__ import annotations
 import numpy as np
+from pathlib import Path
 
-from ......src.sim_backend.mujoco.mujoco_base import BaseMujocoEnv
-from ......src.common_utils import numpy_util as npu
-from ......src.common_utils import FloatArray
+from sim_backend.mujoco.mujoco_base import BaseMujocoEnv
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
 
 class Gen3Env(BaseMujocoEnv):
     def __init__(self, xml_path, nsubsteps=1, seed: int | None = 0):
@@ -23,4 +24,7 @@ class Gen3Env(BaseMujocoEnv):
         self.act_idx = np.array([self.act_ids[n] for n in self.act_ids], dtype=int)
 
 
-        # self.display()
+    @classmethod
+    def from_default_scene(cls, *, nsubsteps=1, seed=0):
+        xml = Path(__file__).resolve().parent / "kinova_gen3_table.xml"
+        return cls(xml_path=str(xml), nsubsteps=nsubsteps, seed=seed)

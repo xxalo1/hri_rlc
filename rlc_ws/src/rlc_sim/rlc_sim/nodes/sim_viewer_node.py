@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
 from __future__ import annotations
-
-import time
-from typing import Dict
 
 import numpy as np
 import mujoco as mj
@@ -12,8 +8,8 @@ from rclpy.node import Node
 from rlc_interfaces.msg import JointStateSim
 from std_srvs.srv import Trigger, SetBool
 
-from ....rlc_common import topics
-from ..envs.env import Gen3Env
+from rlc_common import topics
+from sim_env.mujoco.env import Gen3Env
 
 
 class Gen3MujocoVizNode(Node):
@@ -25,7 +21,7 @@ class Gen3MujocoVizNode(Node):
     - Mirrors joint positions into d.qpos and calls mj_forward in the render loop
     """
 
-    def __init__(self, xml_path: str) -> None:
+    def __init__(self) -> None:
         super().__init__("gen3_mujoco_viz")
 
         self.paused = True
@@ -36,15 +32,10 @@ class Gen3MujocoVizNode(Node):
         self.show_inertia = False
         self.show_com = False
 
-        self.declare_parameter("xml_path", None)
+        self.env = Gen3Env.from_default_scene()
 
-        self.env = Gen3Env(xml_path=xml_path, seed=0)
-
-        self.m: mj.MjModel = self.env.m
-        self.d: mj.MjData   = self.env.d
-
-        self.qpos_target = self.d.qpos.copy()
-        self.qvel_target = self.d.qvel.copy()
+        self.qpos_target = self.env.d.qpos.copy()
+        self.qvel_target = self.env.d.qvel.copy()
         self.target_t = 0.0
 
         # Subscribe to joint states from the headless sim
@@ -117,23 +108,22 @@ class Gen3MujocoVizNode(Node):
 
 def main(args=None) -> None:
     rclpy.init(args=args)
-    xml_path = "/home/g201951870/projects/hri_rlc/src/sim_env/mujoco/kinova_gen3_table.xml"
 
     # Create node
-    node = Gen3MujocoVizNode(xml_path=xml_path)
+    node = Gen3MujocoVizNode()
     env = node.env
-    m, d = node.m, node.d
 
     # Define render callback for MuJoCo viewer
     def render_callback(viewer):
         rclpy.spin_once(node, timeout_sec=0.0)
-        env.set_state(qpos=node.qpos_target, qvel=node.qvel_target, t=node.target_t)  # keep env in sync
+        env.set_state(qpos=node.qpos_target, qvel=node.qvel_target, t=node.target_t)
+
     try:
-        # Launch passive MuJoCo viewer; this call blocks until window is closed
         mj.viewer.launch_passive( # type: ignore
-            m, d, 
+            env.m, env.d, 
             render_callback=render_callback, 
-            key_callback=node.key_callback)
+            key_callback=node.key_callback
+            )
 
     except KeyboardInterrupt:
         pass

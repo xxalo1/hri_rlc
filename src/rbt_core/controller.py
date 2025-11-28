@@ -170,21 +170,15 @@ class Controller:
         q_des: FloatArray, 
         qd_des: FloatArray,
         qdd_des: FloatArray,
-        mjd: dict[str, FloatArray]
-    ) -> tuple[FloatArray, FloatArray, dict[str, FloatArray]]:
+    ) -> FloatArray:
         """Compute torque using computed torque control."""
         e = q_des - q
         de = qd_des - qd
         v = qdd_des + self.Kv @ de + self.Kp @ e
 
-        Mjd = mjd["M"] @ v
-        taumj = Mjd + mjd["b"]
+        tau = self.dyn.rnea(q, qd, v)
 
-        tau_rnea = self.dyn.rnea(q, qd, v)
-
-        dict_out = {"e": e, "de": de, "v": v}
-
-        return taumj, tau_rnea, dict_out
+        return tau
 
 
     def impedance_ee(
