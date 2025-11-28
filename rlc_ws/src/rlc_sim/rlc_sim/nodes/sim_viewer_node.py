@@ -44,6 +44,7 @@ class Gen3MujocoVizNode(Node):
 
         self.qpos_target = self.d.qpos.copy()
         self.qvel_target = self.d.qvel.copy()
+        self.target_t = 0.0
 
         # Subscribe to joint states from the headless sim
         self.joint_state_sub = self.create_subscription(
