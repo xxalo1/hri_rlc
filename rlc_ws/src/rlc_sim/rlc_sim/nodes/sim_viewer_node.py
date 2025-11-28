@@ -12,6 +12,7 @@ from rclpy.node import Node
 from rlc_interfaces.msg import JointStateSim
 from std_srvs.srv import Trigger, SetBool
 
+from .. import topics
 from ..envs.env import Gen3Env
 
 
@@ -20,7 +21,7 @@ class Gen3MujocoVizNode(Node):
     Visualization node for Kinova Gen3 using MuJoCo viewer.
 
     - Owns its own MuJoCo model/data
-    - Subscribes to /sim/gen3/joint_states
+    - Subscribes to the headless sim joint state topic
     - Mirrors joint positions into d.qpos and calls mj_forward in the render loop
     """
 
@@ -49,16 +50,16 @@ class Gen3MujocoVizNode(Node):
         # Subscribe to joint states from the headless sim
         self.joint_state_sub = self.create_subscription(
             JointStateSim,
-            "/sim/gen3/joint_states",
+            topics.JOINT_STATE_TOPIC,
             self.joint_state_callback,
             10,
         )
 
-        self.reset_client = self.create_client(Trigger, "/sim/gen3/reset")
-        self.pause_client = self.create_client(SetBool, "/sim/gen3/set_paused")
+        self.reset_client = self.create_client(Trigger, topics.RESET_SERVICE)
+        self.pause_client = self.create_client(SetBool, topics.PAUSE_SERVICE)
 
         self.get_logger().info(
-            f"Gen3 MuJoCo viz node ready. Listening to /sim/gen3/joint_states"
+            f"Gen3 MuJoCo viz node ready. Listening to {topics.JOINT_STATE_TOPIC}"
         )
 
 
