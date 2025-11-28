@@ -8,9 +8,8 @@ from rclpy.node import Node
 from std_srvs.srv import SetBool
 from std_srvs.srv import Trigger
 import mujoco as mj
-from rlc_interfaces.msg import JointTorqueCommand, SimJointState
+from ....rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from ..envs.env import Gen3Env
-from ....rlc_interfaces.msg import 
 
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
