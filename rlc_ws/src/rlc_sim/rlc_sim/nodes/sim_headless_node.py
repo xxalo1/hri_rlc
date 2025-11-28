@@ -6,8 +6,10 @@ import rclpy
 from rclpy.node import Node
 
 from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool
 from std_srvs.srv import Trigger
 import mujoco as mj
+from rlc_interfaces.msg import JointTorqueCommand, SimJointState
 from ....rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from ..envs.env import Gen3Env
 
@@ -36,6 +38,7 @@ class Gen3MujocoSimNode(Node):
         self.n_joints = len(self.joint_names)
 
         self.tau_cmd = np.zeros(self.n_joints, dtype=np.float64)
+        self.paused = False
         self.paused = False
 
         self.torque_sub = self.create_subscription(
