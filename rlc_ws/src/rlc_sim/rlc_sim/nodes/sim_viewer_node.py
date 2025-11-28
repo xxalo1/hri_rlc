@@ -10,8 +10,9 @@ import mujoco as mj
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_srvs.srv import Trigger, SetBool
 
-from .env import Gen3Env
+from ..envs.env import Gen3Env
 
 
 class Gen3MujocoVizNode(Node):
@@ -51,6 +52,9 @@ class Gen3MujocoVizNode(Node):
             10,
         )
 
+        self.reset_client = self.create_client(Trigger, "/sim/gen3/reset")
+        self.pause_client = self.create_client(SetBool, "/sim/gen3/set_paused")
+
         self.get_logger().info(
             f"Gen3 MuJoCo viz node ready. Listening to /sim/gen3/joint_states"
         )
@@ -60,12 +64,24 @@ class Gen3MujocoVizNode(Node):
         c = chr(keycode)
         match c:
             case " ":
-                self.paused = not self.paused
+                if self.pause_client.wait_for_service(timeout_sec=1.0):
+                    req = SetBool.Request()
+                    req.data = False
+                    future = self.pause_client.call_async(req)
+                    self.get_logger().info("pause/unpause service called")
 
             case "r" | "R":
-                self.reset = True
-                self.paused = True
-
+                if self.reset_client.wait_for_service(timeout_sec=1.0):
+                    req = Trigger.Request()
+                    future = self.reset_client.call_async(req)
+                    self.get_logger().info("Reset service called")
+                
+                if self.pause_client.wait_for_service(timeout_sec=1.0):
+                    req = SetBool.Request()
+                    req.data = False
+                    future = self.pause_client.call_async(req)
+                    self.get_logger().info("pause/unpause service called")
+                    
             case "1":
                 self.show_frames = not self.show_frames
 
@@ -108,17 +124,19 @@ def main(args=None) -> None:
 
     # Create node
     node = Gen3MujocoVizNode(xml_path=xml_path)
+    env = node.env
     m, d = node.m, node.d
 
     # Define render callback for MuJoCo viewer
     def render_callback(viewer):
         rclpy.spin_once(node, timeout_sec=0.0)
-
-        d.qpos[:] = node.qpos_target
-        mj.mj_forward(m, d)
+        env.set_state(qpos=d.qpos, qvel=d.qvel)  # keep env in sync
     try:
         # Launch passive MuJoCo viewer; this call blocks until window is closed
-        mj.viewer.launch_passive(m, d, render_callback=render_callback, key_callback=node.key_callback) # type: ignore
+        mj.viewer.launch_passive( # type: ignore
+            m, d, 
+            render_callback=render_callback, 
+            key_callback=node.key_callback)
 
     except KeyboardInterrupt:
         pass
