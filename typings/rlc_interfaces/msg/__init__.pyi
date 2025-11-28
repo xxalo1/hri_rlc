@@ -1,7 +1,8 @@
 from typing import List
+from std_msgs.msg import Header
 
 class JointEffortCmd:
-    header: object
+    header: Header
     name: List[str]
     effort: List[float]
 
@@ -9,7 +10,7 @@ class JointEffortCmd:
 
 
 class JointStateSim:
-    header: object
+    header: Header
     sim_time: float
     name: List[str]
     position: List[float]

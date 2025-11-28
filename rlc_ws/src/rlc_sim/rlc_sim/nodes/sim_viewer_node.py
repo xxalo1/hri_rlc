@@ -9,7 +9,7 @@ import mujoco as mj
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import JointState
+from rlc_interfaces.msg import JointStateSim
 from std_srvs.srv import Trigger, SetBool
 
 from ..envs.env import Gen3Env
@@ -43,10 +43,11 @@ class Gen3MujocoVizNode(Node):
         self.d: mj.MjData   = self.env.d
 
         self.qpos_target = self.d.qpos.copy()
+        self.qvel_target = self.d.qvel.copy()
 
         # Subscribe to joint states from the headless sim
         self.joint_state_sub = self.create_subscription(
-            JointState,
+            JointStateSim,
             "/sim/gen3/joint_states",
             self.joint_state_callback,
             10,
@@ -98,24 +99,18 @@ class Gen3MujocoVizNode(Node):
                 self.show_com = not self.show_com
 
 
-    def joint_state_callback(self, msg: JointState) -> None:
+    def joint_state_callback(self, msg: JointStateSim) -> None:
         """
-        Update qpos_target from the latest JointState message.
+        Update qpos_target from the latest JointStateSim message.
 
         Assumes msg.name entries match MuJoCo joint names.
         """
-        # For safety, keep a local copy
-        qpos_new = self.qpos_target.copy()
-
-        # Build a map name -> position from the message
-        name_to_pos = dict(zip(msg.name, msg.position))
-
-        for name, pos in name_to_pos.items():
-            j_id = self.env.joint_ids[name]
-            addr = self.m.jnt_qposadr[j_id]
-            qpos_new[addr] = pos
-
-        self.qpos_target = qpos_new
+        qpos_target = np.asarray(msg.position, dtype=self.qpos_target.dtype)
+        qvel_target = np.asarray(msg.velocity, dtype=self.qvel_target.dtype)
+        target_t = msg.sim_time
+        self.qpos_target = qpos_target
+        self.qvel_target = qvel_target
+        self.target_t = target_t
 
 
 def main(args=None) -> None:
@@ -130,7 +125,7 @@ def main(args=None) -> None:
     # Define render callback for MuJoCo viewer
     def render_callback(viewer):
         rclpy.spin_once(node, timeout_sec=0.0)
-        env.set_state(qpos=d.qpos, qvel=d.qvel)  # keep env in sync
+        env.set_state(qpos=node.qpos_target, qvel=node.qvel_target, t=node.target_t)  # keep env in sync
     try:
         # Launch passive MuJoCo viewer; this call blocks until window is closed
         mj.viewer.launch_passive( # type: ignore
