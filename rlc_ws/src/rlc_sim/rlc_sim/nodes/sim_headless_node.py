@@ -9,10 +9,9 @@ from std_srvs.srv import SetBool
 from std_srvs.srv import SetBool
 from std_srvs.srv import Trigger
 import mujoco as mj
-from rlc_interfaces.msg import JointTorqueCommand, SimJointState
 from ....rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from ..envs.env import Gen3Env
-
+from ......src.common_utils import numpy_util as npu
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_sim")
@@ -42,14 +41,14 @@ class Gen3MujocoSimNode(Node):
         self.paused = False
 
         self.torque_sub = self.create_subscription(
-            JointTorqueCommand,
+            JointEffortCmd,
             "/sim/gen3/torque_cmd",
             self.torque_cmd_callback,
             10,
         )
 
         self.joint_state_pub = self.create_publisher(
-            SimJointState, "/sim/gen3/joint_states", 10
+            JointStateSim, "/sim/gen3/joint_states", 10
         )
 
         self.publish_period = 1.0 / self.publish_rate
@@ -100,8 +99,8 @@ class Gen3MujocoSimNode(Node):
         return response
 
 
-    def torque_cmd_callback(self, msg: JointTorqueCommand) -> None:
-        tau = np.asarray(msg.effort, dtype=np.float64)
+    def torque_cmd_callback(self, msg: JointEffortCmd) -> None:
+        tau = np.asarray(msg.effort, dtype=npu.dtype)
         if tau.size != self.n_joints:
             self.get_logger().warn(
                 f"Received tau size {tau.size}, expected {self.n_joints}"
@@ -111,12 +110,11 @@ class Gen3MujocoSimNode(Node):
 
 
     def publish_joint_state(self) -> None:
-        obs = self.env.observe()
+        obs, t = self.env.observe()
         q = obs["qpos"]
         qd = obs["qvel"]
-        t = obs["time"]
 
-        msg = SimJointState()
+        msg = JointStateSim()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.sim_time = t
         msg.name = self.joint_names

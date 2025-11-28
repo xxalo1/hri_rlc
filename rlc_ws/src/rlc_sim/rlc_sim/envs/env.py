@@ -1,9 +1,9 @@
 from __future__ import annotations
 import numpy as np
 
-from ...sim_backend.mujoco.mujoco_base import BaseMujocoEnv
-from ...common_utils import numpy_util as npu
-from ...common_utils import FloatArray
+from ......src.sim_backend.mujoco.mujoco_base import BaseMujocoEnv
+from ......src.common_utils import numpy_util as npu
+from ......src.common_utils import FloatArray
 
 class Gen3Env(BaseMujocoEnv):
     def __init__(self, xml_path, nsubsteps=1, seed: int | None = 0):

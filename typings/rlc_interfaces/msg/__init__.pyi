@@ -1,6 +1,6 @@
 from typing import List
 
-class JointTorqueCommand:
+class JointEffortCmd:
     header: object
     name: List[str]
     effort: List[float]
@@ -8,7 +8,7 @@ class JointTorqueCommand:
     def __init__(self, *args, **kwargs) -> None: ...
 
 
-class SimJointState:
+class JointStateSim:
     header: object
     sim_time: float
     name: List[str]
@@ -18,4 +18,4 @@ class SimJointState:
 
     def __init__(self, *args, **kwargs) -> None: ...
 
-__all__ = ["JointTorqueCommand", "SimJointState"]
+__all__ = ["JointEffortCmd", "JointStateSim"]

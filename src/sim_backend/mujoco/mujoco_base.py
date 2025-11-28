@@ -124,21 +124,20 @@ class BaseMujocoEnv:
     
 
     def observe(self
-    ) -> dict[str, FloatArray]:
+    ) -> tuple[dict[str, FloatArray], float]:
         """Return a simple state dict; extend as you need."""
         obs = {
             "qpos": self.d.qpos.copy()[self.joint_idx],
             "qvel": self.d.qvel.copy()[self.joint_idx],
             "qacc":  self.d.qacc.copy()[self.joint_idx],
-            "time": self.d.time,
         }
-
         for x in self.site_ids:
             sid = self.site_ids[x]
             obs[f"{x}_pos"] = self.d.site_xpos[sid].copy()
             obs[f"{x}_rotmat"] = self.d.site_xmat[sid].reshape(3,3).copy()
+        t = self.d.time
 
-        return obs
+        return obs, t
 
 
     def set_state(self, 
