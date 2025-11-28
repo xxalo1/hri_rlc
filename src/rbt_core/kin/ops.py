@@ -1,5 +1,5 @@
-from ...common_utils import array_compat as xp
-from ...common_utils import ArrayT
+from common_utils import array_compat as xp
+from common_utils import ArrayT
 
 def transform_matrices(
     q: ArrayT, 

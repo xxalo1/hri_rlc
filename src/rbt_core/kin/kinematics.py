@@ -5,8 +5,8 @@ import torch
 from typing import Generic
 
 from . import ops as ops
-from ...common_utils import array_compat as xp
-from ...common_utils import ArrayT
+from common_utils import array_compat as xp
+from common_utils import ArrayT
 
 class Kinematics(Generic[ArrayT]):
     """

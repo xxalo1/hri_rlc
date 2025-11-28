@@ -8,7 +8,7 @@ from .kin.kinematics import Kinematics
 from .dynamics import Dynamics
 from .controller import Controller
 from .planning import TrajPlanner
-from ..common_utils import numpy_util as npu
+from common_utils import numpy_util as npu
 
 
 FloatArray = npu.FloatArray

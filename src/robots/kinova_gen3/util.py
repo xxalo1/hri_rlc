@@ -4,11 +4,11 @@ import yaml
 from numpy import pi
 from pathlib import Path
 
-from ...rbt_core import RobotSpec, Robot
+from rbt_core import RobotSpec, Robot
 
-from ...common_utils import numpy_util as npu
-from ...common_utils import FloatArray
-from ...common_utils import pytorch_util as ptu
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
+from common_utils import pytorch_util as ptu
 
 def compute_Rx(angle):
     c, s = np.cos(angle), np.sin(angle)
