@@ -7,7 +7,7 @@ from ..robot import Robot, RobotSpec, Kinematics, Dynamics
 from ..robot import Robot
 from ..utils import pytorch_util as ptu
 from ..utils import numpy_util as npu
-from .env import Gen3Env
+from .envs.env import Gen3Env
 
 
 FloatArray = npu.FloatArray

@@ -1,5 +1,6 @@
 # gen3_env.py
 from __future__ import annotations
+import time
 
 import numpy as np
 import mujoco as mj
@@ -88,18 +89,39 @@ class BaseMujocoEnv:
         return self.observe()
 
 
-    def step(self, 
+    def step(self,
         action: FloatArray, 
-        mode: str ="torque"
+        mode: str ="torque",
+        nsub: int | None = None
     ) -> dict[str, FloatArray]:
-        
         """Apply action then step physics."""
+        if nsub is None: nsub = self.nsub
         if mode == "torque":
             self.d.ctrl[self.act_idx[:len(action)]] = action
-        mj.mj_step(self.m, self.d, self.nsub)
+        mj.mj_step(self.m, self.d, nsub)
 
         return self.observe()
 
+
+    def step_realtime(self, 
+        action: FloatArray, 
+        mode: str = "torque",
+        realtime_factor: float =1.0
+    ) -> dict[str, FloatArray]:
+        """Apply action then step physics in realtime."""
+        t0 = time.time()
+        sim_time = self.d.time
+        target_wall = t0 + sim_time / realtime_factor
+
+        obs = self.step(action, mode=mode, nsub=1)
+
+        now = time.time()
+        while now < target_wall:
+            time.sleep(0.0001)
+            now = time.time()
+        
+        return obs
+    
 
     def observe(self
     ) -> dict[str, FloatArray]:

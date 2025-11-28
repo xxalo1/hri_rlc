@@ -7,9 +7,10 @@ from rclpy.node import Node
 
 from std_msgs.msg import Float64MultiArray
 from sensor_msgs.msg import JointState
-
+from std_srvs.srv import Trigger
+from std_srvs.srv import SetBool
 import mujoco as mj
-from .env import Gen3Env
+from ..envs.env import Gen3Env
 
 
 class Gen3MujocoSimNode(Node):
@@ -54,6 +55,18 @@ class Gen3MujocoSimNode(Node):
             self.publish_period, self.publish_joint_state
         )
 
+        self.reset_srv = self.create_service(
+            Trigger,
+            "/sim/gen3/reset",
+            self.reset_service_callback,
+        )
+
+        self.pause_srv = self.create_service(
+            SetBool,
+            "/sim/gen3/set_paused",
+            self.pause_service_callback,
+        )
+
         self.env.reset()
 
         self.get_logger().info(
@@ -62,6 +75,27 @@ class Gen3MujocoSimNode(Node):
         )
 
         self.last_pub_sim_time = 0.0
+
+
+    def reset_service_callback(self, request: Trigger.Request, response: Trigger.Response):
+        """
+        Reset the simulation.
+        """
+        self.env.reset()
+        response.success = True
+        response.message = "Simulation reset."
+        return response
+
+
+    def pause_service_callback(self, request: SetBool.Request, response: SetBool.Response):
+        """
+        Pause/unpause physics stepping.
+        """
+        self.paused = request.data
+        response.success = True
+        state = "paused" if self.paused else "running"
+        response.message = f"Simulation is now {state}."
+        return response
 
 
     def torque_cmd_callback(self, msg: Float64MultiArray) -> None:
@@ -75,8 +109,10 @@ class Gen3MujocoSimNode(Node):
 
 
     def publish_joint_state(self) -> None:
-        q = self.d.qpos[self.env.joint_idx].copy()
-        qd = self.d.qvel[self.env.joint_idx].copy()
+        obs = self.env.observe()
+        q = obs["qpos"]
+        qd = obs["qvel"]
+        t = obs["time"]
 
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -84,6 +120,7 @@ class Gen3MujocoSimNode(Node):
         msg.position = q.tolist()
         msg.velocity = qd.tolist()
         msg.effort = self.tau_cmd.tolist()
+        msg.time = t
 
         self.joint_state_pub.publish(msg)
 
@@ -91,26 +128,18 @@ class Gen3MujocoSimNode(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
     node = Gen3MujocoSimNode()
-
-    m, d = node.m, node.d
-    dt = m.opt.timestep
+    env = node.env
     rt_factor = node.realtime_factor
-
-    t0 = time.time()
 
     try:
         while rclpy.ok():
             rclpy.spin_once(node, timeout_sec=0.0)
 
-            node.env.d.ctrl[node.env.act_idx[: node.n_joints]] = node.tau_cmd
+            if node.paused:
+                time.sleep(0.001)
+                continue
 
-            mj.mj_step(m, d)
-
-            sim_time = d.time
-            target_wall = t0 + sim_time / rt_factor
-            now = time.time()
-            if target_wall > now:
-                time.sleep(target_wall - now)
+            env.step_realtime(node.tau_cmd, realtime_factor=rt_factor)
 
     except KeyboardInterrupt:
         pass

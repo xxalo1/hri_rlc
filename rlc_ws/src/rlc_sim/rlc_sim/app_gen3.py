@@ -8,7 +8,7 @@ from enum import Enum, auto
 
 from .ops import compare_jacs, compare_dynamics, log_ic_mass_compare
 from ...robots.kinova_gen3 import init_kinova_robot
-from .env import Gen3Env
+from .envs.env import Gen3Env
 from ...sim_backend.mujoco.util import draw_all_frames, draw_ee_traj
 
 from ...common_utils import numpy_util as npu
