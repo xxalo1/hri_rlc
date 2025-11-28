@@ -7,7 +7,7 @@ import mujoco as mj
 import pandas as pd
 from IPython.display import display
 
-from ...common_utils import numpy_util as npu
+from common_utils import numpy_util as npu
 FloatArray = npu.FloatArray
 
 class BaseMujocoEnv:

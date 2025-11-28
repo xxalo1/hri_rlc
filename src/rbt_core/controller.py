@@ -2,8 +2,8 @@ import numpy as np
 
 from .dynamics import Dynamics
 from .kin import Kinematics
-from ..common_utils import numpy_util as npu
-from ..common_utils import FloatArray
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
 
 class Controller:
     """Robot controller base class."""
