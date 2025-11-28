@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 
 from .kin import Kinematics
-from ..common_utils import numpy_util as npu
-from ..common_utils import FloatArray
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
 
 
 class Dynamics():

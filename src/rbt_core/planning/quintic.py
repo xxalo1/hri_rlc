@@ -1,7 +1,7 @@
 import numpy as np
 
-from ...common_utils import numpy_util as npu
-from ...common_utils import FloatArray
+from common_utils import numpy_util as npu
+from common_utils import FloatArray
 
 
 def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, freq: float,
