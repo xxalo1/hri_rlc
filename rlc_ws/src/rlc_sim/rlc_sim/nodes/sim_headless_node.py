@@ -9,28 +9,22 @@ from rclpy.node import Node
 from std_srvs.srv import SetBool, Trigger
 
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-from ......src.common_utils import numpy_util as npu
-from ....rlc_common import topics
-from ..envs.env import Gen3Env
+from common_utils import numpy_util as npu
+from rlc_common import topics
+from ......src.sim_env.mujoco.env import Gen3Env
 
 
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_sim")
 
-        self.declare_parameter("xml_path", "")
-        self.declare_parameter("nsubsteps", 10)
         self.declare_parameter("publish_rate_hz", 200.0)
         self.declare_parameter("realtime_factor", 1.0)
-
-        xml_path = self.get_parameter("xml_path").get_parameter_value().string_value
-        if not xml_path:
-            xml_path = "/home/g201951870/projects/hri_rlc/src/sim_env/kinova_gen3_table.xml"
 
         self.publish_rate = self.get_parameter("publish_rate_hz").get_parameter_value().double_value
         self.realtime_factor = self.get_parameter("realtime_factor").get_parameter_value().double_value
 
-        self.env = Gen3Env(xml_path=xml_path, seed=0)
+        self.env = Gen3Env.from_default_scene()
 
         self.m: mj.MjModel = self.env.m
         self.d: mj.MjData   = self.env.d

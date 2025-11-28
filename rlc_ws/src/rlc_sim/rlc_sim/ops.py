@@ -1,13 +1,11 @@
 import numpy as np
 
+from robots.kinova_gen3 import init_kinova_robot
+from rbt_core import Robot, RobotSpec, Kinematics, Dynamics
 
-from ..kinova_gen3 import kinova_gen3_spec
-from ..robot import Robot, RobotSpec, Kinematics, Dynamics
-
-from ..robot import Robot
-from ..utils import pytorch_util as ptu
-from ..utils import numpy_util as npu
-from .envs.env import Gen3Env
+from rbt_core import Robot
+from common_utils import numpy_util as npu
+from .....src.sim_env.mujoco.env import Gen3Env
 
 
 FloatArray = npu.FloatArray

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'rlc_sim'
+package_name = 'rlc_controller'
 
 setup(
     name=package_name,
