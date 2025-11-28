@@ -11,7 +11,7 @@ from std_srvs.srv import Trigger
 from std_srvs.srv import SetBool
 import mujoco as mj
 from ..envs.env import Gen3Env
-
+from ....rlc_interfaces.msg import 
 
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
