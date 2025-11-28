@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import time
+
+import mujoco as mj
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from std_srvs.srv import SetBool, Trigger
 
-from std_srvs.srv import SetBool
-from std_srvs.srv import SetBool
-from std_srvs.srv import Trigger
-import mujoco as mj
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-from ..envs.env import Gen3Env
 from ......src.common_utils import numpy_util as npu
+from .. import topics
+from ..envs.env import Gen3Env
+
+
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_sim")
@@ -38,17 +40,16 @@ class Gen3MujocoSimNode(Node):
 
         self.tau_cmd = np.zeros(self.n_joints, dtype=np.float64)
         self.paused = False
-        self.paused = False
 
         self.torque_sub = self.create_subscription(
             JointEffortCmd,
-            "/sim/gen3/torque_cmd",
+            topics.EFFORT_COMMAND_TOPIC,
             self.torque_cmd_callback,
             10,
         )
 
         self.joint_state_pub = self.create_publisher(
-            JointStateSim, "/sim/gen3/joint_states", 10
+            JointStateSim, topics.JOINT_STATE_TOPIC, 10
         )
 
         self.publish_period = 1.0 / self.publish_rate
@@ -58,13 +59,13 @@ class Gen3MujocoSimNode(Node):
 
         self.reset_srv = self.create_service(
             Trigger,
-            "/sim/gen3/reset",
+            topics.RESET_SERVICE,
             self.reset_service_callback,
         )
 
         self.pause_srv = self.create_service(
             SetBool,
-            "/sim/gen3/set_paused",
+            topics.PAUSE_SERVICE,
             self.pause_service_callback,
         )
 
