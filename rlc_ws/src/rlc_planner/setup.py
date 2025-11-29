@@ -27,7 +27,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'planner_node = rlc_planner.planner_node:main'
+            'planner_node = rlc_planner.planner_node:main',
+            'executor_node = rlc_planner.executor_node:main',
         ],
     },
 )

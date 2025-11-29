@@ -1,35 +1,31 @@
-"""Trajectory planner node for building and sending joint trajectories."""
+"""Trajectory planner node for building joint trajectories and publishing them."""
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+import uuid
 
 import numpy as np
 import rclpy
-from action_msgs.msg import GoalStatus
-from control_msgs.action import FollowJointTrajectory
-from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
-from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from rlc_common import endpoints
-from rlc_interfaces.msg import JointStateSim
-from rlc_interfaces.srv import SetTargetPoint
+from rlc_interfaces.msg import JointStateSim, PlannedTrajectory
+from rlc_interfaces.srv import PlanTrajectory
 from rbt_core import TrajPlanner
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
 
 class TrajectoryPlannerNode(Node):
-    """ROS 2 node that builds and dispatches joint trajectories."""
+    """ROS 2 node that builds joint trajectories and publishes them for execution."""
 
     def __init__(self) -> None:
         super().__init__("trajectory_planner")
 
         self.planner = TrajPlanner()
-        self.q: FloatArray  = np.zeros(0, dtype=npu.dtype)
-        self.qd: FloatArray = np.zeros(0, dtype=npu.dtype)
+        self.q  = np.zeros(0, dtype=npu.dtype)
+        self.qd = np.zeros(0, dtype=npu.dtype)
         self.joint_names: list[str] = []
 
         self.declare_parameter("default_plan_frequency", 100.0)
@@ -46,24 +42,21 @@ class TrajectoryPlannerNode(Node):
             10,
         )
 
+        self.planned_traj_pub = self.create_publisher(
+            PlannedTrajectory,
+            endpoints.PLANNED_TRAJECTORY_TOPIC,
+            10,
+        )
+
         self.quintic_service = self.create_service(
-            SetTargetPoint,
+            PlanTrajectory,
             endpoints.QUINTIC_TRAJECTORY_SERVICE,
             self.plan_quintic_callback,
         )
         self.point_service = self.create_service(
-            SetTargetPoint,
+            PlanTrajectory,
             endpoints.POINT_TRAJECTORY_SERVICE,
             self.track_point_callback,
-        )
-        self.track_current_service = self.create_service(
-            Trigger,
-            endpoints.TRACK_CURRENT_SERVICE,
-            self.track_current_callback,
-        )
-
-        self._traj_action_client: ActionClient = ActionClient(
-            self, FollowJointTrajectory, endpoints.FOLLOW_TRAJECTORY_ACTION
         )
 
         self.get_logger().info("Trajectory planner node ready")
@@ -77,8 +70,8 @@ class TrajectoryPlannerNode(Node):
         self.joint_names = list(msg.name)
 
 
-    def plan_quintic_callback(self, request: SetTargetPoint.Request, response: SetTargetPoint.Response):
-        """Plan a quintic trajectory from the current state to a target point."""
+    def plan_quintic_callback(self, request: PlanTrajectory.Request, response: PlanTrajectory.Response):
+        """Plan a quintic trajectory from the current state to a target point and publish it."""
 
         if not self._check_ready(response):
             return response
@@ -94,11 +87,11 @@ class TrajectoryPlannerNode(Node):
         a_traj = traj[2]
         traj_msg = self._trajectory_from_arrays(q_traj, v_traj, a_traj, freq)
 
-        return self._send_follow_goal(traj_msg, response, "quintic")
+        return self._publish_planned_trajectory(traj_msg, response, "quintic")
 
 
-    def track_point_callback(self, request: SetTargetPoint.Request, response: SetTargetPoint.Response):
-        """Track a single target point as a trivial trajectory."""
+    def track_point_callback(self, request: PlanTrajectory.Request, response: PlanTrajectory.Response):
+        """Plan a single target point as a trivial trajectory and publish it."""
 
         if not self._check_ready(response):
             return response
@@ -108,26 +101,10 @@ class TrajectoryPlannerNode(Node):
         freq = (request.n_points - 1) / tf
         traj_msg = self._trajectory_from_arrays(qf, freq=freq)
 
-        return self._send_follow_goal(traj_msg, response, "point")
+        return self._publish_planned_trajectory(traj_msg, response, "point")
 
 
-    def track_current_callback(self, request: Trigger.Request, response: Trigger.Response):
-        """Resend the latest position as a hold-point trajectory."""
-
-        if  not self.joint_names:
-            response.success = False
-            response.message = "No joint state received yet"
-            self.get_logger().warning(response.message)
-            return response
-
-        traj_msg = self._trajectory_from_arrays(self.q)
-        success = self._send_follow_goal(traj_msg, None, "hold current")
-        response.success = success
-        response.message = "Sent current position trajectory" if success else "Failed to send trajectory"
-        return response
-
-
-    def _check_ready(self, response: SetTargetPoint.Response) -> bool:
+    def _check_ready(self, response: PlanTrajectory.Response) -> bool:
         if not self.joint_names:
             response.success = False
             response.message = "Waiting for initial joint state"
@@ -144,8 +121,15 @@ class TrajectoryPlannerNode(Node):
     ) -> JointTrajectory:
         """Convert planner output (3, N, n) into JointTrajectory."""
 
-        if velocities is None: velocities = np.zeros_like(positions)
-        if accelerations is None: accelerations = np.zeros_like(positions)    
+        positions = np.atleast_2d(positions)
+        if velocities is None:
+            velocities = np.zeros_like(positions)
+        else:
+            velocities = np.atleast_2d(velocities)
+        if accelerations is None:
+            accelerations = np.zeros_like(positions)
+        else:
+            accelerations = np.atleast_2d(accelerations)
 
         traj_msg = JointTrajectory()
         traj_msg.joint_names = self.joint_names
@@ -162,48 +146,29 @@ class TrajectoryPlannerNode(Node):
         return traj_msg
 
 
-    def _send_follow_goal(
+    def _publish_planned_trajectory(
         self,
         trajectory: JointTrajectory,
-        response: SetTargetPoint.Response | None,
+        response: PlanTrajectory.Response,
         label: str,
-    ) -> bool:
-        if not self._traj_action_client.wait_for_server(timeout_sec=2.0):
-            self.get_logger().error("FollowJointTrajectory action server not available")
-            if response is not None:
-                response.success = False
-                response.message = "FollowJointTrajectory action not available"
-            return False
+    ) -> PlanTrajectory.Response:
+        traj_id = str(uuid.uuid4())
 
-        goal_msg = FollowJointTrajectory.Goal()
-        goal_msg.trajectory = trajectory
+        planned_msg = PlannedTrajectory()
+        planned_msg.trajectory_id = traj_id
+        planned_msg.trajectory = trajectory
+        planned_msg.label = label
+        self.planned_traj_pub.publish(planned_msg)
 
-        send_future = self._traj_action_client.send_goal_async(goal_msg)
-        rclpy.spin_until_future_complete(self, send_future)
-        goal_handle = send_future.result()
-        if not goal_handle or not goal_handle.accepted:
-            self.get_logger().error(f"{label} goal rejected by controller")
-            if response is not None:
-                response.success = False
-                response.message = "Goal rejected"
-            return False
+        response.success = True
+        response.message = f"Published {label} trajectory"
+        response.trajectory_id = traj_id
 
-        result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future)
-        result = result_future.result()
-        if not result or result.status != GoalStatus.STATUS_SUCCEEDED:
-            status = result.status if result is not None else "unknown"
-            self.get_logger().error(f"{label} goal failed with status {status}")
-            if response is not None:
-                response.success = False
-                response.message = "Controller reported failure"
-            return False
-
-        self.get_logger().info(f"Successfully sent {label} trajectory with {len(trajectory.points)} point(s)")
-        if response is not None:
-            response.success = True
-            response.message = "Trajectory sent"
-        return True
+        self.get_logger().info(
+            f"Planned {label} trajectory with id {traj_id} "
+            f"({len(trajectory.points)} point(s))"
+        )
+        return response
 
 
 def main() -> None:
