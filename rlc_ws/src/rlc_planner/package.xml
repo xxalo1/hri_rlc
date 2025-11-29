@@ -3,9 +3,18 @@
 <package format="3">
   <name>rlc_planner</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Trajectory planning node for the RLC ROS 2 stack.</description>
   <maintainer email="rashed@example.com">rwolv</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
+
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>rlc_common</exec_depend>
+  <exec_depend>rlc_interfaces</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
