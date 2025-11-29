@@ -50,18 +50,13 @@ class TrajectoryExecutorNode(Node):
         self.get_logger().info("Trajectory executor node ready")
 
 
-    def planned_trajectory_callback(
-        self,
+    def planned_trajectory_callback(self,
         msg: PlannedTrajectory,
     ) -> None:
         """Cache the latest planned trajectory by its identifier; execute if flagged."""
 
         now = self._now()
-        self.traj_cache[msg.trajectory_id] = (
-            now,
-            msg.trajectory,
-            msg.label,
-        )
+        self.traj_cache[msg.trajectory_id] = (now, msg.trajectory, msg.label)
         self._cleanup_cache(now)
         self.get_logger().info(
             f"Cached trajectory {msg.trajectory_id} ({msg.label}) "
@@ -69,10 +64,7 @@ class TrajectoryExecutorNode(Node):
         )
 
         if msg.execute_immediately:
-            success, message = self._send_follow_goal(
-                msg.trajectory,
-                f"auto {msg.label or 'trajectory'} ({msg.trajectory_id})",
-            )
+            success, message = self._execute_cached(msg.trajectory_id, now)
             if not success:
                 self.get_logger().error(message)
             else:
@@ -85,31 +77,32 @@ class TrajectoryExecutorNode(Node):
     ) -> ExecuteTrajectory.Response:
         """Send a cached trajectory to the controller."""
 
-        now = self._now()
-        self._cleanup_cache(now)
-
-        cached = self.traj_cache.get(request.trajectory_id)
-        if cached is None:
-            response.success = False
-            response.message = "Trajectory id not found or expired"
-            self.get_logger().warning(response.message)
-            return response
-
-        _, trajectory, label = cached
-        success, message = self._send_follow_goal(
-            trajectory,
-            f"execute {label or 'trajectory'} ({request.trajectory_id})",
-        )
+        success, message = self._execute_cached(request.trajectory_id)
         response.success = success
         response.message = message
 
         if not success:
             self.get_logger().error(message)
         else:
-            self.get_logger().info(
-                f"Executed trajectory {request.trajectory_id} ({label})"
-            )
+            self.get_logger().info(message)
         return response
+
+
+    def _execute_cached(self, trajectory_id: str, now: float | None = None) -> tuple[bool, str]:
+        """Lookup a cached trajectory by id and send it to the controller."""
+
+        now = self._now() if now is None else now
+        self._cleanup_cache(now)
+
+        cached = self.traj_cache.get(trajectory_id)
+        if cached is None:
+            return False, "Trajectory id not found or expired"
+
+        _, trajectory, label = cached
+        return self._send_follow_goal(
+            trajectory,
+            f"execute {label or 'trajectory'} ({trajectory_id})",
+        )
 
 
     def _cleanup_cache(self, 
