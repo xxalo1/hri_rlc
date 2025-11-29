@@ -1,3 +1,3 @@
-from . import topics
+from . import endpoints
 
-__all__ = ["topics"]
+__all__ = ["endpoints"]
