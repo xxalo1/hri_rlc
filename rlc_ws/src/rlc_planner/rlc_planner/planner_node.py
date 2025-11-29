@@ -19,7 +19,7 @@ from rlc_interfaces.msg import JointStateSim
 from rlc_interfaces.srv import SetTrajectory
 from rbt_core import TrajPlanner
 from common_utils import numpy_util as npu
-
+from common_utils import FloatArray
 
 class TrajectoryPlannerNode(Node):
     """ROS 2 node that builds and dispatches joint trajectories."""
@@ -28,8 +28,8 @@ class TrajectoryPlannerNode(Node):
         super().__init__("trajectory_planner")
 
         self.planner = TrajPlanner()
-        self.current_positions: Optional[np.ndarray] = None
-        self.current_velocities: Optional[np.ndarray] = None
+        self.current_positions: FloatArray = None
+        self.current_velocities: FloatArray = None
         self.joint_names: list[str] = []
 
         self.declare_parameter("default_plan_frequency", 100.0)
@@ -73,8 +73,6 @@ class TrajectoryPlannerNode(Node):
 
         self.current_positions = np.asarray(msg.position, dtype=npu.dtype)
         self.current_velocities = np.asarray(msg.velocity, dtype=npu.dtype)
-        if not self.joint_names:
-            self.joint_names = list(msg.name)
 
     def plan_quintic_callback(self, request: SetTrajectory.Request, response: SetTrajectory.Response):
         """Plan a quintic trajectory from the current state to a target point."""
@@ -88,13 +86,14 @@ class TrajectoryPlannerNode(Node):
         freq = request.freq if request.freq > 0 else self.default_freq
         tf = (n_points - 1) / freq
 
-        v0 = self._optional_vector(request.velocities)
-        a0 = self._optional_vector(request.accelerations)
+        v0 = list(request.velocities)
+        a0 = list(request.accelerations)
 
-        traj = self.planner.quintic_trajs(q0, qf, 0.0, tf, freq, v0=v0, a0=a0)
+        traj = self.planner.quintic_trajs(q0, qf, 0.0, tf, freq)
         traj_msg = self._trajectory_from_array(traj, freq)
 
         return self._send_follow_goal(traj_msg, response, "quintic")
+
 
     def track_point_callback(self, request: SetTrajectory.Request, response: SetTrajectory.Response):
         """Track a single target point as a trivial trajectory."""
@@ -135,14 +134,6 @@ class TrajectoryPlannerNode(Node):
         if len(self.joint_names) and len(qf) > len(self.joint_names):
             qf = qf[: len(self.joint_names)]
         return qf
-
-    def _optional_vector(self, values: Iterable[float]) -> Optional[list[float]]:
-        vec = list(values)
-        if len(vec) == 0:
-            return None
-        if len(self.joint_names) and len(vec) > len(self.joint_names):
-            vec = vec[: len(self.joint_names)]
-        return vec
 
     def _trajectory_from_array(self, T: np.ndarray, freq: float) -> JointTrajectory:
         """Convert planner output (3, N, n) into JointTrajectory."""
