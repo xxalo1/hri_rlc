@@ -12,6 +12,8 @@
   <exec_depend>action_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>common_utils</exec_depend>
+  <exec_depend>rbt_core</exec_depend>
   <exec_depend>rlc_common</exec_depend>
   <exec_depend>rlc_interfaces</exec_depend>
   <exec_depend>rclpy</exec_depend>
