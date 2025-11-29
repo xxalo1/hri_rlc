@@ -7,6 +7,8 @@
   <maintainer email="asme.kfupm.website@gmail.com">g201951870</maintainer>
   <license>MIT</license>
 
+  <buildtool_depend>ament_python</buildtool_depend>
+
   <exec_depend>rlc_common</exec_depend>
   <exec_depend>rlc_controller</exec_depend>
   <exec_depend>rlc_interfaces</exec_depend>
