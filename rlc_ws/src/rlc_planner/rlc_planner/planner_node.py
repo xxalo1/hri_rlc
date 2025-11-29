@@ -48,17 +48,17 @@ class TrajectoryPlannerNode(Node):
 
         self.quintic_service = self.create_service(
             SetTrajectory,
-            "plan_quintic",
+            endpoints.QUINTIC_TRAJECTORY_SERVICE,
             self.plan_quintic_callback,
         )
         self.point_service = self.create_service(
             SetTrajectory,
-            "track_point",
+            endpoints.POINT_TRAJECTORY_SERVICE,
             self.track_point_callback,
         )
         self.track_current_service = self.create_service(
             Trigger,
-            "track_current",
+            endpoints.TRACK_CURRENT_SERVICE,
             self.track_current_callback,
         )
 
