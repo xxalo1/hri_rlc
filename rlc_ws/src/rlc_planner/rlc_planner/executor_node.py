@@ -50,21 +50,33 @@ class TrajectoryExecutorNode(Node):
         self.get_logger().info("Trajectory executor node ready")
 
 
-    def planned_trajectory_callback(self, 
-        msg: PlannedTrajectory
+    def planned_trajectory_callback(
+        self,
+        msg: PlannedTrajectory,
     ) -> None:
-        """Cache the latest planned trajectory by its identifier."""
+        """Cache the latest planned trajectory by its identifier; execute if flagged."""
 
         now = self._now()
         self.traj_cache[msg.trajectory_id] = (
-            now, msg.trajectory, msg.label, msg.execute_immediately
-            )
+            now,
+            msg.trajectory,
+            msg.label,
+        )
         self._cleanup_cache(now)
         self.get_logger().info(
             f"Cached trajectory {msg.trajectory_id} ({msg.label}) "
             f"with {len(msg.trajectory.points)} point(s)"
         )
-        
+
+        if msg.execute_immediately:
+            success, message = self._send_follow_goal(
+                msg.trajectory,
+                f"auto {msg.label or 'trajectory'} ({msg.trajectory_id})",
+            )
+            if not success:
+                self.get_logger().error(message)
+            else:
+                self.get_logger().info(message)
 
 
     def execute_trajectory_callback(self, 

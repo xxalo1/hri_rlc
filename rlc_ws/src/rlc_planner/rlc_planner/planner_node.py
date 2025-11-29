@@ -87,7 +87,12 @@ class TrajectoryPlannerNode(Node):
         a_traj = traj[2]
         traj_msg = self._trajectory_from_arrays(q_traj, v_traj, a_traj, freq)
 
-        return self._publish_planned_trajectory(traj_msg, response, "quintic")
+        return self._publish_planned_trajectory(
+            traj_msg,
+            response,
+            "quintic",
+            request.execute_immediately,
+        )
 
 
     def track_point_callback(self, request: PlanTrajectory.Request, response: PlanTrajectory.Response):
@@ -101,7 +106,12 @@ class TrajectoryPlannerNode(Node):
         freq = (request.n_points - 1) / tf
         traj_msg = self._trajectory_from_arrays(qf, freq=freq)
 
-        return self._publish_planned_trajectory(traj_msg, response, "point")
+        return self._publish_planned_trajectory(
+            traj_msg,
+            response,
+            "point",
+            request.execute_immediately,
+        )
 
 
     def _check_ready(self, response: PlanTrajectory.Response) -> bool:
@@ -151,6 +161,7 @@ class TrajectoryPlannerNode(Node):
         trajectory: JointTrajectory,
         response: PlanTrajectory.Response,
         label: str,
+        execute_immediately: bool,
     ) -> PlanTrajectory.Response:
         traj_id = str(uuid.uuid4())
 
@@ -158,15 +169,20 @@ class TrajectoryPlannerNode(Node):
         planned_msg.trajectory_id = traj_id
         planned_msg.trajectory = trajectory
         planned_msg.label = label
+        planned_msg.execute_immediately = execute_immediately
         self.planned_traj_pub.publish(planned_msg)
 
         response.success = True
-        response.message = f"Published {label} trajectory"
+        response.message = (
+            f"Published {label} trajectory"
+            + (" (will execute)" if execute_immediately else "")
+        )
         response.trajectory_id = traj_id
 
         self.get_logger().info(
             f"Planned {label} trajectory with id {traj_id} "
-            f"({len(trajectory.points)} point(s))"
+            f"({len(trajectory.points)} point(s)) "
+            + ("and flagged for execution" if execute_immediately else "")
         )
         return response
 
