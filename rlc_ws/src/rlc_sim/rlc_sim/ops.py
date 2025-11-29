@@ -1,11 +1,10 @@
 import numpy as np
+import mujoco as mj
 
-from robots.kinova_gen3 import init_kinova_robot
+from robots.kinova_gen3 import kinova_gen3_spec
 from rbt_core import Robot, RobotSpec, Kinematics, Dynamics
-
-from rbt_core import Robot
 from common_utils import numpy_util as npu
-from .....src.sim_env.mujoco.env import Gen3Env
+from sim_env.mujoco.env import Gen3Env
 
 
 FloatArray = npu.FloatArray
@@ -269,4 +268,3 @@ def log_ic_mass_compare(
     msg.append("\n" + "="*70 + "\n")
 
     logger.info("\n".join(msg))
-
