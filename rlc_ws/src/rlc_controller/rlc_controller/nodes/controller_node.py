@@ -1,14 +1,17 @@
 from __future__ import annotations
+from unittest import case
 
 import numpy as np
 from enum import Enum, auto
-
+import time
 import rclpy
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from control_msgs.action import FollowJointTrajectory
 
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-
+from rlc_interfaces.srv import SetControllerGains
 from rlc_common import topics
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
@@ -36,13 +39,16 @@ class Gen3ControllerNode(Node):
         self.robot.set_target(np.zeros(self.n, dtype=npu.dtype))
         self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0, Ki=0.0)
 
+
         self.q = np.zeros(self.n, dtype=npu.dtype)
         self.qd = np.zeros_like(self.q)
-        self.t: float = 0.0
-        self.t_pref: float = 0.0
+        self.t = 0.0
+        self.t_pref = 0.0
         self.tau = np.zeros(self.n, dtype=npu.dtype)
 
-        self.has_traj = False
+        self.traj_duration = 0.0
+        self.traj_start_t = 0.0
+        self._active_goal_handle = None
 
         self.declare_parameter("controller_rate_hz", 200.0)
         self.controller_rate = (
@@ -67,11 +73,19 @@ class Gen3ControllerNode(Node):
             self.publish_period, self.publish_effort_cmd
         )
 
-        self.traj_sub = self.create_subscription(
-            JointTrajectory,
-            topics.SET_TRAJECTORY_SERVICE,
-            self.set_trajectory_callback,
-            10,
+        self._traj_action_server = ActionServer(
+            self,
+            FollowJointTrajectory,
+            topics.FOLLOW_JOINT_TRAJECTORY_ACTION,  # e.g. "follow_joint_trajectory"
+            execute_callback=self.follow_trajectory,
+            goal_callback=self.goal_callback,
+            cancel_callback=self.cancel_callback,
+        )
+
+        self._set_joint_gains_service = self.create_service(
+            SetControllerGains,
+            topics.SET_JOINT_GAINS_SERVICE,
+            self.set_joint_gains_callback,
         )
 
         self.get_logger().info(
@@ -81,6 +95,31 @@ class Gen3ControllerNode(Node):
 
         self.control_mode = ControlMode.CT
         self.tracking_mode = TrackingMode.PT
+
+
+    def set_joint_gains_callback(self, request, response):
+        kp = request.kp
+        kv = request.kv
+        ki = request.ki
+        mode = (request.mode or "").strip().lower() or "joint"
+
+        match mode:
+            case "joint":
+                self.robot.ctrl.set_joint_gains(kp, kv, ki)
+            case "impedance":
+                self.robot.ctrl.set_task_gains(kp, kv, ki)
+            case _:
+                response.success = False
+                response.message = (
+                    f"Unknown gain mode '{request.mode}'. Expected 'joint' or 'impedance'."
+                )
+                self.get_logger().error(response.message)
+                return response
+
+        response.success = True
+        response.message = f"Set {mode} gains: Kp={kp}, Kv={kv}, Ki={ki}"
+        self.get_logger().info(response.message)
+        return response
 
 
     def joint_state_callback(self, msg: JointStateSim) -> None:
@@ -102,89 +141,129 @@ class Gen3ControllerNode(Node):
         self.t_pref = self.t
 
 
-    def set_trajectory_callback(self, msg: JointTrajectory) -> None:
-        n = self.n
-        points = list(msg.points)
+    def _load_trajectory(self, msg: JointTrajectory) -> bool:
+        """Load JointTrajectory into the robot, minimal assumptions/checks."""
+        points = msg.points
         n_pts = len(points)
 
         if n_pts == 0:
-            self.get_logger().warning("Received JointTrajectory with no points")
-            return
+            self.get_logger().warning("Received empty JointTrajectory")
+            self.traj_duration = 0.0
+            return False
 
-        def build_vector(values, label: str, *, required: bool) -> np.ndarray | None:
-            count = len(values)
-            if count == 0:
-                if required:
-                    self.get_logger().error(
-                        f"JointTrajectory point missing {label} for {n} joints"
-                    )
-                    return None
-                return np.zeros(n, dtype=npu.dtype)
-            if count != n:
-                self.get_logger().error(
-                    f"JointTrajectory {label} has {count} elements, expected {n}"
-                )
-                return None
-            return np.asarray(values, dtype=npu.dtype)
+        # Assume positions/velocities/accelerations are all provided and consistent.
+        q = np.asarray([p.positions for p in points], dtype=npu.dtype)
+        qd = np.asarray([p.velocities for p in points], dtype=npu.dtype)
+        qdd = np.asarray([p.accelerations for p in points], dtype=npu.dtype)
 
-        q_rows = []
-        qd_rows = []
-        qdd_rows = []
-        for i, point in enumerate(points):
-            pos = build_vector(point.positions, f"positions[{i}]", required=True)
-            if pos is None:
-                return
-            vel = build_vector(point.velocities, f"velocities[{i}]", required=False)
-            if vel is None:
-                return
-            acc = build_vector(
-                point.accelerations, f"accelerations[{i}]", required=False
-            )
-            if acc is None:
-                return
-
-            q_rows.append(pos)
-            qd_rows.append(vel)
-            qdd_rows.append(acc)
-
-        q = np.vstack(q_rows)
-        qd = np.vstack(qd_rows)
-        qdd = np.vstack(qdd_rows)
-
-        time_to_end = float(points[-1].time_from_start.sec) + float(
-            points[-1].time_from_start.nanosec
-        ) * 1e-9
-        if time_to_end <= 0.0:
-            self.get_logger().error(
-                "Final JointTrajectory point must have positive time_from_start"
-            )
-            return
-
+        # Duration from time_from_start of last point
+        last = points[-1].time_from_start
+        time_to_end = float(last.sec) + float(last.nanosec) * 1e-9
         steps = max(n_pts - 1, 1)
         freq = steps / time_to_end
 
         T = np.stack([q, qd, qdd], axis=0)
-        self.robot.set_trajectory(T, freq=freq, ti=0.0)
-        self.has_traj = True
+
+        self.robot.set_trajectory(T, freq=freq, ti=self.t)
+        self.traj_duration = time_to_end
 
         self.get_logger().info(
-            f"Trajectory loaded: {n_pts} points, {n} joints, freq={freq:.3f} Hz"
+            f"Trajectory loaded: {n_pts} points, {self.n} joints, freq={freq:.3f} Hz"
         )
+        return True
+
+
+    def follow_trajectory(self, goal_handle):
+        """Action callback for control_msgs/FollowJointTrajectory."""
+        goal: FollowJointTrajectory.Goal = goal_handle.request
+        traj_msg: JointTrajectory = goal.trajectory
+
+        ok = self._load_trajectory(traj_msg)
+        result = FollowJointTrajectory.Result()
+
+        if not ok:
+            result.error_code = FollowJointTrajectory.Result.INVALID_GOAL
+            result.error_string = "Empty or invalid trajectory"
+            goal_handle.abort()
+            return result
+
+        # Start timing
+        self.traj_start_t = self.t
+        end_time = self.traj_start_t + self.traj_duration
+
+        feedback = FollowJointTrajectory.Feedback()
+
+        self.get_logger().info(
+            f"Executing FollowJointTrajectory: "
+            f"{len(traj_msg.points)} points over {self.traj_duration:.3f} s"
+        )
+
+        while rclpy.ok() and self.t < end_time:
+            # Handle cancel
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info("Trajectory cancel requested")
+                goal_handle.canceled()
+                result.error_code = FollowJointTrajectory.Result.SUCCESSFUL
+                result.error_string = "Trajectory cancelled"
+                return result
+
+            # time since trajectory start
+            t_rel = self.t - self.traj_start_t
+
+            # Get desired from your robot API
+            try:
+                q_des, qd_des, _ = self.robot.get_desired_state(t_rel)
+            except Exception:
+                q_des = self.q
+                qd_des = self.qd
+
+            # Fill feedback fields (minimal: just positions/velocities)
+            feedback.actual.positions = self.q.tolist()
+            feedback.actual.velocities = self.qd.tolist()
+            feedback.desired.positions = q_des.tolist()
+            feedback.desired.velocities = qd_des.tolist()
+            e = q_des - self.q
+            feedback.error.positions = e.tolist()
+
+            goal_handle.publish_feedback(feedback)
+
+            time.sleep(self.publish_period)
+
+        # Done
+        goal_handle.succeed()
+        result.error_code = FollowJointTrajectory.Result.SUCCESSFUL
+        result.error_string = ""
+        self.get_logger().info("FollowJointTrajectory finished successfully")
+        return result
+
+
+    def goal_callback(
+        self, goal_request: FollowJointTrajectory.Goal
+    ) -> GoalResponse:
+        """Decide whether to accept a new trajectory goal.
+
+        Minimal version: always accept.
+        """
+        self.get_logger().info("Received FollowJointTrajectory goal")
+        return GoalResponse.ACCEPT
+
+
+    def cancel_callback(self, goal_handle) -> CancelResponse:
+        """Decide whether to accept a cancel request.
+
+        Minimal version: always accept.
+        """
+        self.get_logger().info("Received request to cancel FollowJointTrajectory goal")
+        return CancelResponse.ACCEPT
 
 
     def compute_effort(self) -> FloatArray:
         q = self.q
         qd = self.qd
         t = self.t
+        t_pref = self.t_pref
 
-        match self.tracking_mode:
-            case TrackingMode.PT:
-                q_des = self.robot.q_des
-                qd_des = self.robot.qd_des
-                qdd_des = np.zeros_like(q_des)
-
-            case TrackingMode.TRAJ:
-                q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
+        q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
 
 
         match self.control_mode:
@@ -193,8 +272,11 @@ class Gen3ControllerNode(Node):
                 return tau
 
             case ControlMode.PID:
-                dt = self.t - self.t_pref
+                dt = t - t_pref
                 tau = self.robot.ctrl.pid(q, qd, q_des, qd_des, dt)
+            
+            case _:
+                tau = np.zeros(self.n, dtype=npu.dtype)
         
         return tau
 
