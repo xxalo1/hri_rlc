@@ -128,3 +128,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Build/install/log outputs (colcon and similar)
+build/
+install/
+log/
+**/build/
+**/install/
+**/log/
