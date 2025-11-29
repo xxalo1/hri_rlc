@@ -1,0 +1,15 @@
+# rlc_interfaces/srv/SetTargetPoint.srv
+
+string[] joint_names
+
+# target joint postions
+float64[] target_positions
+
+# time to reach the target
+builtin_interfaces/Duration time_from_start
+
+# number of points to generate
+int32 n_points
+---
+bool accepted
+string message

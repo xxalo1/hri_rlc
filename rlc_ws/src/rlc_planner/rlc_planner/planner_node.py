@@ -47,12 +47,12 @@ class TrajectoryPlannerNode(Node):
         )
 
         self.quintic_service = self.create_service(
-            SetTrajectory,
+            SetTargetPoint,
             endpoints.QUINTIC_TRAJECTORY_SERVICE,
             self.plan_quintic_callback,
         )
         self.point_service = self.create_service(
-            SetTrajectory,
+            SetTargetPoint,
             endpoints.POINT_TRAJECTORY_SERVICE,
             self.track_point_callback,
         )
@@ -68,6 +68,7 @@ class TrajectoryPlannerNode(Node):
 
         self.get_logger().info("Trajectory planner node ready")
 
+
     def joint_state_callback(self, msg: JointStateSim) -> None:
         """Store the latest joint state for planning."""
 
@@ -76,17 +77,16 @@ class TrajectoryPlannerNode(Node):
         self.joint_names = list(msg.name)
 
 
-    def plan_quintic_callback(self, request: SetTrajectory.Request, response: SetTrajectory.Response):
+    def plan_quintic_callback(self, request: SetTargetPoint.Request, response: SetTargetPoint.Response):
         """Plan a quintic trajectory from the current state to a target point."""
 
         if not self._check_ready(response):
             return response
 
         q0 = self.q
-        qf = np.asarray(list(request.positions), dtype=npu.dtype)
-        n_points = max(request.n_points, 2)
-        freq = request.freq
-        tf = (n_points - 1) / freq
+        qf = np.asarray(request.target_positions, dtype=npu.dtype)
+        tf = request.time_from_start.sec + request.time_from_start.nanosec * 1e-9
+        freq = (request.n_points - 1) / tf
 
         traj = self.planner.quintic_trajs(q0, qf, 0.0, tf, freq)
         traj_msg = self._trajectory_from_array(traj, freq)
@@ -94,13 +94,13 @@ class TrajectoryPlannerNode(Node):
         return self._send_follow_goal(traj_msg, response, "quintic")
 
 
-    def track_point_callback(self, request: SetTrajectory.Request, response: SetTrajectory.Response):
+    def track_point_callback(self, request: SetTargetPoint.Request, response: SetTargetPoint.Response):
         """Track a single target point as a trivial trajectory."""
 
         if not self._check_ready(response):
             return response
 
-        qf = np.asarray(list(request.positions), dtype=npu.dtype)
+        qf = np.asarray(request.target_positions, dtype=npu.dtype)
         traj_msg = self._single_point_trajectory(qf)
 
         return self._send_follow_goal(traj_msg, response, "point")
@@ -122,7 +122,7 @@ class TrajectoryPlannerNode(Node):
         return response
 
 
-    def _check_ready(self, response: SetTrajectory.Response) -> bool:
+    def _check_ready(self, response: SetTargetPoint.Response) -> bool:
         if not self.joint_names:
             response.success = False
             response.message = "Waiting for initial joint state"
@@ -131,14 +131,21 @@ class TrajectoryPlannerNode(Node):
         return True
 
 
-    def _trajectory_from_array(self, T: np.ndarray, freq: float) -> JointTrajectory:
+    def _trajectory_from_array(self, 
+        positions: FloatArray, 
+        velocities: FloatArray | None = None, 
+        accelerations: FloatArray | None = None,
+        freq: float = 100.0,
+    ) -> JointTrajectory:
         """Convert planner output (3, N, n) into JointTrajectory."""
+
+        if velocities is None: velocities = np.zeros_like(positions)
+        if accelerations is None: accelerations = np.zeros_like(positions)    
 
         traj_msg = JointTrajectory()
         traj_msg.joint_names = self.joint_names
 
         dt = 1.0 / freq
-        positions, velocities, accelerations = T
         for idx in range(positions.shape[0]):
             point = JointTrajectoryPoint()
             point.positions = positions[idx].tolist()
