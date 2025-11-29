@@ -12,7 +12,7 @@ from control_msgs.action import FollowJointTrajectory
 
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from rlc_interfaces.srv import SetControllerGains
-from rlc_common import topics
+from rlc_common import endpoints
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
@@ -57,14 +57,14 @@ class Gen3ControllerNode(Node):
 
         self.joint_state_sub = self.create_subscription(
             JointStateSim,
-            topics.JOINT_STATE_TOPIC,
+            endpoints.JOINT_STATE_TOPIC,
             self.joint_state_callback,
             10,
         )
 
         self.effort_pub = self.create_publisher(
             JointEffortCmd,
-            topics.EFFORT_COMMAND_TOPIC,
+            endpoints.EFFORT_COMMAND_TOPIC,
             10,
         )
 
@@ -76,7 +76,7 @@ class Gen3ControllerNode(Node):
         self._traj_action_server = ActionServer(
             self,
             FollowJointTrajectory,
-            topics.FOLLOW_JOINT_TRAJECTORY_ACTION,  # e.g. "follow_joint_trajectory"
+            endpoints.FOLLOW_TRAJECTORY_ACTION,  # e.g. "follow_joint_trajectory"
             execute_callback=self.follow_trajectory,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
@@ -84,8 +84,8 @@ class Gen3ControllerNode(Node):
 
         self._set_joint_gains_service = self.create_service(
             SetControllerGains,
-            topics.SET_JOINT_GAINS_SERVICE,
-            self.set_joint_gains_callback,
+            endpoints.SET_GAINS_SERVICE,
+            self.set_gains_callback,
         )
 
         self.get_logger().info(
@@ -97,7 +97,7 @@ class Gen3ControllerNode(Node):
         self.tracking_mode = TrackingMode.PT
 
 
-    def set_joint_gains_callback(self, request, response):
+    def set_gains_callback(self, request, response):
         kp = request.kp
         kv = request.kv
         ki = request.ki

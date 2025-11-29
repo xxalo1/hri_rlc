@@ -1,0 +1,22 @@
+"""Shared topic and service names for MuJoCo Gen3 simulation nodes."""
+
+SIM_NAMESPACE = "sim/gen3"
+JOINT_STATE_TOPIC = f"{SIM_NAMESPACE}/state/joints"
+RESET_SIM_SERVICE = f"{SIM_NAMESPACE}/reset"
+PAUSE_SIM_SERVICE = f"{SIM_NAMESPACE}/pause"
+
+CONTROLLER_NAMESPACE = "controller/gen3"
+EFFORT_COMMAND_TOPIC = f"{CONTROLLER_NAMESPACE}/command/effort"
+SET_GAINS_SERVICE = f"{CONTROLLER_NAMESPACE}/set_joint_gains"
+FOLLOW_TRAJECTORY_ACTION = (
+    f"{CONTROLLER_NAMESPACE}/follow_trajectory"
+)
+
+__all__ = [
+    "EFFORT_COMMAND_TOPIC",
+    "FOLLOW_TRAJECTORY_ACTION",
+    "JOINT_STATE_TOPIC",
+    "PAUSE_SIM_SERVICE",
+    "RESET_SIM_SERVICE",
+    "SET_GAINS_SERVICE",
+]

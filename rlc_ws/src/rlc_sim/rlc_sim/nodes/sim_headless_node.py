@@ -10,7 +10,7 @@ from std_srvs.srv import SetBool, Trigger
 
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from common_utils import numpy_util as npu
-from rlc_common import topics
+from rlc_common import endpoints
 from ......src.sim_env.mujoco.env import Gen3Env
 
 
@@ -37,13 +37,13 @@ class Gen3MujocoSimNode(Node):
 
         self.torque_sub = self.create_subscription(
             JointEffortCmd,
-            topics.EFFORT_COMMAND_TOPIC,
+            endpoints.EFFORT_COMMAND_TOPIC,
             self.torque_cmd_callback,
             10,
         )
 
         self.joint_state_pub = self.create_publisher(
-            JointStateSim, topics.JOINT_STATE_TOPIC, 10
+            JointStateSim, endpoints.JOINT_STATE_TOPIC, 10
         )
 
         self.publish_period = 1.0 / self.publish_rate
@@ -53,13 +53,13 @@ class Gen3MujocoSimNode(Node):
 
         self.reset_srv = self.create_service(
             Trigger,
-            topics.RESET_SERVICE,
+            endpoints.RESET_SIM_SERVICE,
             self.reset_service_callback,
         )
 
         self.pause_srv = self.create_service(
             SetBool,
-            topics.PAUSE_SERVICE,
+            endpoints.PAUSE_SIM_SERVICE,
             self.pause_service_callback,
         )
 

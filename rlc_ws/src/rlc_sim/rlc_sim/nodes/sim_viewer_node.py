@@ -8,7 +8,7 @@ from rclpy.node import Node
 from rlc_interfaces.msg import JointStateSim
 from std_srvs.srv import Trigger, SetBool
 
-from rlc_common import topics
+from rlc_common import endpoints
 from sim_env.mujoco.env import Gen3Env
 
 
@@ -41,16 +41,16 @@ class Gen3MujocoVizNode(Node):
         # Subscribe to joint states from the headless sim
         self.joint_state_sub = self.create_subscription(
             JointStateSim,
-            topics.JOINT_STATE_TOPIC,
+            endpoints.JOINT_STATE_TOPIC,
             self.joint_state_callback,
             10,
         )
 
-        self.reset_client = self.create_client(Trigger, topics.RESET_SERVICE)
-        self.pause_client = self.create_client(SetBool, topics.PAUSE_SERVICE)
+        self.reset_client = self.create_client(Trigger, endpoints.RESET_SIM_SERVICE)
+        self.pause_client = self.create_client(SetBool, endpoints.PAUSE_SIM_SERVICE)
 
         self.get_logger().info(
-            f"Gen3 MuJoCo viz node ready. Listening to {topics.JOINT_STATE_TOPIC}"
+            f"Gen3 MuJoCo viz node ready. Listening to {endpoints.JOINT_STATE_TOPIC}"
         )
 
 
