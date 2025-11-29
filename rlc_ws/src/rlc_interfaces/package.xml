@@ -20,6 +20,7 @@
   <exec_depend>rosidl_default_runtime</exec_depend>
 
   <!-- Message/service dependencies used in .msg/.srv -->
+  <depend>builtin_interfaces</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>trajectory_msgs</depend>

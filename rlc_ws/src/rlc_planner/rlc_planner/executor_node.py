@@ -4,21 +4,16 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-import numpy as np
 import rclpy
 from action_msgs.msg import GoalStatus
 from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
-from rclpy.duration import Duration
 from rclpy.node import Node
-from std_srvs.srv import Trigger
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectory
 
 from rlc_common import endpoints
 from rlc_interfaces.msg import PlannedTrajectory
 from rlc_interfaces.srv import ExecuteTrajectory
-from common_utils import numpy_util as npu
-from common_utils import FloatArray
 
 
 class TrajectoryExecutorNode(Node):
