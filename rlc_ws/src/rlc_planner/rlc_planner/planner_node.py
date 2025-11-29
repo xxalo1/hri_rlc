@@ -89,7 +89,10 @@ class TrajectoryPlannerNode(Node):
         freq = (request.n_points - 1) / tf
 
         traj = self.planner.quintic_trajs(q0, qf, 0.0, tf, freq)
-        traj_msg = self._trajectory_from_array(traj, freq)
+        q_traj = traj[0]
+        v_traj = traj[1]
+        a_traj = traj[2]
+        traj_msg = self._trajectory_from_arrays(q_traj, v_traj, a_traj, freq)
 
         return self._send_follow_goal(traj_msg, response, "quintic")
 
@@ -101,7 +104,9 @@ class TrajectoryPlannerNode(Node):
             return response
 
         qf = np.asarray(request.target_positions, dtype=npu.dtype)
-        traj_msg = self._single_point_trajectory(qf)
+        tf = request.time_from_start.sec + request.time_from_start.nanosec * 1e-9
+        freq = (request.n_points - 1) / tf
+        traj_msg = self._trajectory_from_arrays(qf, freq=freq)
 
         return self._send_follow_goal(traj_msg, response, "point")
 
@@ -115,7 +120,7 @@ class TrajectoryPlannerNode(Node):
             self.get_logger().warning(response.message)
             return response
 
-        traj_msg = self._single_point_trajectory(self.q)
+        traj_msg = self._trajectory_from_arrays(self.q)
         success = self._send_follow_goal(traj_msg, None, "hold current")
         response.success = success
         response.message = "Sent current position trajectory" if success else "Failed to send trajectory"
@@ -131,7 +136,7 @@ class TrajectoryPlannerNode(Node):
         return True
 
 
-    def _trajectory_from_array(self, 
+    def _trajectory_from_arrays(self, 
         positions: FloatArray, 
         velocities: FloatArray | None = None, 
         accelerations: FloatArray | None = None,
@@ -157,24 +162,10 @@ class TrajectoryPlannerNode(Node):
         return traj_msg
 
 
-    def _single_point_trajectory(self, positions: np.ndarray) -> JointTrajectory:
-        traj_msg = JointTrajectory()
-        traj_msg.joint_names = self.joint_names
-
-        point = JointTrajectoryPoint()
-        point.positions = positions.tolist()
-        point.velocities = [0.0] * len(point.positions)
-        point.accelerations = [0.0] * len(point.positions)
-        point.time_from_start = Duration(seconds=0.0).to_msg()
-        traj_msg.points.append(point)
-
-        return traj_msg
-
-
     def _send_follow_goal(
         self,
         trajectory: JointTrajectory,
-        response: Optional[SetTrajectory.Response],
+        response: SetTargetPoint.Response | None,
         label: str,
     ) -> bool:
         if not self._traj_action_client.wait_for_server(timeout_sec=2.0):
