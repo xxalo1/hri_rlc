@@ -28,8 +28,8 @@ class TrajectoryPlannerNode(Node):
         super().__init__("trajectory_planner")
 
         self.planner = TrajPlanner()
-        self.current_positions: FloatArray = None
-        self.current_velocities: FloatArray = None
+        self.q: FloatArray | None = None
+        self.qd: FloatArray | None = None
         self.joint_names: list[str] = []
 
         self.declare_parameter("default_plan_frequency", 100.0)
@@ -71,8 +71,9 @@ class TrajectoryPlannerNode(Node):
     def joint_state_callback(self, msg: JointStateSim) -> None:
         """Store the latest joint state for planning."""
 
-        self.current_positions = np.asarray(msg.position, dtype=npu.dtype)
-        self.current_velocities = np.asarray(msg.velocity, dtype=npu.dtype)
+        self.q = np.asarray(msg.position, dtype=npu.dtype)
+        self.qd = np.asarray(msg.velocity, dtype=npu.dtype)
+
 
     def plan_quintic_callback(self, request: SetTrajectory.Request, response: SetTrajectory.Response):
         """Plan a quintic trajectory from the current state to a target point."""
@@ -80,14 +81,11 @@ class TrajectoryPlannerNode(Node):
         if not self._check_ready(response):
             return response
 
-        q0 = self.current_positions
-        qf = self._extract_goal_positions(request.positions)
+        q0 = self.q
+        qf = np.asarray(list(request.positions), dtype=npu.dtype)
         n_points = max(request.n_points, 2)
-        freq = request.freq if request.freq > 0 else self.default_freq
+        freq = request.freq
         tf = (n_points - 1) / freq
-
-        v0 = list(request.velocities)
-        a0 = list(request.accelerations)
 
         traj = self.planner.quintic_trajs(q0, qf, 0.0, tf, freq)
         traj_msg = self._trajectory_from_array(traj, freq)
@@ -106,34 +104,31 @@ class TrajectoryPlannerNode(Node):
 
         return self._send_follow_goal(traj_msg, response, "point")
 
+
     def track_current_callback(self, request: Trigger.Request, response: Trigger.Response):
         """Resend the latest position as a hold-point trajectory."""
 
-        if self.current_positions is None or not self.joint_names:
+        if self.q is None or not self.joint_names:
             response.success = False
             response.message = "No joint state received yet"
             self.get_logger().warning(response.message)
             return response
 
-        traj_msg = self._single_point_trajectory(self.current_positions)
+        traj_msg = self._single_point_trajectory(self.q)
         success = self._send_follow_goal(traj_msg, None, "hold current")
         response.success = success
         response.message = "Sent current position trajectory" if success else "Failed to send trajectory"
         return response
 
+
     def _check_ready(self, response: SetTrajectory.Response) -> bool:
-        if self.current_positions is None or not self.joint_names:
+        if not self.joint_names:
             response.success = False
             response.message = "Waiting for initial joint state"
             self.get_logger().warning(response.message)
             return False
         return True
 
-    def _extract_goal_positions(self, positions: Iterable[float]) -> np.ndarray:
-        qf = np.asarray(list(positions), dtype=npu.dtype)
-        if len(self.joint_names) and len(qf) > len(self.joint_names):
-            qf = qf[: len(self.joint_names)]
-        return qf
 
     def _trajectory_from_array(self, T: np.ndarray, freq: float) -> JointTrajectory:
         """Convert planner output (3, N, n) into JointTrajectory."""
@@ -153,6 +148,7 @@ class TrajectoryPlannerNode(Node):
 
         return traj_msg
 
+
     def _single_point_trajectory(self, positions: np.ndarray) -> JointTrajectory:
         traj_msg = JointTrajectory()
         traj_msg.joint_names = self.joint_names
@@ -165,6 +161,7 @@ class TrajectoryPlannerNode(Node):
         traj_msg.points.append(point)
 
         return traj_msg
+
 
     def _send_follow_goal(
         self,
