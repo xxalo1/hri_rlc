@@ -7,7 +7,7 @@ from typing import Iterable, Optional
 import numpy as np
 import rclpy
 from action_msgs.msg import GoalStatus
-from control_msgs.msg import FollowJointTrajectory
+from control_msgs.action import FollowJointTrajectory
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -16,7 +16,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from rlc_common import endpoints
 from rlc_interfaces.msg import JointStateSim
-from rlc_interfaces.srv import SetTrajectory
+from rlc_interfaces.srv import SetTargetPoint
 from rbt_core import TrajPlanner
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
