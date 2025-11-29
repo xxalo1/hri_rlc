@@ -1,0 +1,7 @@
+float64 kp
+float64 kv
+float64 ki
+string mode  # "joint" or "impedance"
+---
+bool success
+string message

@@ -1,9 +1,6 @@
-# Joint state for simulated robots, carrying both ROS time and simulation time.
-
-# Standard ROS header. Typically use ROS time (wall or /use_sim_time) here.
 std_msgs/Header header
 
-# Simulation time in seconds (float64). This is your env's "t".
+# Simulation time in seconds (float64)
 float64 sim_time
 
 # Joint names.
