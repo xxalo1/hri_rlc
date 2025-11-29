@@ -3,9 +3,15 @@
 <package format="3">
   <name>rlc_bringup</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Launch and runtime coordination for the RLC stack.</description>
   <maintainer email="asme.kfupm.website@gmail.com">g201951870</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
+
+  <exec_depend>rlc_common</exec_depend>
+  <exec_depend>rlc_controller</exec_depend>
+  <exec_depend>rlc_interfaces</exec_depend>
+  <exec_depend>rlc_planner</exec_depend>
+  <exec_depend>rlc_sim</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

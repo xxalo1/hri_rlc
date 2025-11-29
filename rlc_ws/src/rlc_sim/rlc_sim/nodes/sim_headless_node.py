@@ -11,7 +11,7 @@ from std_srvs.srv import SetBool, Trigger
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
 from common_utils import numpy_util as npu
 from rlc_common import endpoints
-from ......src.sim_env.mujoco.env import Gen3Env
+from sim_env.mujoco.env import Gen3Env
 
 
 class Gen3MujocoSimNode(Node):

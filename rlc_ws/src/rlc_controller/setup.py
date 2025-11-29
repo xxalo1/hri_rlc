@@ -11,12 +11,15 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'numpy',
+    ],
     zip_safe=True,
     maintainer='g201951870',
     maintainer_email='asme.kfupm.website@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Kinova Gen3 controller node for the RLC stack.',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',
@@ -24,6 +27,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'gen3_controller = rlc_controller.nodes.controller_node:main',
         ],
     },
 )

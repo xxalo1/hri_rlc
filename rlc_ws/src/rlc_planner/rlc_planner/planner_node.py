@@ -7,7 +7,7 @@ from typing import Iterable, Optional
 import numpy as np
 import rclpy
 from action_msgs.msg import GoalStatus
-from control_msgs.action import FollowJointTrajectory
+from control_msgs.msg import FollowJointTrajectory
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -28,8 +28,8 @@ class TrajectoryPlannerNode(Node):
         super().__init__("trajectory_planner")
 
         self.planner = TrajPlanner()
-        self.q: FloatArray | None = None
-        self.qd: FloatArray | None = None
+        self.q: FloatArray  = np.zeros(0, dtype=npu.dtype)
+        self.qd: FloatArray = np.zeros(0, dtype=npu.dtype)
         self.joint_names: list[str] = []
 
         self.declare_parameter("default_plan_frequency", 100.0)
@@ -73,6 +73,7 @@ class TrajectoryPlannerNode(Node):
 
         self.q = np.asarray(msg.position, dtype=npu.dtype)
         self.qd = np.asarray(msg.velocity, dtype=npu.dtype)
+        self.joint_names = list(msg.name)
 
 
     def plan_quintic_callback(self, request: SetTrajectory.Request, response: SetTrajectory.Response):
@@ -99,7 +100,7 @@ class TrajectoryPlannerNode(Node):
         if not self._check_ready(response):
             return response
 
-        qf = self._extract_goal_positions(request.positions)
+        qf = np.asarray(list(request.positions), dtype=npu.dtype)
         traj_msg = self._single_point_trajectory(qf)
 
         return self._send_follow_goal(traj_msg, response, "point")
@@ -108,7 +109,7 @@ class TrajectoryPlannerNode(Node):
     def track_current_callback(self, request: Trigger.Request, response: Trigger.Response):
         """Resend the latest position as a hold-point trajectory."""
 
-        if self.q is None or not self.joint_names:
+        if  not self.joint_names:
             response.success = False
             response.message = "No joint state received yet"
             self.get_logger().warning(response.message)

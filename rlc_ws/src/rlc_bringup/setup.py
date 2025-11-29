@@ -15,8 +15,8 @@ setup(
     zip_safe=True,
     maintainer='g201951870',
     maintainer_email='asme.kfupm.website@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Launch and runtime coordination for the RLC stack.',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',

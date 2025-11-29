@@ -11,12 +11,16 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'numpy',
+        'mujoco',
+    ],
     zip_safe=True,
     maintainer='g201951870',
     maintainer_email='asme.kfupm.website@gmail.com',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='MuJoCo-based simulation nodes for the Kinova Gen3.',
+    license='MIT',
     extras_require={
         'test': [
             'pytest',
@@ -24,6 +28,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'gen3_sim_headless = rlc_sim.nodes.sim_headless_node:main',
+            'gen3_sim_viewer = rlc_sim.nodes.sim_viewer_node:main',
         ],
     },
 )
