@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -17,17 +17,16 @@ def generate_launch_description() -> LaunchDescription:
             ),
             Node(
                 package="rlc_sim",
+                executable="gen3_sim_headless",
+                name="gen3_sim_headless",
+                output="screen",
+            ),
+            Node(
+                package="rlc_sim",
                 executable="gen3_sim_viewer",
                 name="gen3_sim_viewer",
                 output="screen",
                 condition=IfCondition(use_viewer),
-            ),
-            Node(
-                package="rlc_sim",
-                executable="gen3_sim_headless",
-                name="gen3_sim_headless",
-                output="screen",
-                condition=UnlessCondition(use_viewer),
             ),
             Node(
                 package="rlc_controller",
@@ -49,4 +48,3 @@ def generate_launch_description() -> LaunchDescription:
             ),
         ]
     )
-
