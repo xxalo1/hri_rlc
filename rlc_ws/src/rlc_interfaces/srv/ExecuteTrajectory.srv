@@ -1,0 +1,5 @@
+# Identifier of the planned trajectory to execute
+string trajectory_id
+---
+bool success
+string message

@@ -1,8 +1,4 @@
-# rlc_interfaces/srv/SetTargetPoint.srv
-
-string[] joint_names
-
-# target joint postions
+# target joint positions
 float64[] target_positions
 
 # time to reach the target
@@ -10,6 +6,10 @@ builtin_interfaces/Duration time_from_start
 
 # number of points to generate
 int32 n_points
+
+# boolean flag to indicate if execute directly after planning
+bool execute_immediately
 ---
-bool accepted
+bool success
+string trajectory_id
 string message
