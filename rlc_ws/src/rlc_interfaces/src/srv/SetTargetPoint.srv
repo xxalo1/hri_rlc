@@ -1,0 +1,7 @@
+# rlc_interfaces/srv/SetTargetPoint.srv
+
+string[] joint_names
+trajectory_msgs/JointTrajectoryPoint target
+---
+bool accepted
+string message
