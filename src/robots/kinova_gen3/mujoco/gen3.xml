@@ -28,7 +28,7 @@
     <mesh name="spherical_wrist_1_link" file="spherical_wrist_1_link.stl"/>
     <mesh name="spherical_wrist_2_link" file="spherical_wrist_2_link.stl"/>
     <mesh name="bracelet_with_vision_link" file="bracelet_with_vision_link.stl"/>
-    <model name="2f85" file="././2f85_edited.xml"/>
+    <model name="2f85" file="../../robotiq_2f85/2f85_edited.xml"/>
   </asset>
 
   <worldbody>

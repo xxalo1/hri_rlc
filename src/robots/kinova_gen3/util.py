@@ -129,7 +129,7 @@ def change_of_basis(d: dict[str, FloatArray]) -> tuple[dict[str, FloatArray], Fl
 
 def load_kinova_gen3() -> tuple[dict[str, FloatArray], dict[str, FloatArray], FloatArray, dict[str, torch.Tensor], dict[str, torch.Tensor], torch.Tensor]:
     """Load both DH and inertial parameters for Kinova Gen3 robot."""
-    here = Path(__file__).parent
+    here = Path(__file__).parent / "params"
     inertia_file = here / "inertial_mj.yaml"
     dh_file = here / "dh_v2.yaml"
     skip_links = ("ee_no_vision",)
