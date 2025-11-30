@@ -11,7 +11,7 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from control_msgs.action import FollowJointTrajectory
 
 from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-from rlc_interfaces.srv import SetControllerGains
+from rlc_interfaces.srv import SetControllerGains, SetControllerMode
 from rlc_common import endpoints
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
@@ -87,6 +87,11 @@ class Gen3ControllerNode(Node):
             endpoints.SET_GAINS_SERVICE,
             self.set_gains_callback,
         )
+        self_set_controller_mode = self.create_service(
+            SetControllerMode,
+            endpoints.SET_CONTROL_MODE_SERVICE,
+            self.set_mode_callback,
+        )
 
         self.get_logger().info(
             f"Gen3 controller ready with {self.n} joints. "
@@ -121,6 +126,30 @@ class Gen3ControllerNode(Node):
         self.get_logger().info(response.message)
         return response
 
+
+    def set_mode_callback(self, request, response):
+        mode = (request.mode or "").strip().lower()
+
+        match mode:
+            case "ct":
+                self.control_mode = ControlMode.CT
+            case "pid":
+                self.control_mode = ControlMode.PID
+            case "im":
+                self.control_mode = ControlMode.IM
+            case _:
+                response.success = False
+                response.message = (
+                    f"Unknown control mode '{request.mode}'. Expected 'ct', 'pid', or 'im'."
+                )
+                self.get_logger().error(response.message)
+                return response
+
+        response.success = True
+        response.message = f"Set control mode to '{mode}'"
+        self.get_logger().info(response.message)
+        return response
+    
 
     def joint_state_callback(self, msg: JointStateSim) -> None:
         self.q = np.asarray(msg.position, dtype=npu.dtype)
@@ -187,6 +216,7 @@ class Gen3ControllerNode(Node):
             goal_handle.abort()
             return result
 
+        self.tracking_mode = TrackingMode.TRAJ
         # Start timing
         self.traj_start_t = self.t
         end_time = self.traj_start_t + self.traj_duration
@@ -263,8 +293,15 @@ class Gen3ControllerNode(Node):
         t = self.t
         t_pref = self.t_pref
 
-        q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
+        self.robot.kin.step(q=q, qd=qd)
 
+        match self.tracking_mode:
+            case TrackingMode.PT:
+                q_des = self.robot.q_des
+                qd_des = np.zeros_like(q_des)
+                qdd_des = np.zeros_like(q_des)
+            case TrackingMode.TRAJ:
+                q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
 
         match self.control_mode:
             case ControlMode.CT:

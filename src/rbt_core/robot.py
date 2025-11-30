@@ -35,6 +35,9 @@ class Robot:
     def __post_init__(self) -> None:
         n = self.kin.n
         self.q_des = np.zeros(n, dtype=npu.dtype)
+        self.ti = 0.0
+        self.freq = 0.0
+        self.T = np.zeros((3, 100, n), dtype=npu.dtype)
 
 
     @classmethod
@@ -137,7 +140,7 @@ class Robot:
             sampling frequency (Hz) of the trajectory.
             2- Times outside [self.ti, self.ti + (N-1)/self.freq] are clamped to the first/last sample.
         """
-
+        
         s = (t - self.ti) * self.freq  # continuous index
         N = self.T.shape[1]
 

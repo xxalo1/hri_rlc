@@ -1,8 +1,9 @@
 from __future__ import annotations
+import time
 
 import numpy as np
 import mujoco as mj
-
+from mujoco import viewer
 import rclpy
 from rclpy.node import Node
 from rlc_interfaces.msg import JointStateSim
@@ -109,21 +110,23 @@ class Gen3MujocoVizNode(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
 
-    # Create node
     node = Gen3MujocoVizNode()
     env = node.env
 
-    # Define render callback for MuJoCo viewer
-    def render_callback(viewer):
-        rclpy.spin_once(node, timeout_sec=0.0)
-        env.set_state(qpos=node.qpos_target, qvel=node.qvel_target, t=node.target_t)
-
     try:
-        mj.viewer.launch_passive( # type: ignore
-            env.m, env.d, 
-            render_callback=render_callback, 
-            key_callback=node.key_callback
-            )
+        with viewer.launch_passive(env.m, env.d, key_callback=node.key_callback) as v:
+            while v.is_running() and rclpy.ok():
+
+                rclpy.spin_once(node, timeout_sec=0.0)
+
+                with v.lock():
+                    env.set_state(
+                        qpos=node.qpos_target,
+                        qvel=node.qvel_target,
+                        t=node.target_t,
+                    )
+                    v.sync()
+                time.sleep(0.0001)
 
     except KeyboardInterrupt:
         pass

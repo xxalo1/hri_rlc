@@ -159,7 +159,8 @@ class Controller:
         tau_d = self.Kv @ de
         tau_i = self.Ki @ self.e_int
 
-        tau = tau_p + tau_d + tau_i
+        tau_g = self.dyn.gravity_vector()
+        tau = tau_p + tau_d + tau_i + tau_g
 
         return tau
 

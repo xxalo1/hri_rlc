@@ -26,13 +26,10 @@ class Gen3MujocoSimNode(Node):
 
         self.env = Gen3Env.from_default_scene()
 
-        self.m: mj.MjModel = self.env.m
-        self.d: mj.MjData   = self.env.d
-
         self.joint_names = list(self.env.active_joints.keys())
         self.n_joints = len(self.joint_names)
 
-        self.tau_cmd = np.zeros(self.n_joints, dtype=np.float64)
+        self.tau_cmd = np.zeros(self.n_joints, dtype=npu.dtype)
         self.paused = False
 
         self.torque_sub = self.create_subscription(
@@ -69,8 +66,6 @@ class Gen3MujocoSimNode(Node):
             f"Headless Gen3 MuJoCo sim ready with {self.n_joints} joints. "
             f"publish_rate={self.publish_rate} Hz, realtime_factor={self.realtime_factor}"
         )
-
-        self.last_pub_sim_time = 0.0
 
 
     def reset_service_callback(self, request: Trigger.Request, response: Trigger.Response):
@@ -134,7 +129,9 @@ def main(args=None) -> None:
                 time.sleep(0.001)
                 continue
 
-            env.step_realtime(node.tau_cmd, realtime_factor=rt_factor)
+            env.step(node.tau_cmd)
+
+            time.sleep(0.001)
 
     except KeyboardInterrupt:
         pass
