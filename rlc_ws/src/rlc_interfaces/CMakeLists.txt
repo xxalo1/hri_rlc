@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/JointStateSim.msg"
   "msg/PlannedTrajectory.msg"
   "srv/SetControllerGains.srv"
+  "srv/SetControllerMode.srv"
   "srv/PlanTrajectory.srv"
   "srv/ExecuteTrajectory.srv"
   DEPENDENCIES std_msgs geometry_msgs trajectory_msgs builtin_interfaces
