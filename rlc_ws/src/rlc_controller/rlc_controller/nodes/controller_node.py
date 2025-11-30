@@ -170,6 +170,37 @@ class Gen3ControllerNode(Node):
         self.t_pref = self.t
 
 
+    def compute_effort(self) -> FloatArray:
+        q = self.q
+        qd = self.qd
+        t = self.t
+        t_pref = self.t_pref
+
+        self.robot.kin.step(q=q, qd=qd)
+
+        match self.tracking_mode:
+            case TrackingMode.PT:
+                q_des = self.robot.q_des
+                qd_des = np.zeros_like(q_des)
+                qdd_des = np.zeros_like(q_des)
+            case TrackingMode.TRAJ:
+                q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
+
+        match self.control_mode:
+            case ControlMode.CT:
+                tau = self.robot.ctrl.computed_torque(q, qd, q_des, qd_des, qdd_des)
+                return tau
+
+            case ControlMode.PID:
+                dt = t - t_pref
+                tau = self.robot.ctrl.pid(q, qd, q_des, qd_des, dt)
+            
+            case _:
+                tau = np.zeros(self.n, dtype=npu.dtype)
+
+        return tau
+
+
     def _load_trajectory(self, msg: JointTrajectory) -> bool:
         """Load JointTrajectory into the robot, minimal assumptions/checks."""
         points = msg.points
@@ -285,37 +316,6 @@ class Gen3ControllerNode(Node):
         """
         self.get_logger().info("Received request to cancel FollowJointTrajectory goal")
         return CancelResponse.ACCEPT
-
-
-    def compute_effort(self) -> FloatArray:
-        q = self.q
-        qd = self.qd
-        t = self.t
-        t_pref = self.t_pref
-
-        self.robot.kin.step(q=q, qd=qd)
-
-        match self.tracking_mode:
-            case TrackingMode.PT:
-                q_des = self.robot.q_des
-                qd_des = np.zeros_like(q_des)
-                qdd_des = np.zeros_like(q_des)
-            case TrackingMode.TRAJ:
-                q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
-
-        match self.control_mode:
-            case ControlMode.CT:
-                tau = self.robot.ctrl.computed_torque(q, qd, q_des, qd_des, qdd_des)
-                return tau
-
-            case ControlMode.PID:
-                dt = t - t_pref
-                tau = self.robot.ctrl.pid(q, qd, q_des, qd_des, dt)
-            
-            case _:
-                tau = np.zeros(self.n, dtype=npu.dtype)
-        
-        return tau
 
 
 def main(args=None) -> None:
