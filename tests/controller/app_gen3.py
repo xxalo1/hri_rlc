@@ -18,22 +18,18 @@ FloatArray = npu.FloatArray
 
 class ControlMode(Enum):
     CT = auto()
-    RNEA = auto()
     PID = auto()
-    GC = auto()
     IM = auto()
 
 
 class TrackingMode(Enum):
     PT = auto()
     TRAJ = auto()
-    PTC = auto()
 
 
 class Gen3App:
-    def __init__(self, xml_path: Path, logger):
+    def __init__(self, logger):
         self.logger = logger
-        self.xml_path = xml_path
 
         # flags that used to be global
         self.paused = True
@@ -50,7 +46,7 @@ class Gen3App:
         # build robot classes
         self.robot = init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0, Ki=1.0)
-        self.env = Gen3Env(xml_path=str(self.xml_path))
+        self.env = Gen3Env.from_default_scene()
 
         # basic trajectory
         self.q0 = np.zeros(self.robot.kin.n, dtype=npu.dtype)
@@ -66,7 +62,7 @@ class Gen3App:
         self.env.nsub = nsub
 
         self.t_prev = 0.0
-        self.control_mode = ControlMode.RNEA
+        self.control_mode = ControlMode.CT
         self.tracking_mode = TrackingMode.TRAJ
         self.track_current = False
         self.pt_set = False
@@ -80,10 +76,6 @@ class Gen3App:
 
             case "r" | "R":
                 self.reset = True
-                self.paused = True
-
-            case "p" | "P":
-                self.want_plot = True
                 self.paused = True
 
             case "1":
@@ -101,20 +93,13 @@ class Gen3App:
             case "'":
                 self.show_com = not self.show_com
 
-            case "e" | "E":
-                self.control_mode = ControlMode.RNEA
-                self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0)
-
-            case "t" | "T":  
+            case "P" | "p":  
                 self.control_mode = ControlMode.PID
                 self.robot.ctrl.set_joint_gains(Kp=0.1, Kv=0.1, Ki=1.0)
 
             case "c" | "C":
                 self.control_mode = ControlMode.CT
                 self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0)
-
-            case "g" | "G":
-                self.control_mode = ControlMode.GC
 
             case "m" | "M":
                 self.control_mode = ControlMode.IM
@@ -136,17 +121,13 @@ class Gen3App:
         t: float
     ) -> FloatArray:
         """Compute torque based on selected control mode."""
-        match self.control_mode:
-            case ControlMode.IM:
-                pass
-            case _:
-                match self.tracking_mode:
-                    case TrackingMode.PT:
-                        q_des = self.robot.q_des
-                        qd_des = self.robot.qd_des
-                        qdd_des = self.robot.qdd_des
-                    case TrackingMode.TRAJ:
-                        q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
+        match self.tracking_mode:
+            case TrackingMode.PT:
+                q_des = self.robot.q_des
+                qd_des = self.robot.qd_des
+                qdd_des = self.robot.qdd_des
+            case TrackingMode.TRAJ:
+                q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
 
         nv = self.env.m.nv
         M_mj = np.empty((nv, nv), dtype=npu.dtype)
@@ -158,35 +139,15 @@ class Gen3App:
             "b": b_mj,
         }
         
-        taumj, tau_rnea, dict_out = self.robot.ctrl.computed_torque(q, dq, q_des, qd_des, qdd_des, mjd)
+        
         match self.control_mode:
-            case ControlMode.RNEA:
-                tau = tau_rnea
             case ControlMode.CT:
-                tau = taumj
+                tau = self.robot.ctrl.computed_torque(q, dq, q_des, qd_des, qdd_des)
             case ControlMode.PID:
                 dt = t - self.t_prev
                 tau = self.robot.ctrl.pid(q, dq, q_des, qd_des, dt)
-            case ControlMode.GC:
-                M, h, tau_g = self.robot.dyn.Dynamics_matrices(q, dq)
-                tau = tau_g
-            case ControlMode.GC:
-                M, h, tau_g = self.robot.dyn.Dynamics_matrices(q, dq)
-                tau = tau_g
-
-        self.plotter.log("tau_rnea", tau_rnea)
-        self.plotter.log("taumj", taumj)
-        diff = (tau_rnea - taumj) 
-        diff_per = diff / (taumj + 1e-8)
-        self.plotter.log("tau_diff", diff)
-        self.plotter.log("tau_diff_per", diff_per)
-        for k, v in dict_out.items():
-            self.log_data(**{k: v})
-        self.log_data(q_des=q_des, qd_des=qd_des, qdd_des=qdd_des)
-        self.log_data(M=M_mj)
-        self.log_data(b=b_mj)
-
-
+            case _:
+                tau = np.zeros_like(self.robot.kin.q)
         return tau
 
 
@@ -211,7 +172,7 @@ class Gen3App:
             )
 
         if self.show_dynamics:
-            msg = compare_dynamics(q, dq, self.robot.dyn, self.env)
+            msg = compare_dynamics(self.robot.dyn, self.env)
             self.logger.info(msg)
             self.show_dynamics = False
             self.paused = True
@@ -225,22 +186,13 @@ class Gen3App:
         if self.reset:
             self.reset = False
             with v.lock():
-                self.plotter.clear_log()
                 self.env.set_state(self.q0, self.qd0, 0.0)
                 v.sync()
 
 
-        if self.want_plot:
-            self.want_plot = False
-            self.plotter.draw_plots()
-            self.reset = True
-
-
-        obs = self.env.observe()
+        obs, t = self.env.observe()
         q = obs["qpos"]
         qd = obs["qvel"]
-        qdd = obs["qacc"]
-        t = obs["time"]
 
         if self.tracking_mode == TrackingMode.PT:
             if self.track_current and not self.pt_set:
@@ -259,15 +211,8 @@ class Gen3App:
         tau_n = tau
         self.env.step(tau_n)
         self.t_prev = t
-
-        self.log_data(t=t, q=q, qd=qd, qdd=qdd)
  
         v.sync()
-
-
-    def log_data(self, **kwargs):
-        for k, v in kwargs.items():
-            self.plotter.log(k, v)
 
 
     def run(self):
@@ -286,3 +231,16 @@ class Gen3App:
                 else:
                     time.sleep(0.1)
                 time.sleep(0.00001)
+
+if __name__ == "__main__":
+    import logging
+
+    logger = logging.getLogger("Gen3App")
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    app = Gen3App(logger=logger)
+    app.run()

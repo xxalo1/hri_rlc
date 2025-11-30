@@ -42,6 +42,8 @@ class Gen3ControllerNode(Node):
 
         self.q = np.zeros(self.n, dtype=npu.dtype)
         self.qd = np.zeros_like(self.q)
+        q_des = np.array([np.pi/4, -np.pi/2, np.pi/3, -np.pi/3, 0.0, np.pi/6, 0.0], dtype=npu.dtype)
+        self.robot.setup_quintic_traj(freq=1000.0, ti=0.0, tf=5.0, q_des=q_des)
         self.t = 0.0
         self.t_pref = 0.0
         self.tau = np.zeros(self.n, dtype=npu.dtype)
@@ -181,15 +183,14 @@ class Gen3ControllerNode(Node):
         match self.tracking_mode:
             case TrackingMode.PT:
                 q_des = self.robot.q_des
-                qd_des = np.zeros_like(q_des)
-                qdd_des = np.zeros_like(q_des)
+                qd_des = self.robot.qd_des
+                qdd_des = self.robot.qdd_des
             case TrackingMode.TRAJ:
                 q_des, qd_des, qdd_des = self.robot.get_desired_state(t)
 
         match self.control_mode:
             case ControlMode.CT:
                 tau = self.robot.ctrl.computed_torque(q, qd, q_des, qd_des, qdd_des)
-                return tau
 
             case ControlMode.PID:
                 dt = t - t_pref
