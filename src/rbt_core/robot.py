@@ -59,14 +59,14 @@ class Robot:
         self.qdd_des = np.zeros_like(q_des)
 
 
-    def setup_quintic_traj(self, 
+    def setup_quintic_traj(self,
         q: FloatArray | None = None,
         q_des: FloatArray | None = None,
         freq: float = 100.0,
         ti: float = 0.0,
         tf: float  = 10.0,
     ) -> None:
-        
+
         if q is None: q = self.kin.q
         if q_des is None: q_des = self.q_des
         else: self.set_target(q_des)

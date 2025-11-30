@@ -1,32 +1,13 @@
 import numpy as np
 import mujoco as mj
 
-from robots.kinova_gen3 import kinova_gen3_spec
-from rbt_core import Robot, RobotSpec, Kinematics, Dynamics
+from rbt_core import Kinematics, Dynamics
 from common_utils import numpy_util as npu
 from sim_env.mujoco.env import Gen3Env
 
 
 FloatArray = npu.FloatArray
 
-
-def init_kinova_robot() -> Robot:
-    """
-    initialize and return a Kinova Gen3 robot instance
-    """
-    robot_spec: RobotSpec = kinova_gen3_spec()
-
-    o_wb = np.array([1., 0., 0.75], dtype=npu.dtype)
-    axes_wb = np.eye(3, dtype=npu.dtype)
-
-    T_world_base = np.eye(4, dtype=npu.dtype)
-    T_world_base[:3, :3] = axes_wb
-    T_world_base[:3, 3] = o_wb
-    T_wb = T_world_base @ robot_spec.T_base
-    robot_spec.T_base = T_wb
-
-    robot = Robot.from_spec(robot_spec)
-    return robot
 
 
 def compare_jacs(
