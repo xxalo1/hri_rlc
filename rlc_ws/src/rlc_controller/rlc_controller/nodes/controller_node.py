@@ -32,11 +32,9 @@ class TrackingMode(Enum):
 class Gen3ControllerNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_controller")
-
         self.robot = init_kinova_robot()
         self.n = self.robot.kin.n
         self.joint_names = list(self.robot.spec.joint_names)
-        self.robot.set_target(np.zeros(self.n, dtype=npu.dtype))
         self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0, Ki=0.0)
 
 
@@ -101,7 +99,7 @@ class Gen3ControllerNode(Node):
         )
 
         self.control_mode = ControlMode.CT
-        self.tracking_mode = TrackingMode.PT
+        self.tracking_mode = TrackingMode.TRAJ
 
 
     def set_gains_callback(self, request, response):
