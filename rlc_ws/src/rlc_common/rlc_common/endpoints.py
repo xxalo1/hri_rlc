@@ -44,8 +44,8 @@ class ServiceEndpoints:
     """All Gen3 services with their service types."""
     reset_sim: Endpoint[Trigger]
     pause_sim: Endpoint[SetBool]
-    set_joint_gains: Endpoint[SetControllerGains]
-    set_control_mode: Endpoint[SetControllerMode]
+    set_controller_gains: Endpoint[SetControllerGains]
+    set_controller_mode: Endpoint[SetControllerMode]
     plan_quintic: Endpoint[PlanTrajectory]
     plan_point: Endpoint[PlanTrajectory]
     execute_traj: Endpoint[ExecuteTrajectory]
@@ -81,11 +81,11 @@ SERVICES = ServiceEndpoints(
         name=f"{SIM_NS}/pause",
         type=SetBool,
     ),
-    set_joint_gains=Endpoint(
-        name=f"{CTRL_NS}/set_joint_gains",
+    set_controller_gains=Endpoint(
+        name=f"{CTRL_NS}/set_controller_gains",
         type=SetControllerGains,
     ),
-    set_control_mode=Endpoint(
+    set_controller_mode=Endpoint(
         name=f"{CTRL_NS}/set_control_mode",
         type=SetControllerMode,
     ),
@@ -109,3 +109,36 @@ ACTIONS = ActionEndpoints(
         type=FollowJointTrajectory,
     ),
 )
+
+# Type aliases for imports
+# messages
+JointStateMsg = TOPICS.joint_state.type
+JointEffortCmdMsg = TOPICS.effort_cmd.type
+PlannedTrajMsg = TOPICS.planned_traj.type
+
+# services
+ResetSimSrv = SERVICES.reset_sim.type
+PauseSimSrv = SERVICES.pause_sim.type
+SetControllerGainsSrv = SERVICES.set_controller_gains.type
+SetControllerModeSrv = SERVICES.set_controller_mode.type
+PlanQuinticSrv = SERVICES.plan_quintic.type
+ExecuteTrajSrv = SERVICES.execute_traj.type
+
+# actions
+FollowTrajAction = ACTIONS.follow_traj.type
+
+__all__ = [
+    "TOPICS",
+    "SERVICES",
+    "ACTIONS",
+    "JointStateMsg",
+    "JointEffortCmdMsg",
+    "PlannedTrajMsg",
+    "ResetSimSrv",
+    "PauseSimSrv",
+    "SetControllerGainsSrv",
+    "SetControllerModeSrv",
+    "PlanQuinticSrv",
+    "ExecuteTrajSrv",
+    "FollowTrajAction",
+]
