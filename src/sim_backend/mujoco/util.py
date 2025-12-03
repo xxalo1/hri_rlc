@@ -83,7 +83,7 @@ def draw_all_frames(
     - First remove any old geoms with this segid.
     - Then append new geoms tagged with this segid.
     """
-    D = npu.npu.dtype
+    D = npu.dtype
 
     # 1) Remove old "frame" geoms (segid == FRAME_SEGID) by compacting the array
     write = 0

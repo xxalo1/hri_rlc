@@ -230,7 +230,7 @@ class Gen3App:
                         self.step_once(v)
                 else:
                     time.sleep(0.1)
-                time.sleep(0.00001)
+                time.sleep(0.0001)
 
 if __name__ == "__main__":
     import logging
