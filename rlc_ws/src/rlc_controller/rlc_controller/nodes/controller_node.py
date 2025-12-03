@@ -100,8 +100,8 @@ class Gen3ControllerNode(Node):
             f"controller_rate={self.controller_rate} Hz"
         )
 
-        self.control_mode = ControlMode.CT
-        self.tracking_mode = TrackingMode.PT
+        self.control_mode = ControlMode.PID
+        self.tracking_mode = TrackingMode.TRAJ
 
 
     def set_gains_callback(self, request, response):
