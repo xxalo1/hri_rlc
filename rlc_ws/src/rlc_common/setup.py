@@ -11,7 +11,12 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools',
+        'control_msgs',
+        'rlc_interfaces',
+        'std_srvs',
+    ],
     zip_safe=True,
     maintainer='g201951870',
     maintainer_email='asme.kfupm.website@gmail.com',
