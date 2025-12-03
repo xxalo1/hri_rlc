@@ -35,7 +35,7 @@ class Gen3ControllerNode(Node):
         self.robot = init_kinova_robot()
         self.n = self.robot.kin.n
         self.joint_names = list(self.robot.spec.joint_names)
-        self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0, Ki=0.0)
+        self.robot.ctrl.set_joint_gains(Kp=1.0, Kv=1.0, Ki=0.0)
 
 
         self.q = np.zeros(self.n, dtype=npu.dtype)
@@ -98,11 +98,7 @@ class Gen3ControllerNode(Node):
             f"controller_rate={self.controller_rate} Hz"
         )
 
-<<<<<<< HEAD
-        self.control_mode = ControlMode.PID
-=======
         self.control_mode = ControlMode.CT
->>>>>>> 1105632288f60f141b1f98b0e04ba2e3712ef373
         self.tracking_mode = TrackingMode.TRAJ
 
 
