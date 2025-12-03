@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from sympy import Q
 import rclpy
 from rclpy.node import Node
 import numpy as np
@@ -9,13 +11,12 @@ from common_utils import numpy_util as npu
 from common_utils.buffers import RingBuffer, BufferSet
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
-
-joint_state_msg = TOPICS.joint_state.type
-effort_cmd_msg = TOPICS.effort_cmd.type
-planned_traj_msg = TOPICS.planned_traj.type
-follow_traj_action = ACTIONS.follow_traj.type
-set_gains_service = SERVICES.set_joint_gains.type
-
+from rlc_common.endpoints import (
+    JointStateMsg, JointEffortCmdMsg, PlannedTrajMsg,
+    ResetSimSrv, PauseSimSrv, SetControllerGainsSrv, SetControllerModeSrv,
+    PlanQuinticSrv, ExecuteTrajSrv,
+    FollowTrajAction,
+    )
 class RLCMonitorNode(Node):
     """RLC Monitor Node for monitoring robot state and publishing diagnostics."""
 
@@ -60,16 +61,54 @@ class RLCMonitorNode(Node):
             10,
         )
         
-    def joint_state_callback(self, msg: TOPICS.joint_state.type) -> None:
+    def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Callback for joint state messages."""
         # Process joint state message and store in buffer
-        joint_positions = np.asarray(msg.position)
-        joint_velocities = np.asarray(msg.velocity)
-        t = msg.
-        timestamp = self.get_clock().now().to_msg().sec_nanosec[0]
-        self.state_buffer.add('joint_positions', FloatArray(joint_positions, timestamp))
-        self.state_buffer.add('joint_velocities', FloatArray(joint_velocities, timestamp))
+        q = np.asarray(msg.position)
+        qd = np.asarray(msg.velocity)
+        tau_sim = np.asarray(msg.effort)
+        t_sim = msg.sim_time
 
+        # update current states
+        self.q = q
+        self.qd = qd
+        self.tau_sim = tau_sim
+        self.t_sim = t_sim
+
+        # Store data in buffers
+        self.state_buffer.append('joint_positions', t_sim, q)
+        self.state_buffer.append('joint_velocities', t_sim, qd)
+        self.state_buffer.append('joint_efforts', t_sim, tau_sim)
+
+
+    def controller_state_callback(self, msg: JointEffortCmdMsg) -> None:
+        """Callback for controller effort command messages."""
+        tau_cmd = np.asarray(msg.effort)
+        t_ctrl = msg.time_sim
+
+        # update current controller efforts
+        self.tau_cmd = tau_cmd
+        self.t_ctrl = t_ctrl
+
+        # Store data in buffers
+        self.state_buffer.append('controller_efforts', t_ctrl, tau_cmd)
+
+
+    def planned_traj_callback(self, msg: PlannedTrajMsg) -> None:
+        """Callback for planned trajectory messages."""
+        # Process planned trajectory message and store in buffer
+        times = np.asarray(msg.times)
+        positions = npu.msgs_to_numpy_array(msg.positions)
+        velocities = npu.msgs_to_numpy_array(msg.velocities)
+        accelerations = npu.msgs_to_numpy_array(msg.accelerations)
+
+        # Store data in buffers
+        self.state_buffer.append('planned_traj_times', times)
+        self.state_buffer.append('planned_traj_positions', positions)
+        self.state_buffer.append('planned_traj_velocities', velocities)
+        self.state_buffer.append('planned_traj_accelerations', accelerations)
+
+        
 def main():
     print('Hi from rlc_monitor.')
 

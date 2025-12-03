@@ -1,16 +1,20 @@
-std_msgs/Header header
+# Simulated joint state mirroring sensor_msgs/JointState with explicit sim time.
+#
+# Published by the simulator to provide deterministic time stamps alongside the
+# joint arrays. All arrays must align index-for-index with `name`.
+std_msgs/Header header  # Stamp uses simulation clock; frame_id optional.
 
-# Simulation time in seconds (float64)
+# Simulation time in seconds for the reported state.
 float64 sim_time
 
-# Joint names.
+# Joint names for which state is reported.
 string[] name
 
-# Joint positions (rad).
+# Joint positions (rad), ordered to match `name`.
 float64[] position
 
-# Joint velocities (rad/s).
+# Joint velocities (rad/s), ordered to match `name`.
 float64[] velocity
 
-# Joint efforts/torques (Nm).
+# Joint efforts/torques (Nm), ordered to match `name`.
 float64[] effort
