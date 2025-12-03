@@ -174,18 +174,18 @@ class BufferSet:
     """
 
     buffers: dict[str, RingBuffer] = field(default_factory=dict)
+    capacity: int = 20_000
 
     def ensure(
         self,
         name: str,
-        capacity: int,
         sample_shape: tuple[int, ...] | None = None,
     ) -> RingBuffer:
         """Get existing buffer by name or create it."""
         buf = self.buffers.get(name)
         if buf is not None:
             return buf
-        buf = RingBuffer(capacity=capacity, sample_shape=sample_shape)
+        buf = RingBuffer(capacity=self.capacity, sample_shape=sample_shape)
         self.buffers[name] = buf
         return buf
 
@@ -195,7 +195,7 @@ class BufferSet:
         buf = self.buffers.get(name)
         if buf is None:
             # default capacity; you can tune or override by calling ensure first
-            buf = RingBuffer(capacity=20_000)
+            buf = RingBuffer(capacity=self.capacity)
             self.buffers[name] = buf
         buf.append(t, sample)
 
