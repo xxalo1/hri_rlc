@@ -8,11 +8,13 @@ import rclpy
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
-from control_msgs.action import FollowJointTrajectory
 
-from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-from rlc_interfaces.srv import SetControllerGains, SetControllerMode
-from rlc_common import endpoints
+from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
+from rlc_common.endpoints import (
+    JointStateMsg, JointEffortCmdMsg, 
+    SetControllerGainsSrv, SetControllerModeSrv,
+    FollowTrajAction,
+)
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
@@ -56,15 +58,15 @@ class Gen3ControllerNode(Node):
         )
 
         self.joint_state_sub = self.create_subscription(
-            JointStateSim,
-            endpoints.JOINT_STATE_TOPIC,
+            TOPICS.joint_state.type,
+            TOPICS.joint_state.name,
             self.joint_state_callback,
             10,
         )
 
         self.effort_pub = self.create_publisher(
-            JointEffortCmd,
-            endpoints.EFFORT_COMMAND_TOPIC,
+            TOPICS.effort_cmd.type,
+            TOPICS.effort_cmd.name,
             10,
         )
 
@@ -75,21 +77,21 @@ class Gen3ControllerNode(Node):
 
         self._traj_action_server = ActionServer(
             self,
-            FollowJointTrajectory,
-            endpoints.FOLLOW_TRAJECTORY_ACTION,  # e.g. "follow_joint_trajectory"
+            ACTIONS.follow_traj.type,
+            ACTIONS.follow_traj.name,  # e.g. "follow_joint_trajectory"
             execute_callback=self.follow_trajectory,
             goal_callback=self.goal_callback,
             cancel_callback=self.cancel_callback,
         )
 
-        self._set_joint_gains_service = self.create_service(
-            SetControllerGains,
-            endpoints.SET_GAINS_SERVICE,
+        self._set_controller_gains = self.create_service(
+            SERVICES.set_controller_gains.type,
+            SERVICES.set_controller_gains.name,
             self.set_gains_callback,
         )
-        self_set_controller_mode = self.create_service(
-            SetControllerMode,
-            endpoints.SET_CONTROL_MODE_SERVICE,
+        self._set_controller_mode = self.create_service(
+            SERVICES.set_controller_mode.type,
+            SERVICES.set_controller_mode.name,
             self.set_mode_callback,
         )
 
@@ -102,7 +104,10 @@ class Gen3ControllerNode(Node):
         self.tracking_mode = TrackingMode.TRAJ
 
 
-    def set_gains_callback(self, request, response):
+    def set_gains_callback(self, 
+        request: SetControllerGainsSrv.Request, 
+        response: SetControllerGainsSrv.Response
+    ):
         kp = request.kp
         kv = request.kv
         ki = request.ki
@@ -127,7 +132,10 @@ class Gen3ControllerNode(Node):
         return response
 
 
-    def set_mode_callback(self, request, response):
+    def set_mode_callback(self, 
+        request: SetControllerModeSrv.Request, 
+        response: SetControllerModeSrv.Response
+    ):
         mode = (request.mode or "").strip().lower()
 
         match mode:
@@ -151,7 +159,7 @@ class Gen3ControllerNode(Node):
         return response
     
 
-    def joint_state_callback(self, msg: JointStateSim) -> None:
+    def joint_state_callback(self, msg: JointStateMsg) -> None:
         self.q = np.asarray(msg.position, dtype=npu.dtype)
         self.qd = np.asarray(msg.velocity, dtype=npu.dtype)
         self.t = msg.sim_time
@@ -161,7 +169,7 @@ class Gen3ControllerNode(Node):
         tau = self.compute_effort()
         self.tau = tau
 
-        cmd = JointEffortCmd()
+        cmd = JointEffortCmdMsg()
         cmd.header.stamp = self.get_clock().now().to_msg()
         cmd.name = self.joint_names
         cmd.effort = tau.tolist()
@@ -232,16 +240,18 @@ class Gen3ControllerNode(Node):
         return True
 
 
-    def follow_trajectory(self, goal_handle):
-        """Action callback for control_msgs/FollowJointTrajectory."""
-        goal: FollowJointTrajectory.Goal = goal_handle.request
-        traj_msg: JointTrajectory = goal.trajectory
+    def follow_trajectory(self, 
+        goal_handle: ServerGoalHandle[FollowTrajAction],
+    ):
+        """Action callback."""
+        goal: FollowTrajAction.Goal = goal_handle.request
+        traj_msg= goal.trajectory
 
         ok = self._load_trajectory(traj_msg)
-        result = FollowJointTrajectory.Result()
+        result = FollowTrajAction.Result()
 
         if not ok:
-            result.error_code = FollowJointTrajectory.Result.INVALID_GOAL
+            result.error_code = FollowTrajAction.Result.INVALID_GOAL
             result.error_string = "Empty or invalid trajectory"
             goal_handle.abort()
             return result
@@ -251,10 +261,10 @@ class Gen3ControllerNode(Node):
         self.traj_start_t = self.t
         end_time = self.traj_start_t + self.traj_duration
 
-        feedback = FollowJointTrajectory.Feedback()
+        feedback = FollowTrajAction.Feedback()
 
         self.get_logger().info(
-            f"Executing FollowJointTrajectory: "
+            f"Executing FollowTrajAction: "
             f"{len(traj_msg.points)} points over {self.traj_duration:.3f} s"
         )
 
@@ -263,7 +273,7 @@ class Gen3ControllerNode(Node):
             if goal_handle.is_cancel_requested:
                 self.get_logger().info("Trajectory cancel requested")
                 goal_handle.canceled()
-                result.error_code = FollowJointTrajectory.Result.SUCCESSFUL
+                result.error_code = FollowTrajAction.Result.SUCCESSFUL
                 result.error_string = "Trajectory cancelled"
                 return result
 
@@ -291,29 +301,31 @@ class Gen3ControllerNode(Node):
 
         # Done
         goal_handle.succeed()
-        result.error_code = FollowJointTrajectory.Result.SUCCESSFUL
+        result.error_code = FollowTrajAction.Result.SUCCESSFUL
         result.error_string = ""
-        self.get_logger().info("FollowJointTrajectory finished successfully")
+        self.get_logger().info("FollowTrajAction finished successfully")
         return result
 
 
-    def goal_callback(
-        self, goal_request: FollowJointTrajectory.Goal
+    def goal_callback(self, 
+        goal_request: FollowTrajAction.Goal
     ) -> GoalResponse:
         """Decide whether to accept a new trajectory goal.
 
         Minimal version: always accept.
         """
-        self.get_logger().info("Received FollowJointTrajectory goal")
+        self.get_logger().info("Received FollowTrajAction goal")
         return GoalResponse.ACCEPT
 
 
-    def cancel_callback(self, goal_handle) -> CancelResponse:
+    def cancel_callback(self, 
+        goal_handle
+    ) -> CancelResponse:
         """Decide whether to accept a cancel request.
 
         Minimal version: always accept.
         """
-        self.get_logger().info("Received request to cancel FollowJointTrajectory goal")
+        self.get_logger().info("Received request to cancel FollowTrajAction goal")
         return CancelResponse.ACCEPT
 
 
