@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from sympy import Q
 import rclpy
 from rclpy.node import Node
 import numpy as np
@@ -9,12 +8,10 @@ from robots.kinova_gen3 import init_kinova_robot
 from common_utils import FloatArray
 from common_utils import numpy_util as npu
 from common_utils.buffers import RingBuffer, BufferSet
-
+from common_utils import transforms as tf
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
-    JointStateMsg, JointEffortCmdMsg, PlannedTrajMsg,
-    ResetSimSrv, PauseSimSrv, SetControllerGainsSrv, SetControllerModeSrv,
-    PlanQuinticSrv, ExecuteTrajSrv,
+    JointStateMsg, JointEffortCmdMsg, PlannedTrajMsg, EeTrajMsg, FrameStatesMsg,
     FollowTrajAction,
     )
 class RLCMonitorNode(Node):
@@ -24,7 +21,9 @@ class RLCMonitorNode(Node):
         super().__init__('rlc_monitor')
 
         self.declare_parameter('capacity', 10000)
-        self.capacity = self.get_parameter('capacity').integer
+        self.declare_parameter('publish_rate', 10.0)  # Hz
+        self.freq = self.get_parameter('publish_rate').value
+        self.capacity = self.get_parameter('capacity').value
         
         # Initialize Kinova Gen3 Robot
         self.robot = init_kinova_robot()
@@ -50,16 +49,21 @@ class RLCMonitorNode(Node):
             self.planned_traj_callback,
             10,
         )
-        self.frames_pub = self.create_publisher(
-            TOPICS.frames.type,
-            TOPICS.frames.name,
+        self.frame_states_pub = self.create_publisher(
+            TOPICS.frame_states.type,
+            TOPICS.frame_states.name,
             10,
         )
-        self.end_effector_traj_pub = self.create_publisher(
-            ,
-            'rlc_monitor/end_effector_trajectory',
+        self.ee_traj_pub = self.create_publisher(
+            TOPICS.ee_traj.type,
+            TOPICS.ee_traj.name,
             10,
         )
+
+        n = 1 / self.freq
+        self.frame_states_timer = self.create_timer(
+            n, self.publish_frame_states
+            )
 
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Callback for joint state messages."""
@@ -97,7 +101,7 @@ class RLCMonitorNode(Node):
     def planned_traj_callback(self, msg: PlannedTrajMsg) -> None:
         """Callback for planned trajectory messages."""
         # Process planned trajectory message and store in buffer
-        times = np.asarray(msg.times)
+        times = np.asarray(msg.trajectory.points.)
         positions = npu.msgs_to_numpy_array(msg.positions)
         velocities = npu.msgs_to_numpy_array(msg.velocities)
         accelerations = npu.msgs_to_numpy_array(msg.accelerations)
@@ -107,6 +111,15 @@ class RLCMonitorNode(Node):
         self.state_buffer.append('planned_traj_positions', positions)
         self.state_buffer.append('planned_traj_velocities', velocities)
         self.state_buffer.append('planned_traj_accelerations', accelerations)
+
+
+    def publish_frame_states(self) -> None:
+        """Publish the current frame states of the robot."""
+        frame_states_msg = FrameStatesMsg()
+        T_wf = self.robot.kin.forward_kinematics(self.q)
+        tf.transform_to_pos_quat(T_wf[-1])
+
+        self.frame_states_pub.publish(frame_states_msg)
 
 
 def main():

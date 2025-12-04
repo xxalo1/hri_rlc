@@ -1,12 +1,16 @@
 from std_msgs.msg import Header
-from geometry_msgs.msg import Pose, Twist
+from geometry_msgs.msg import Pose, Twist, Accel
 from trajectory_msgs.msg import JointTrajectory
+from builtin_interfaces.msg import Duration
 
 __all__ = [
     "CartesianState",
+    "FrameStates",
     "JointEffortCmd",
     "JointStateSim",
     "PlannedTrajectory",
+    "EeTrajPoint",
+    "EeTrajectory",
 ]
 
 
@@ -20,6 +24,21 @@ class CartesianState:
         header: Header = ...,
         pose: Pose = ...,
         twist: Twist = ...,
+        *,
+        check_fields: bool | None = ...,
+    ) -> None: ...
+
+
+class FrameStates:
+    header: Header
+    frame_ids: list[str]
+    poses: list[Pose]
+
+    def __init__(
+        self,
+        header: Header = ...,
+        frame_ids: list[str] = ...,
+        poses: list[Pose] = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...
@@ -48,6 +67,7 @@ class JointStateSim:
     name: list[str]
     position: list[float]
     velocity: list[float]
+    acceleration: list[float]
     effort: list[float]
 
     def __init__(
@@ -57,6 +77,7 @@ class JointStateSim:
         name: list[str] = ...,
         position: list[float] = ...,
         velocity: list[float] = ...,
+        acceleration: list[float] = ...,
         effort: list[float] = ...,
         *,
         check_fields: bool | None = ...,
@@ -75,6 +96,36 @@ class PlannedTrajectory:
         trajectory: JointTrajectory = ...,
         execute_immediately: bool = ...,
         label: str = ...,
+        *,
+        check_fields: bool | None = ...,
+    ) -> None: ...
+
+
+class EeTrajPoint:
+    time_from_start: Duration
+    pose: Pose
+    twist: Twist
+    accel: Accel
+
+    def __init__(
+        self,
+        time_from_start: Duration = ...,
+        pose: Pose = ...,
+        twist: Twist = ...,
+        accel: Accel = ...,
+        *,
+        check_fields: bool | None = ...,
+    ) -> None: ...
+
+
+class EeTrajectory:
+    header: Header
+    points: list[EeTrajPoint]
+
+    def __init__(
+        self,
+        header: Header = ...,
+        points: list[EeTrajPoint] = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...

@@ -16,5 +16,8 @@ float64[] position
 # Joint velocities (rad/s), ordered to match `name`.
 float64[] velocity
 
+# joint accelerations (rad/s^2), ordered to match `name`.
+float64[] acceleration
+
 # Joint efforts/torques (Nm), ordered to match `name`.
 float64[] effort

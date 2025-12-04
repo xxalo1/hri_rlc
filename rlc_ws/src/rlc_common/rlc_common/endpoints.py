@@ -6,7 +6,15 @@ from dataclasses import dataclass
 from typing import Generic, TypeVar
 
 from control_msgs.action import FollowJointTrajectory
-from rlc_interfaces.msg import JointEffortCmd, JointStateSim, PlannedTrajectory
+from rlc_interfaces.msg import (
+    JointEffortCmd, 
+    JointStateSim, 
+    PlannedTrajectory, 
+    FrameStates, 
+    EeTrajectory,
+    EeTrajPoint,
+)
+from rbt_core import robot
 from rlc_interfaces.srv import (
     ExecuteTrajectory,
     PlanTrajectory,
@@ -25,18 +33,19 @@ class Endpoint(Generic[T]):
     type: type[T]
 
 
-SIM_NS = "sim/gen3"
-CTRL_NS = "controller/gen3"
-PLANNER_NS = "planner/gen3"
-EXEC_NS = "executor/gen3"
-
+SIM_NS   = "sim/gen3"
+CTRL_NS  = "ctrl/gen3"
+PLAN_NS  = "plan/gen3"
+EXEC_NS  = "exec/gen3"
+MON_NS   = "mon/gen3"
 
 @dataclass(frozen=True)
 class TopicEndpoints:
-    """All Gen3 topics with their message types."""
     joint_state: Endpoint[JointStateSim]
     effort_cmd: Endpoint[JointEffortCmd]
     planned_traj: Endpoint[PlannedTrajectory]
+    frame_states: Endpoint[FrameStates]
+    ee_traj: Endpoint[EeTrajectory]
 
 
 @dataclass(frozen=True)
@@ -58,18 +67,11 @@ class ActionEndpoints:
 
 
 TOPICS = TopicEndpoints(
-    joint_state=Endpoint(
-        name=f"{SIM_NS}/state/joints",
-        type=JointStateSim,
-    ),
-    effort_cmd=Endpoint(
-        name=f"{CTRL_NS}/command/effort",
-        type=JointEffortCmd,
-    ),
-    planned_traj=Endpoint(
-        name=f"{PLANNER_NS}/planned_trajectory",
-        type=PlannedTrajectory,
-    ),
+    joint_state=Endpoint(f"{SIM_NS}/joint_state", JointStateSim),
+    effort_cmd=Endpoint(f"{CTRL_NS}/effort_cmd", JointEffortCmd),
+    planned_traj=Endpoint(f"{PLAN_NS}/planned_traj", PlannedTrajectory),
+    frame_states=Endpoint(f"{MON_NS}/frame_states", FrameStates),
+    ee_traj=Endpoint(f"{PLAN_NS}/ee_traj", EeTrajectory),
 )
 
 SERVICES = ServiceEndpoints(
@@ -90,11 +92,11 @@ SERVICES = ServiceEndpoints(
         type=SetControllerMode,
     ),
     plan_quintic=Endpoint(
-        name=f"{PLANNER_NS}/plan_quintic",
+        name=f"{PLAN_NS}/plan_quintic",
         type=PlanTrajectory,
     ),
     plan_point=Endpoint(
-        name=f"{PLANNER_NS}/plan_point",
+        name=f"{PLAN_NS}/plan_point",
         type=PlanTrajectory,
     ),
     execute_traj=Endpoint(
@@ -115,6 +117,9 @@ ACTIONS = ActionEndpoints(
 JointStateMsg = TOPICS.joint_state.type
 JointEffortCmdMsg = TOPICS.effort_cmd.type
 PlannedTrajMsg = TOPICS.planned_traj.type
+FrameStatesMsg = TOPICS.frame_states.type
+EeTrajMsg = TOPICS.ee_traj.type
+EeTrajPointMsg = EeTrajPoint
 
 # services
 ResetSimSrv = SERVICES.reset_sim.type
@@ -134,6 +139,9 @@ __all__ = [
     "JointStateMsg",
     "JointEffortCmdMsg",
     "PlannedTrajMsg",
+    "FrameStatesMsg",
+    "EeTrajMsg",
+    "EeTrajPointMsg",
     "ResetSimSrv",
     "PauseSimSrv",
     "SetControllerGainsSrv",
