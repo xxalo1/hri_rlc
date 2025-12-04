@@ -60,7 +60,7 @@ class RLCMonitorNode(Node):
             'rlc_monitor/end_effector_trajectory',
             10,
         )
-        
+
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Callback for joint state messages."""
         # Process joint state message and store in buffer
@@ -108,7 +108,7 @@ class RLCMonitorNode(Node):
         self.state_buffer.append('planned_traj_velocities', velocities)
         self.state_buffer.append('planned_traj_accelerations', accelerations)
 
-        
+
 def main():
     print('Hi from rlc_monitor.')
 
