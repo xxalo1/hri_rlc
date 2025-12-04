@@ -1,5 +1,4 @@
 {
-  "exclude": ["**/build", "**/install", "**/log"],
   "extraPaths": [
     "rlc_ws/src",
     "src"
