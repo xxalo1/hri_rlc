@@ -6,74 +6,120 @@ from common_utils import numpy_util as npu
 
 def rotation_matrix_to_quat(R: FloatArray) -> FloatArray:
     """
-    Convert a 3x3 rotation matrix to a unit quaternion [w, x, y, z].
+    Convert rotation matrix/matrices to unit quaternion(s) [w, x, y, z].
 
-    Args:
-        R: (3, 3) rotation matrix.
+    Parameters
+    ----------
+    R : ndarray, shape (3, 3) or (n, 3, 3)
+        Rotation matrix/matrices.
 
-    Returns:
-        q: (4,) unit quaternion [w, x, y, z].
+    Returns
+    ----------
+    q : ndarray, shape (4,) or (n, 4)
+        Unit quaternion(s) ordered as [w, x, y, z].
     """
 
-    trace = np.trace(R)
+    squeeze_output = False
+    if R.ndim == 2:
+        R = R[None, :, :]  # (1,3,3)
+        squeeze_output = True
 
-    if trace > 0.0:
-        S = np.sqrt(trace + 1.0) * 2.0  # S = 4 * w
-        w = 0.25 * S
-        x = (R[2, 1] - R[1, 2]) / S
-        y = (R[0, 2] - R[2, 0]) / S
-        z = (R[1, 0] - R[0, 1]) / S
-    else:
-        if (R[0, 0] > R[1, 1]) and (R[0, 0] > R[2, 2]):
-            S = np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2.0  # S = 4 * x
-            w = (R[2, 1] - R[1, 2]) / S
-            x = 0.25 * S
-            y = (R[0, 1] + R[1, 0]) / S
-            z = (R[0, 2] + R[2, 0]) / S
-        elif R[1, 1] > R[2, 2]:
-            S = np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2.0  # S = 4 * y
-            w = (R[0, 2] - R[2, 0]) / S
-            x = (R[0, 1] + R[1, 0]) / S
-            y = 0.25 * S
-            z = (R[1, 2] + R[2, 1]) / S
-        else:
-            S = np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2.0  # S = 4 * z
-            w = (R[1, 0] - R[0, 1]) / S
-            x = (R[0, 2] + R[2, 0]) / S
-            y = (R[1, 2] + R[2, 1]) / S
-            z = 0.25 * S
+    n = R.shape[0]
+    trace = np.trace(R, axis1=1, axis2=2)  # (n,)
 
-    q = np.array([w, x, y, z], dtype=npu.dtype)
+    # Pre-allocate outputs
+    w = np.empty(n, dtype=npu.dtype)
+    x = np.empty(n, dtype=npu.dtype)
+    y = np.empty(n, dtype=npu.dtype)
+    z = np.empty(n, dtype=npu.dtype)
 
-    # Normalize to be safe
-    norm = np.linalg.norm(q)
-    if norm == 0.0:
+    # Masks for different cases
+    mask_pos = trace > 0.0
+    mask_else = ~mask_pos
+
+    if np.any(mask_pos):
+        tr = trace[mask_pos]
+        S = np.sqrt(tr + 1.0) * 2.0  # S = 4w
+        w[mask_pos] = 0.25 * S
+        x[mask_pos] = (R[mask_pos, 2, 1] - R[mask_pos, 1, 2]) / S
+        y[mask_pos] = (R[mask_pos, 0, 2] - R[mask_pos, 2, 0]) / S
+        z[mask_pos] = (R[mask_pos, 1, 0] - R[mask_pos, 0, 1]) / S
+
+    if np.any(mask_else):
+        Rm = R[mask_else]
+        # Choose branch per row dominance
+        cond0 = (Rm[:, 0, 0] > Rm[:, 1, 1]) & (Rm[:, 0, 0] > Rm[:, 2, 2])
+        cond1 = (~cond0) & (Rm[:, 1, 1] > Rm[:, 2, 2])
+        cond2 = ~(cond0 | cond1)
+
+        if np.any(cond0):
+            idx = np.where(mask_else)[0][cond0]
+            S = np.sqrt(1.0 + R[idx, 0, 0] - R[idx, 1, 1] - R[idx, 2, 2]) * 2.0
+            w[idx] = (R[idx, 2, 1] - R[idx, 1, 2]) / S
+            x[idx] = 0.25 * S
+            y[idx] = (R[idx, 0, 1] + R[idx, 1, 0]) / S
+            z[idx] = (R[idx, 0, 2] + R[idx, 2, 0]) / S
+
+        if np.any(cond1):
+            idx = np.where(mask_else)[0][cond1]
+            S = np.sqrt(1.0 + R[idx, 1, 1] - R[idx, 0, 0] - R[idx, 2, 2]) * 2.0
+            w[idx] = (R[idx, 0, 2] - R[idx, 2, 0]) / S
+            x[idx] = (R[idx, 0, 1] + R[idx, 1, 0]) / S
+            y[idx] = 0.25 * S
+            z[idx] = (R[idx, 1, 2] + R[idx, 2, 1]) / S
+
+        if np.any(cond2):
+            idx = np.where(mask_else)[0][cond2]
+            S = np.sqrt(1.0 + R[idx, 2, 2] - R[idx, 0, 0] - R[idx, 1, 1]) * 2.0
+            w[idx] = (R[idx, 1, 0] - R[idx, 0, 1]) / S
+            x[idx] = (R[idx, 0, 2] + R[idx, 2, 0]) / S
+            y[idx] = (R[idx, 1, 2] + R[idx, 2, 1]) / S
+            z[idx] = 0.25 * S
+
+    q = np.stack([w, x, y, z], axis=-1)  # (n,4)
+
+    # Normalize each quaternion to be safe
+    norms = np.linalg.norm(q, axis=-1, keepdims=True)
+    if np.any(norms == 0.0):
         raise ValueError("Zero norm quaternion produced from rotation matrix.")
-    q /= norm
+    q = q / norms
+
+    if squeeze_output:
+        return q[0]
     return q
 
 
 def quat_to_rotation_matrix(q: FloatArray) -> FloatArray:
     """
-    Convert a quaternion [w, x, y, z] to a 3x3 rotation matrix.
+    Convert a quaternion(s) [w, x, y, z] to rotation matrix/matrices.
 
     Parameters
     ----------
-    q: ndarray, shape (4,)
-        quaternion [w, x, y, z].
+    q : ndarray, shape (4,) or (n, 4)
+        Quaternion(s) ordered as [w, x, y, z].
 
     Returns
     ----------
-    R: ndarray, shape (3, 3)
-        rotation matrix.
+    R : ndarray, shape (3, 3) or (n, 3, 3)
+        Rotation matrix/matrices corresponding to input quaternions.
     """
 
-    norm = np.linalg.norm(q)
-    if norm == 0.0:
-        raise ValueError("Zero norm quaternion is not valid.")
-    q = q / norm
+    # Handle single quaternion vs batch
+    squeeze_output = False
+    if q.ndim == 1:
+        q = q[None, :]  # shape -> (1, 4)
+        squeeze_output = True
 
-    w, x, y, z = q
+    # Normalize each quaternion in the batch
+    norms = np.linalg.norm(q, axis=-1, keepdims=True)
+    if np.any(norms == 0.0):
+        raise ValueError("Zero norm quaternion is not valid.")
+    q = q / norms
+
+    w = q[:, 0]
+    x = q[:, 1]
+    y = q[:, 2]
+    z = q[:, 3]
 
     xx = x * x
     yy = y * y
@@ -85,15 +131,22 @@ def quat_to_rotation_matrix(q: FloatArray) -> FloatArray:
     wy = w * y
     wz = w * z
 
-    R = np.array(
-        [
-            [1.0 - 2.0 * (yy + zz), 2.0 * (xy - wz), 2.0 * (xz + wy)],
-            [2.0 * (xy + wz), 1.0 - 2.0 * (xx + zz), 2.0 * (yz - wx)],
-            [2.0 * (xz - wy), 2.0 * (yz + wx), 1.0 - 2.0 * (xx + yy)],
-        ],
-        dtype=float,
-    )
+    # Build rotation matrices for each quaternion
+    R = np.empty((q.shape[0], 3, 3), dtype=npu.dtype)
+    R[:, 0, 0] = 1.0 - 2.0 * (yy + zz)
+    R[:, 0, 1] = 2.0 * (xy - wz)
+    R[:, 0, 2] = 2.0 * (xz + wy)
 
+    R[:, 1, 0] = 2.0 * (xy + wz)
+    R[:, 1, 1] = 1.0 - 2.0 * (xx + zz)
+    R[:, 1, 2] = 2.0 * (yz - wx)
+
+    R[:, 2, 0] = 2.0 * (xz - wy)
+    R[:, 2, 1] = 2.0 * (yz + wx)
+    R[:, 2, 2] = 1.0 - 2.0 * (xx + yy)
+
+    if squeeze_output:
+        return R[0]
     return R
 
 
@@ -103,18 +156,18 @@ def transform_to_pos_quat(T: FloatArray) -> tuple[FloatArray, FloatArray]:
 
     Parameters
     ----------
-    T: ndarray, shape (4, 4)
+    T : ndarray, shape (n, 4, 4) or (4, 4)
         homogeneous transform.
 
     Returns
     ----------
-    pos: ndarray, shape(3,) 
+    pos : ndarray, shape (n, 3) or (3,)
         position vector.
-    quat: ndarray, shape (4,) 
+    quat : ndarray, shape (n, 4) or (4,)
         quaternion [w, x, y, z].
     """
-    R = T[:3, :3]
-    pos = T[:3, 3]
+    R = T[..., :3, :3]
+    pos = T[..., :3, 3]
     quat = rotation_matrix_to_quat(R)
     return pos, quat
 
@@ -126,14 +179,14 @@ def pos_quat_to_transform(p: FloatArray, q: FloatArray) -> FloatArray:
 
     Parameters
     ----------
-    p: ndarray, shape (3,)
+    p : ndarray, shape (3,)
         position vector.
-    q: ndarray, shape (4,) 
+    q : ndarray, shape (4,) 
         quaternion [w, x, y, z].
 
     Returns
     ----------
-    T: ndarray, shape (4, 4)
+    T : ndarray, shape (4, 4)
         homogeneous transform.
     """
     R = quat_to_rotation_matrix(q)

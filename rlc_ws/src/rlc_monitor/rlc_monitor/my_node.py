@@ -3,6 +3,7 @@ from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 import numpy as np
+from geometry_msgs.msg import Pose
 
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import FloatArray
@@ -11,7 +12,8 @@ from common_utils.buffers import RingBuffer, BufferSet
 from common_utils import transforms as tf
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
-    JointStateMsg, JointEffortCmdMsg, PlannedTrajMsg, EeTrajMsg, FrameStatesMsg,
+    JointStateMsg, JointEffortCmdMsg, 
+    PlannedTrajMsg, EeTrajMsg, FrameStatesMsg,
     FollowTrajAction,
     )
 class RLCMonitorNode(Node):
@@ -115,11 +117,27 @@ class RLCMonitorNode(Node):
 
     def publish_frame_states(self) -> None:
         """Publish the current frame states of the robot."""
-        frame_states_msg = FrameStatesMsg()
         T_wf = self.robot.kin.forward_kinematics(self.q)
-        tf.transform_to_pos_quat(T_wf[-1])
+        pos, quat = tf.transform_to_pos_quat(T_wf)
+        msg = FrameStatesMsg()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = "world"
 
-        self.frame_states_pub.publish(frame_states_msg)
+        poses: list[Pose] = []
+        for p, q in zip(pos, quat):
+            pose = Pose()
+            pose.position.x, pose.position.y, pose.position.z = p
+            (
+                pose.orientation.x,
+                pose.orientation.y,
+                pose.orientation.z,
+                pose.orientation.w,
+            ) = q
+            poses.append(pose)
+
+        msg.poses = poses
+
+        self.frame_states_pub.publish(msg)
 
 
 def main():
