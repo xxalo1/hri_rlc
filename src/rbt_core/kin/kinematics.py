@@ -93,6 +93,7 @@ class Kinematics(Generic[ArrayT]):
         T_wb: ArrayT | None = None,
         inertia: dict[str, ArrayT] | None = None,
         ) -> None:
+        
         """
         d, a, alpha: 1D array (length n)
         theta0: optional 1D array of fixed offsets (length n), defaults to zeros

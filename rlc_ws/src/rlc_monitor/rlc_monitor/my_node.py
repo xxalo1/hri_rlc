@@ -10,6 +10,7 @@ from common_utils import FloatArray
 from common_utils import numpy_util as npu
 from common_utils.buffers import RingBuffer, BufferSet
 from common_utils import transforms as tf
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
     JointStateMsg, JointEffortCmdMsg, 
@@ -24,8 +25,8 @@ class RLCMonitorNode(Node):
 
         self.declare_parameter('capacity', 10000)
         self.declare_parameter('publish_rate', 10.0)  # Hz
-        self.freq = self.get_parameter('publish_rate').value
-        self.capacity = self.get_parameter('capacity').value
+        self.freq = self.get_parameter('publish_rate').get_parameter_value().double_value
+        self.capacity = self.get_parameter('capacity').get_parameter_value().double_value
         
         # Initialize Kinova Gen3 Robot
         self.robot = init_kinova_robot()
@@ -56,7 +57,8 @@ class RLCMonitorNode(Node):
             TOPICS.frame_states.name,
             10,
         )
-        self.ee_traj_pub = self.create_publisher(
+        self.ee_traj_pub = ActionServer(
+            self,
             TOPICS.ee_traj.type,
             TOPICS.ee_traj.name,
             10,
