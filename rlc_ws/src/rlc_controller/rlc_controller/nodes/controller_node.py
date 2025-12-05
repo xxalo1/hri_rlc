@@ -20,17 +20,6 @@ from common_utils import numpy_util as npu
 from common_utils import FloatArray
 
 
-class ControlMode(Enum):
-    CT = auto()
-    PID = auto()
-    IM = auto()
-
-
-class TrackingMode(Enum):
-    PT = auto()
-    TRAJ = auto()
-
-
 class Gen3ControllerNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_controller")
