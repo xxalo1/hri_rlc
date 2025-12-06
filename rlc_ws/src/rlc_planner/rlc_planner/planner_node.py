@@ -21,7 +21,7 @@ from rlc_common.endpoints import (
     JointStateMsg, PlannedTrajMsg, 
     PlanQuinticSrv
 )
-from rlc_interfaces.msg import JointStateSim, PlannedJointTrajectory
+from rlc_interfaces.msg import JointState, PlannedJointTrajectory
 from rlc_interfaces.srv import PlanTrajectory
 
 class TrajectoryPlannerNode(Node):
@@ -100,14 +100,14 @@ class TrajectoryPlannerNode(Node):
         v_traj = traj[1]
         a_traj = traj[2]
 
-        joint_traj_msg = ru.joint_traj_from_arrays(
+        joint_traj_msg = ru.joint_traj(
             robot.t, self.joint_names, 
             q_traj, v_traj, a_traj, freq
         )
 
         poses = robot.get_poses()
 
-        poses_msg = ru.poses_from_arrays(
+        poses_msg = ru.multi_dof_traj(
             robot.t, poses,
         )
         

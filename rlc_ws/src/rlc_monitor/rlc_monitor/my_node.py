@@ -3,20 +3,18 @@ from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 import numpy as np
-from geometry_msgs.msg import Pose
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from geometry_msgs.msg import PoseArray, Pose
 
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from common_utils import ros_util as ru
-from common_utils import transforms as tf
+from common_utils import transforms as tfu
 from common_utils.buffers import RingBuffer, BufferSet
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
-    JointStateMsg, JointEffortCmdMsg, 
-    PlannedTrajMsg, EeTrajMsg, FrameStatesMsg,
-    FollowTrajAction, ControllerStateMsg,
+    JointStateMsg, FrameStatesMsg, 
+    ControllerStateMsg,
     )
 
 class RLCMonitorNode(Node):
@@ -49,12 +47,6 @@ class RLCMonitorNode(Node):
         self.frame_states_pub = self.create_publisher(
             TOPICS.frame_states.type,
             TOPICS.frame_states.name,
-            10,
-        )
-        self.ee_traj_pub = ActionServer(
-            self,
-            TOPICS.ee_traj.type,
-            TOPICS.ee_traj.name,
             10,
         )
 
@@ -115,18 +107,6 @@ class RLCMonitorNode(Node):
         # Controller output (torque command)
         tau = np.asarray(msg.output.effort, dtype=npu.dtype)
 
-        # Update latest controller-related fields on this node (optional, but handy)
-        self.q_ctrl      = q
-        self.qd_ctrl     = qd
-        self.qdd_ctrl    = qdd
-        self.q_des_ctrl  = q_des
-        self.qd_des_ctrl = qd_des
-        self.qdd_des_ctrl= qdd_des
-        self.e_ctrl      = e
-        self.ed_ctrl     = ed
-        self.tau_cmd     = tau
-        self.t_ctrl      = t
-
         # Store data in buffers for logging / plotting
         buf = self.state_buffer
         buf.append("ctrl_q",        t, q)
@@ -143,24 +123,12 @@ class RLCMonitorNode(Node):
     def publish_frame_states(self) -> None:
         """Publish the current frame states of the robot."""
         T_wf = self.robot.kin.forward_kinematics()
-        pos, quat = tf.transform_to_pos_quat(T_wf)
-        msg = FrameStatesMsg()
-        msg.header.stamp = ru.to_ros_time(self.robot.t)
-        msg.header.frame_id = "world"
-
-        poses: list[Pose] = []
-        for p, q in zip(pos, quat):
-            pose = Pose()
-            pose.position.x, pose.position.y, pose.position.z = p
-            (
-                pose.orientation.x,
-                pose.orientation.y,
-                pose.orientation.z,
-                pose.orientation.w,
-            ) = q
-            poses.append(pose)
-
-        msg.poses = poses
+        poses = tfu.transform_to_pos_quat(T_wf)
+        msg = ru.to_pose_array_msg(
+            self.robot.t,
+            poses,
+            frame_id="world",
+        )
         self.frame_states_pub.publish(msg)
 
 
