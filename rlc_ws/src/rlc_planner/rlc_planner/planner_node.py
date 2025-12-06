@@ -10,12 +10,19 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from rlc_common import endpoints
-from rlc_interfaces.msg import JointStateSim, PlannedTrajectory
-from rlc_interfaces.srv import PlanTrajectory
 from rbt_core import TrajPlanner
+from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
+from common_utils import ros_util as ru
 from common_utils import FloatArray
+
+from rlc_common.endpoints import (
+    TOPICS, SERVICES, ACTIONS, 
+    JointStateMsg, PlannedTrajMsg, 
+    PlanQuinticSrv
+)
+from rlc_interfaces.msg import JointStateSim, PlannedJointTrajectory
+from rlc_interfaces.srv import PlanTrajectory
 
 class TrajectoryPlannerNode(Node):
     """ROS 2 node that builds joint trajectories and publishes them for execution."""
@@ -23,10 +30,7 @@ class TrajectoryPlannerNode(Node):
     def __init__(self) -> None:
         super().__init__("trajectory_planner")
 
-        self.planner = TrajPlanner()
-        self.q  = np.zeros(0, dtype=npu.dtype)
-        self.qd = np.zeros(0, dtype=npu.dtype)
-        self.joint_names: list[str] = []
+        self.robot = init_kinova_robot()
 
         self.declare_parameter("default_plan_frequency", 100.0)
         self.default_freq = (
@@ -35,81 +39,82 @@ class TrajectoryPlannerNode(Node):
             .double_value
         )
 
+        self.joint_traj_pub = self.create_publisher(
+            TOPICS.planned_joint_traj.type,
+            TOPICS.planned_joint_traj.name,
+            10,
+        )
+        self.ee_traj_pub = self.create_publisher(
+            TOPICS.planned_ee_traj.type,
+            TOPICS.planned_ee_traj.name,
+            10,
+        )
+
         self.joint_state_sub = self.create_subscription(
-            JointStateSim,
-            endpoints.JOINT_STATE_TOPIC,
+            TOPICS.joint_state.type,
+            TOPICS.joint_state.name,
             self.joint_state_callback,
             10,
         )
 
-        self.planned_traj_pub = self.create_publisher(
-            PlannedTrajectory,
-            endpoints.PLANNED_TRAJECTORY_TOPIC,
-            10,
-        )
-
         self.quintic_service = self.create_service(
-            PlanTrajectory,
-            endpoints.QUINTIC_TRAJECTORY_SERVICE,
+            SERVICES.plan_quintic.type,
+            SERVICES.plan_quintic.name,
             self.plan_quintic_callback,
-        )
-        self.point_service = self.create_service(
-            PlanTrajectory,
-            endpoints.POINT_TRAJECTORY_SERVICE,
-            self.track_point_callback,
         )
 
         self.get_logger().info("Trajectory planner node ready")
 
-
-    def joint_state_callback(self, msg: JointStateSim) -> None:
+    @property
+    def joint_names(self) -> list[str]:
+        """Get the robot's joint names."""
+        return self.robot.spec.joint_names
+    
+    def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Store the latest joint state for planning."""
-
+        self.t = ru.from_ros_time(msg.header.stamp)
         self.q = np.asarray(msg.position, dtype=npu.dtype)
         self.qd = np.asarray(msg.velocity, dtype=npu.dtype)
-        self.joint_names = list(msg.name)
+        self.qdd = np.asarray(msg.acceleration, dtype=npu.dtype)
+
+        self.robot.set_joint_state(self.q, self.qd, self.qdd, self.t)        
 
 
-    def plan_quintic_callback(self, request: PlanTrajectory.Request, response: PlanTrajectory.Response):
+    def plan_quintic_callback(self, 
+        request: PlanQuinticSrv.Request, 
+        response: PlanQuinticSrv.Response
+    ) -> PlanQuinticSrv.Response:
         """Plan a quintic trajectory from the current state to a target point and publish it."""
 
         if not self._check_ready(response):
             return response
 
-        q0 = self.q
+        robot = self.robot
         qf = np.asarray(request.target_positions, dtype=npu.dtype)
-        tf = request.time_from_start.sec + request.time_from_start.nanosec * 1e-9
-        freq = (request.n_points - 1) / tf
+        dt = ru.from_ros_time(request.time_from_start)
+        freq = (request.n_points - 1) / dt
+        tf = dt + robot.t
 
-        traj = self.planner.quintic_trajs(q0, qf, 0.0, tf, freq)
+        traj = robot.setup_quintic_traj(qf, tf=tf, freq=freq)
         q_traj = traj[0]
         v_traj = traj[1]
         a_traj = traj[2]
-        traj_msg = self._trajectory_from_arrays(q_traj, v_traj, a_traj, freq)
 
-        return self._publish_planned_trajectory(
-            traj_msg,
-            response,
-            "quintic",
-            request.execute_immediately,
+        joint_traj_msg = ru.joint_traj_from_arrays(
+            robot.t, self.joint_names, 
+            q_traj, v_traj, a_traj, freq
         )
 
+        poses = robot.get_poses()
 
-    def track_point_callback(self, request: PlanTrajectory.Request, response: PlanTrajectory.Response):
-        """Plan a single target point as a trivial trajectory and publish it."""
-
-        if not self._check_ready(response):
-            return response
-
-        qf = np.asarray(request.target_positions, dtype=npu.dtype)
-        tf = request.time_from_start.sec + request.time_from_start.nanosec * 1e-9
-        freq = (request.n_points - 1) / tf
-        traj_msg = self._trajectory_from_arrays(qf, freq=freq)
-
-        return self._publish_planned_trajectory(
-            traj_msg,
+        poses_msg = ru.poses_from_arrays(
+            robot.t, poses,
+        )
+        
+        return self._publish_joint_traj(
+            joint_traj_msg,
             response,
-            "point",
+            "quintic",
             request.execute_immediately,
         )
 
@@ -123,54 +128,20 @@ class TrajectoryPlannerNode(Node):
         return True
 
 
-    def _trajectory_from_arrays(self, 
-        positions: FloatArray, 
-        velocities: FloatArray | None = None, 
-        accelerations: FloatArray | None = None,
-        freq: float = 100.0,
-    ) -> JointTrajectory:
-        """Convert planner output (3, N, n) into JointTrajectory."""
-
-        positions = np.atleast_2d(positions)
-        if velocities is None:
-            velocities = np.zeros_like(positions)
-        else:
-            velocities = np.atleast_2d(velocities)
-        if accelerations is None:
-            accelerations = np.zeros_like(positions)
-        else:
-            accelerations = np.atleast_2d(accelerations)
-
-        traj_msg = JointTrajectory()
-        traj_msg.joint_names = self.joint_names
-
-        dt = 1.0 / freq
-        for idx in range(positions.shape[0]):
-            point = JointTrajectoryPoint()
-            point.positions = positions[idx].tolist()
-            point.velocities = velocities[idx].tolist()
-            point.accelerations = accelerations[idx].tolist()
-            point.time_from_start = Duration(seconds=dt * idx).to_msg()
-            traj_msg.points.append(point)
-
-        return traj_msg
-
-
-    def _publish_planned_trajectory(
-        self,
+    def _publish_joint_traj(self,
         trajectory: JointTrajectory,
-        response: PlanTrajectory.Response,
+        response: PlanQuinticSrv.Response,
         label: str,
         execute_immediately: bool,
-    ) -> PlanTrajectory.Response:
+    ) -> PlanQuinticSrv.Response:
         traj_id = str(uuid.uuid4())
 
-        planned_msg = PlannedTrajectory()
+        planned_msg = PlannedTrajMsg()
         planned_msg.trajectory_id = traj_id
         planned_msg.trajectory = trajectory
         planned_msg.label = label
         planned_msg.execute_immediately = execute_immediately
-        self.planned_traj_pub.publish(planned_msg)
+        self.joint_traj_pub.publish(planned_msg)
 
         response.success = True
         response.message = (

@@ -150,7 +150,7 @@ def quat_to_rotation_matrix(q: FloatArray) -> FloatArray:
     return R
 
 
-def transform_to_pos_quat(T: FloatArray) -> tuple[FloatArray, FloatArray]:
+def transform_to_pos_quat(T: FloatArray) -> FloatArray:
     """
     Convert a 4x4 homogeneous transform to position and quaternion.
 
@@ -169,7 +169,8 @@ def transform_to_pos_quat(T: FloatArray) -> tuple[FloatArray, FloatArray]:
     R = T[..., :3, :3]
     pos = T[..., :3, 3]
     quat = rotation_matrix_to_quat(R)
-    return pos, quat
+    poses = np.concatenate([pos, quat], axis=-1)
+    return poses
 
 
 def pos_quat_to_transform(p: FloatArray, q: FloatArray) -> FloatArray:

@@ -6,15 +6,16 @@ from dataclasses import dataclass
 from typing import Generic, TypeVar
 
 from control_msgs.action import FollowJointTrajectory
+from control_msgs.msg import JointTrajectoryControllerState
 from rlc_interfaces.msg import (
     JointEffortCmd, 
     JointStateSim, 
-    PlannedTrajectory, 
+    PlannedJointTrajectory, 
     FrameStates, 
-    EeTrajectory,
-    EeTrajPoint,
+    PlannedEeTrajectory,
+    CurrentPlan,
 )
-from rbt_core import robot
+
 from rlc_interfaces.srv import (
     ExecuteTrajectory,
     PlanTrajectory,
@@ -43,9 +44,11 @@ MON_NS   = "mon/gen3"
 class TopicEndpoints:
     joint_state: Endpoint[JointStateSim]
     effort_cmd: Endpoint[JointEffortCmd]
-    planned_traj: Endpoint[PlannedTrajectory]
+    planned_joint_traj: Endpoint[PlannedJointTrajectory]
     frame_states: Endpoint[FrameStates]
-    ee_traj: Endpoint[EeTrajectory]
+    planned_ee_traj: Endpoint[PlannedEeTrajectory]
+    controller_state: Endpoint[JointTrajectoryControllerState]
+    current_plan: Endpoint[CurrentPlan]
 
 
 @dataclass(frozen=True)
@@ -69,9 +72,11 @@ class ActionEndpoints:
 TOPICS = TopicEndpoints(
     joint_state=Endpoint(f"{SIM_NS}/joint_state", JointStateSim),
     effort_cmd=Endpoint(f"{CTRL_NS}/effort_cmd", JointEffortCmd),
-    planned_traj=Endpoint(f"{PLAN_NS}/planned_traj", PlannedTrajectory),
+    planned_joint_traj=Endpoint(f"{PLAN_NS}/planned_joint_traj", PlannedJointTrajectory),
     frame_states=Endpoint(f"{MON_NS}/frame_states", FrameStates),
-    ee_traj=Endpoint(f"{PLAN_NS}/ee_traj", EeTrajectory),
+    planned_ee_traj=Endpoint(f"{PLAN_NS}/planned_ee_traj", PlannedEeTrajectory),
+    controller_state=Endpoint(f"{CTRL_NS}/controller_state", JointTrajectoryControllerState),
+    current_plan=Endpoint(f"{EXEC_NS}/current_plan", CurrentPlan),
 )
 
 SERVICES = ServiceEndpoints(
@@ -116,10 +121,11 @@ ACTIONS = ActionEndpoints(
 # messages
 JointStateMsg = TOPICS.joint_state.type
 JointEffortCmdMsg = TOPICS.effort_cmd.type
-PlannedTrajMsg = TOPICS.planned_traj.type
+PlannedJointTrajMsg = TOPICS.planned_joint_traj.type
 FrameStatesMsg = TOPICS.frame_states.type
-EeTrajMsg = TOPICS.ee_traj.type
-EeTrajPointMsg = EeTrajPoint
+PlannedEeTrajMsg = TOPICS.planned_ee_traj.type
+ControllerStateMsg = TOPICS.controller_state.type
+CurrentPlanMsg = TOPICS.current_plan.type
 
 # services
 ResetSimSrv = SERVICES.reset_sim.type
@@ -136,17 +142,21 @@ __all__ = [
     "TOPICS",
     "SERVICES",
     "ACTIONS",
+
     "JointStateMsg",
     "JointEffortCmdMsg",
-    "PlannedTrajMsg",
+    "PlannedJointTrajMsg",
     "FrameStatesMsg",
-    "EeTrajMsg",
-    "EeTrajPointMsg",
+    "ControllerStateMsg",
+    "PlannedEeTrajMsg",
+    "CurrentPlanMsg",
+
     "ResetSimSrv",
     "PauseSimSrv",
     "SetControllerGainsSrv",
     "SetControllerModeSrv",
     "PlanQuinticSrv",
     "ExecuteTrajSrv",
+
     "FollowTrajAction",
 ]

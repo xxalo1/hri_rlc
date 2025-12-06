@@ -10,7 +10,7 @@ from .controller import Controller
 from .planning import TrajPlanner
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
-
+from common_utils import transforms as tfm
 
 class ControllerMode(Enum):
     CT = auto()
@@ -60,7 +60,7 @@ class Robot:
         self.ti = 0.0
         self.tf = 0.0
         self.freq = 0.0
-        self.traj = np.zeros((3, 100, n), dtype=npu.dtype)
+        self.joint_traj = np.zeros((3, 100, n), dtype=npu.dtype)
 
         # Control modes
         self.controller_mode = ControllerMode.CT
@@ -182,7 +182,7 @@ class Robot:
         self.freq = 0.0
         self.ti = 0.0
         self.tf = 0.0
-        self.traj = np.zeros((3, 0, self.kin.n), dtype=npu.dtype)
+        self.joint_traj = np.zeros((3, 0, self.n), dtype=npu.dtype)
 
         self.qd_des = np.zeros_like(self.qd_des)
         self.qdd_des = np.zeros_like(self.qdd_des)
@@ -211,7 +211,7 @@ class Robot:
 
 
     def set_joint_traj(self, 
-        traj: FloatArray,
+        joint_traj: FloatArray,
         tf: float,
         ti: float | None = None,
     ) -> None:
@@ -236,10 +236,10 @@ class Robot:
             -Sets `self.ti` and `self.tf`.
         """
         if ti is None: ti = self.t
-        self.traj = traj
+        self.joint_traj = joint_traj
         self.ti = ti
         self.tf = tf
-        self.freq = 1.0 / ((tf - ti) / (traj.shape[1] - 1))
+        self.freq = 1.0 / ((tf - ti) / (joint_traj.shape[1] - 1))
 
         self.tracking_mode = TrackingMode.TRAJ
 
@@ -285,10 +285,10 @@ class Robot:
         - Assumes self.T has shape (3, N, n) and self.freq is the sampling frequency (Hz) of the trajectory.
         - Times outside [self.ti, self.ti + (N-1)/self.freq] are clamped to the first/last sample.
         """
-        T = self.traj
+        T = self.joint_traj
 
         s = (self.t - self.ti) * self.freq
-        N = self.traj.shape[1]
+        N = self.joint_traj.shape[1]
 
         if s <= 0.0:
             i0 = i1 = 0
@@ -319,8 +319,8 @@ class Robot:
             Control efforts.
         """
 
-        q = self.q; qd = self.qd; qdd = self.qdd
-        q_des = self.q_des; qd_des = self.qd_des; qdd_des = self.qdd_des
+        q, qd, qdd = self.q, self.qd, self.qdd
+        q_des, qd_des, qdd_des = self.q_des, self.qd_des, self.qdd_des
 
         match self.controller_mode:
             case ControllerMode.CT:
@@ -329,7 +329,7 @@ class Robot:
                 dt = self.t - self.t_prev
                 tau = self.ctrl.pid(q, qd, q_des, qd_des, dt)
             case _:
-                tau = np.zeros(self.kin.n, dtype=npu.dtype)
+                tau = np.zeros(self.n, dtype=npu.dtype)
 
         return tau
     
@@ -337,20 +337,32 @@ class Robot:
     def setup_quintic_traj(self,
         q_des: FloatArray,
         q: FloatArray | None = None,
-        ti: float = 0.0,
+        ti: float | None = None,
         tf: float  = 10.0,
         freq: float = 100.0,
-    ) -> None:
+    ) -> FloatArray:
 
         if q is None: q = self.q
-        T = self.planner.quintic_trajs(q, q_des, ti, tf, freq)
-        self.set_joint_traj(T, tf=tf, ti=ti)
+        if ti is None: ti = self.t
+        joint_traj = self.planner.quintic_trajs(q, q_des, ti, tf, freq)
+        self.set_joint_traj(joint_traj, tf=tf, ti=ti)
+        return joint_traj
 
 
-    def get_ee_traj(self) -> FloatArray:
-        T = self.traj
-        T_wf_traj = self.kin.batch_forward_kinematics(T[0])
-        Q_EF = T_wf_traj[:, -1, :3, 3]
-        self.Q_EF_np = Q_EF
+    def get_poses(self) -> FloatArray:
+        """
+        Get end-effector pose trajectory as position and quaternion.
 
-        return self.Q_EF_np
+        Returns
+        -------
+        poses : ndarray, shape (N, 7)
+            End-effector poses along the trajectory.
+            pos[:, :3]: position.
+            pos[:, 3:]: quaternion [w, x, y, z].
+
+        """
+        joint_traj = self.joint_traj
+        T_wf_traj = self.kin.batch_forward_kinematics(joint_traj[0])
+        T_w_ee_traj = T_wf_traj[:, -1]        
+        self.poses = tfm.transform_to_pos_quat(T_w_ee_traj)
+        return self.poses

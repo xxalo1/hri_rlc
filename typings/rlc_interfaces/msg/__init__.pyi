@@ -8,7 +8,7 @@ __all__ = [
     "FrameStates",
     "JointEffortCmd",
     "JointStateSim",
-    "PlannedTrajectory",
+    "PlannedJointTrajectory",
     "EeTrajPoint",
     "EeTrajectory",
 ]
@@ -84,7 +84,7 @@ class JointStateSim:
     ) -> None: ...
 
 
-class PlannedTrajectory:
+class PlannedJointTrajectory:
     trajectory_id: str
     trajectory: JointTrajectory
     execute_immediately: bool
