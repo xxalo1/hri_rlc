@@ -6,13 +6,17 @@ import mujoco as mj
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from std_srvs.srv import SetBool, Trigger
+from rosgraph_msgs.msg import Clock
 
-from rlc_interfaces.msg import JointEffortCmd, JointStateSim
-from common_utils import numpy_util as npu
-from rlc_common import endpoints
 from sim_env.mujoco.env import Gen3Env
+from common_utils import numpy_util as npu
+from common_utils import ros_util as ru
 
+from rlc_common.endpoints import (
+    TOPICS, SERVICES, ACTIONS, 
+    JointStateMsg, JointEffortCmdMsg,
+    ResetSimSrv, PauseSimSrv,
+)
 
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
@@ -25,6 +29,7 @@ class Gen3MujocoSimNode(Node):
         self.realtime_factor = self.get_parameter("realtime_factor").get_parameter_value().double_value
 
         self.env = Gen3Env.from_default_scene()
+        self.env.reset()
 
         self.joint_names = list(self.env.active_joints.keys())
         self.n_joints = len(self.joint_names)
@@ -33,14 +38,28 @@ class Gen3MujocoSimNode(Node):
         self.paused = False
 
         self.torque_sub = self.create_subscription(
-            JointEffortCmd,
-            endpoints.EFFORT_COMMAND_TOPIC,
+            TOPICS.effort_cmd.type,
+            TOPICS.effort_cmd.name,
             self.torque_cmd_callback,
             10,
         )
 
         self.joint_state_pub = self.create_publisher(
-            JointStateSim, endpoints.JOINT_STATE_TOPIC, 10
+            TOPICS.joint_state.type, 
+            TOPICS.joint_state.name, 
+            10,
+        )
+        self.clock_pub = self.create_publisher(Clock, "/clock", 10)
+
+        self.reset_srv = self.create_service(
+            SERVICES.reset_sim.type,
+            SERVICES.reset_sim.name,
+            self.reset_service_callback,
+        )
+        self.pause_srv = self.create_service(
+            SERVICES.pause_sim.type,
+            SERVICES.pause_sim.name,
+            self.pause_service_callback,
         )
 
         self.publish_period = 1.0 / self.publish_rate
@@ -48,27 +67,13 @@ class Gen3MujocoSimNode(Node):
             self.publish_period, self.publish_joint_state
         )
 
-        self.reset_srv = self.create_service(
-            Trigger,
-            endpoints.RESET_SIM_SERVICE,
-            self.reset_service_callback,
-        )
-
-        self.pause_srv = self.create_service(
-            SetBool,
-            endpoints.PAUSE_SIM_SERVICE,
-            self.pause_service_callback,
-        )
-
-        self.env.reset()
-
         self.get_logger().info(
             f"Headless Gen3 MuJoCo sim ready with {self.n_joints} joints. "
             f"publish_rate={self.publish_rate} Hz, realtime_factor={self.realtime_factor}"
         )
 
 
-    def reset_service_callback(self, request: Trigger.Request, response: Trigger.Response):
+    def reset_service_callback(self, request: ResetSimSrv.Request, response: ResetSimSrv.Response):
         """
         Reset the simulation.
         """
@@ -78,7 +83,7 @@ class Gen3MujocoSimNode(Node):
         return response
 
 
-    def pause_service_callback(self, request: SetBool.Request, response: SetBool.Response):
+    def pause_service_callback(self, request: PauseSimSrv.Request, response: PauseSimSrv.Response):
         """
         Pause/unpause physics stepping.
         """
@@ -89,7 +94,7 @@ class Gen3MujocoSimNode(Node):
         return response
 
 
-    def torque_cmd_callback(self, msg: JointEffortCmd) -> None:
+    def torque_cmd_callback(self, msg: JointEffortCmdMsg) -> None:
         tau = np.asarray(msg.effort, dtype=npu.dtype)
         if tau.size != self.n_joints:
             self.get_logger().warn(
@@ -103,16 +108,20 @@ class Gen3MujocoSimNode(Node):
         obs, t = self.env.observe()
         q = obs["qpos"]
         qd = obs["qvel"]
+        qdd = obs["qacc"]
 
-        msg = JointStateSim()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.sim_time = t
+        msg = JointStateMsg()
+        msg.header.stamp = ru.to_ros_time(t)
         msg.name = self.joint_names
         msg.position = q.tolist()
         msg.velocity = qd.tolist()
+        msg.acceleration = qdd.tolist()
         msg.effort = self.tau_cmd.tolist()
 
+        clock_msg = Clock()
+        clock_msg.clock = ru.to_ros_time(t)
         self.joint_state_pub.publish(msg)
+        self.clock_pub.publish(clock_msg)
 
 
 def main(args=None) -> None:

@@ -8,9 +8,14 @@ import rclpy
 from rclpy.node import Node
 from rlc_interfaces.msg import JointStateSim
 from std_srvs.srv import Trigger, SetBool
-
-from rlc_common import endpoints
 from sim_env.mujoco.env import Gen3Env
+from common_utils import ros_util as ru
+
+from rlc_common.endpoints import (
+    TOPICS, SERVICES, ACTIONS, 
+    JointStateMsg, JointEffortCmdMsg,
+    ResetSimSrv, PauseSimSrv,
+)
 
 
 class Gen3MujocoVizNode(Node):
@@ -41,38 +46,44 @@ class Gen3MujocoVizNode(Node):
 
         # Subscribe to joint states from the headless sim
         self.joint_state_sub = self.create_subscription(
-            JointStateSim,
-            endpoints.JOINT_STATE_TOPIC,
+            TOPICS.joint_state.type,
+            TOPICS.joint_state.name,
             self.joint_state_callback,
             10,
         )
 
-        self.reset_client = self.create_client(Trigger, endpoints.RESET_SIM_SERVICE)
-        self.pause_client = self.create_client(SetBool, endpoints.PAUSE_SIM_SERVICE)
-
-        self.get_logger().info(
-            f"Gen3 MuJoCo viz node ready. Listening to {endpoints.JOINT_STATE_TOPIC}"
+        self.reset_client = self.create_client(
+            SERVICES.reset_sim.type, 
+            SERVICES.reset_sim.name
+        )
+        self.pause_client = self.create_client(
+            SERVICES.pause_sim.type, 
+            SERVICES.pause_sim.name
         )
 
+        self.get_logger().info(
+            f"Gen3 MuJoCo viz node ready. Listening to {TOPICS.joint_state.name}"
+        )
 
+    
     def key_callback(self, keycode):
         c = chr(keycode)
         match c:
             case " ":
                 if self.pause_client.wait_for_service(timeout_sec=1.0):
-                    req = SetBool.Request()
+                    req = PauseSimSrv.Request()
                     req.data = False
                     future = self.pause_client.call_async(req)
                     self.get_logger().info("pause/unpause service called")
 
             case "r" | "R":
                 if self.reset_client.wait_for_service(timeout_sec=1.0):
-                    req = Trigger.Request()
+                    req = ResetSimSrv.Request()
                     future = self.reset_client.call_async(req)
                     self.get_logger().info("Reset service called")
                 
                 if self.pause_client.wait_for_service(timeout_sec=1.0):
-                    req = SetBool.Request()
+                    req = PauseSimSrv.Request()
                     req.data = False
                     future = self.pause_client.call_async(req)
                     self.get_logger().info("pause/unpause service called")
@@ -93,15 +104,15 @@ class Gen3MujocoVizNode(Node):
                 self.show_com = not self.show_com
 
 
-    def joint_state_callback(self, msg: JointStateSim) -> None:
+    def joint_state_callback(self, msg: JointStateMsg) -> None:
         """
         Update qpos_target from the latest JointStateSim message.
 
         Assumes msg.name entries match MuJoCo joint names.
         """
+        target_t = ru.from_ros_time(msg.header.stamp)
         qpos_target = np.asarray(msg.position, dtype=self.qpos_target.dtype)
         qvel_target = np.asarray(msg.velocity, dtype=self.qvel_target.dtype)
-        target_t = msg.sim_time
         self.qpos_target = qpos_target
         self.qvel_target = qvel_target
         self.target_t = target_t

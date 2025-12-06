@@ -4,19 +4,21 @@ import rclpy
 from rclpy.node import Node
 import numpy as np
 from geometry_msgs.msg import Pose
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
 
 from robots.kinova_gen3 import init_kinova_robot
-from common_utils import FloatArray
 from common_utils import numpy_util as npu
-from common_utils.buffers import RingBuffer, BufferSet
+from common_utils import ros_util as ru
 from common_utils import transforms as tf
-from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from common_utils.buffers import RingBuffer, BufferSet
+
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
     JointStateMsg, JointEffortCmdMsg, 
     PlannedTrajMsg, EeTrajMsg, FrameStatesMsg,
-    FollowTrajAction,
+    FollowTrajAction, ControllerStateMsg,
     )
+
 class RLCMonitorNode(Node):
     """RLC Monitor Node for monitoring robot state and publishing diagnostics."""
 
@@ -26,12 +28,10 @@ class RLCMonitorNode(Node):
         self.declare_parameter('capacity', 10000)
         self.declare_parameter('publish_rate', 10.0)  # Hz
         self.freq = self.get_parameter('publish_rate').get_parameter_value().double_value
-        self.capacity = self.get_parameter('capacity').get_parameter_value().double_value
+        self.capacity = self.get_parameter('capacity').get_parameter_value().integer_value
         
-        # Initialize Kinova Gen3 Robot
         self.robot = init_kinova_robot()
 
-        # Initialize buffers for storing robot state
         self.state_buffer = BufferSet(capacity=self.capacity)
 
         self.joint_state_sub = self.create_subscription(
@@ -41,15 +41,9 @@ class RLCMonitorNode(Node):
             10,
         )
         self.controller_state_sub = self.create_subscription(
-            TOPICS.effort_cmd.type,
-            TOPICS.effort_cmd.name,
+            TOPICS.controller_state.type,
+            TOPICS.controller_state.name,
             self.controller_state_callback,
-            10,
-        )
-        self.planned_traj_sub = self.create_subscription(
-            TOPICS.planned_traj.type,
-            TOPICS.planned_traj.name,
-            self.planned_traj_callback,
             10,
         )
         self.frame_states_pub = self.create_publisher(
@@ -69,60 +63,89 @@ class RLCMonitorNode(Node):
             n, self.publish_frame_states
             )
 
+
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Callback for joint state messages."""
         # Process joint state message and store in buffer
+        t = ru.from_ros_time(msg.header.stamp)
         q = np.asarray(msg.position)
         qd = np.asarray(msg.velocity)
+        qdd = np.asarray(msg.acceleration)
         tau_sim = np.asarray(msg.effort)
-        t_sim = msg.sim_time
 
         # update current states
-        self.q = q
-        self.qd = qd
-        self.tau_sim = tau_sim
-        self.t_sim = t_sim
+        self.robot.set_joint_state(q, qd, qdd, t)
 
         # Store data in buffers
-        self.state_buffer.append('joint_positions', t_sim, q)
-        self.state_buffer.append('joint_velocities', t_sim, qd)
-        self.state_buffer.append('joint_efforts', t_sim, tau_sim)
+        buf = self.state_buffer
+        buf.append('joint_positions', t, q)
+        buf.append('joint_velocities', t, qd)
+        buf.append('joint_accelerations', t, qdd)
+        buf.append('joint_efforts', t, tau_sim)
 
 
-    def controller_state_callback(self, msg: JointEffortCmdMsg) -> None:
-        """Callback for controller effort command messages."""
-        tau_cmd = np.asarray(msg.effort)
-        t_ctrl = msg.time_sim
+    def controller_state_callback(self, msg: ControllerStateMsg) -> None:
+        """
+        Callback for JointTrajectoryControllerState messages from the Gen3 controller.
 
-        # update current controller efforts
-        self.tau_cmd = tau_cmd
-        self.t_ctrl = t_ctrl
+        Reads desired (reference), feedback, error joint states and the controller
+        output effort, converts them to numpy, updates the latest controller fields,
+        and stores them in the state buffer for logging/plotting.
+        """
+        # Controller time (sim time) from header
+        t = ru.from_ros_time(msg.header.stamp)
 
-        # Store data in buffers
-        self.state_buffer.append('controller_efforts', t_ctrl, tau_cmd)
+        # Desired / reference state
+        ref = msg.reference
+        q_des   = np.asarray(ref.positions,      dtype=npu.dtype)
+        qd_des  = np.asarray(ref.velocities,     dtype=npu.dtype)
+        qdd_des = np.asarray(ref.accelerations,  dtype=npu.dtype)
 
+        # Measured / feedback state
+        fb = msg.feedback
+        q   = np.asarray(fb.positions,      dtype=npu.dtype)
+        qd  = np.asarray(fb.velocities,     dtype=npu.dtype)
+        qdd = np.asarray(fb.accelerations,  dtype=npu.dtype)
 
-    def planned_traj_callback(self, msg: PlannedTrajMsg) -> None:
-        """Callback for planned trajectory messages."""
-        # Process planned trajectory message and store in buffer
-        times = np.asarray(msg.trajectory.points.)
-        positions = npu.msgs_to_numpy_array(msg.positions)
-        velocities = npu.msgs_to_numpy_array(msg.velocities)
-        accelerations = npu.msgs_to_numpy_array(msg.accelerations)
+        # Error (as sent by the controller)
+        err = msg.error
+        e  = np.asarray(err.positions,  dtype=npu.dtype)
+        ed = np.asarray(err.velocities, dtype=npu.dtype)
 
-        # Store data in buffers
-        self.state_buffer.append('planned_traj_times', times)
-        self.state_buffer.append('planned_traj_positions', positions)
-        self.state_buffer.append('planned_traj_velocities', velocities)
-        self.state_buffer.append('planned_traj_accelerations', accelerations)
+        # Controller output (torque command)
+        tau = np.asarray(msg.output.effort, dtype=npu.dtype)
+
+        # Update latest controller-related fields on this node (optional, but handy)
+        self.q_ctrl      = q
+        self.qd_ctrl     = qd
+        self.qdd_ctrl    = qdd
+        self.q_des_ctrl  = q_des
+        self.qd_des_ctrl = qd_des
+        self.qdd_des_ctrl= qdd_des
+        self.e_ctrl      = e
+        self.ed_ctrl     = ed
+        self.tau_cmd     = tau
+        self.t_ctrl      = t
+
+        # Store data in buffers for logging / plotting
+        buf = self.state_buffer
+        buf.append("ctrl_q",        t, q)
+        buf.append("ctrl_qd",       t, qd)
+        buf.append("ctrl_qdd",      t, qdd)
+        buf.append("ctrl_q_des",    t, q_des)
+        buf.append("ctrl_qd_des",   t, qd_des)
+        buf.append("ctrl_qdd_des",  t, qdd_des)
+        buf.append("ctrl_e",        t, e)
+        buf.append("ctrl_ed",       t, ed)
+        buf.append("ctrl_efforts",  t, tau)
 
 
     def publish_frame_states(self) -> None:
         """Publish the current frame states of the robot."""
-        T_wf = self.robot.kin.forward_kinematics(self.q)
+        T_wf = self.robot.kin.forward_kinematics()
         pos, quat = tf.transform_to_pos_quat(T_wf)
         msg = FrameStatesMsg()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = ru.to_ros_time(self.robot.t)
         msg.header.frame_id = "world"
 
         poses: list[Pose] = []
@@ -138,8 +161,8 @@ class RLCMonitorNode(Node):
             poses.append(pose)
 
         msg.poses = poses
-
         self.frame_states_pub.publish(msg)
+
 
 
 def main():
