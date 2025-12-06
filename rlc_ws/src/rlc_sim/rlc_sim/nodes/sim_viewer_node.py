@@ -6,7 +6,7 @@ import mujoco as mj
 from mujoco import viewer
 import rclpy
 from rclpy.node import Node
-from rlc_interfaces.msg import JointStateSim
+from rlc_interfaces.msg import JointState
 from std_srvs.srv import Trigger, SetBool
 from sim_env.mujoco.env import Gen3Env
 from common_utils import ros_util as ru

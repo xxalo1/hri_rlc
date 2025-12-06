@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
+from trajectory_msgs.msg import pos
 from control_msgs.action import FollowJointTrajectory
 from control_msgs.msg import JointTrajectoryControllerState
+from sensor_msgs.msg import JointState
 from rlc_interfaces.msg import (
     JointEffortCmd, 
-    JointStateSim, 
     PlannedJointTrajectory, 
     FrameStates, 
     PlannedEeTrajectory,
@@ -42,7 +43,7 @@ MON_NS   = "mon/gen3"
 
 @dataclass(frozen=True)
 class TopicEndpoints:
-    joint_state: Endpoint[JointStateSim]
+    joint_state: Endpoint[JointState]
     effort_cmd: Endpoint[JointEffortCmd]
     planned_joint_traj: Endpoint[PlannedJointTrajectory]
     frame_states: Endpoint[FrameStates]
@@ -70,7 +71,7 @@ class ActionEndpoints:
 
 
 TOPICS = TopicEndpoints(
-    joint_state=Endpoint(f"{SIM_NS}/joint_state", JointStateSim),
+    joint_state=Endpoint(f"{SIM_NS}/joint_state", JointState),
     effort_cmd=Endpoint(f"{CTRL_NS}/effort_cmd", JointEffortCmd),
     planned_joint_traj=Endpoint(f"{PLAN_NS}/planned_joint_traj", PlannedJointTrajectory),
     frame_states=Endpoint(f"{MON_NS}/frame_states", FrameStates),

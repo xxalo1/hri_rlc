@@ -7,7 +7,7 @@ __all__ = [
     "CartesianState",
     "FrameStates",
     "JointEffortCmd",
-    "JointStateSim",
+    "JointState",
     "PlannedJointTrajectory",
     "EeTrajPoint",
     "EeTrajectory",
@@ -61,7 +61,7 @@ class JointEffortCmd:
     ) -> None: ...
 
 
-class JointStateSim:
+class JointState:
     header: Header
     sim_time: float
     name: list[str]
