@@ -2,18 +2,15 @@ from __future__ import annotations
 
 import rclpy
 from rclpy.node import Node
-import numpy as np
-from geometry_msgs.msg import PoseArray, Pose
 
 from robots.kinova_gen3 import init_kinova_robot
-from common_utils import numpy_util as npu
 from common_utils import ros_util as ru
 from common_utils import transforms as tfu
 from common_utils.buffers import RingBuffer, BufferSet
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
-    JointStateMsg, FrameStatesMsg, 
+    JointStateMsg,
     ControllerStateMsg,
     )
 
@@ -59,20 +56,21 @@ class RLCMonitorNode(Node):
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Callback for joint state messages."""
         # Process joint state message and store in buffer
-        t = ru.from_ros_time(msg.header.stamp)
-        q = np.asarray(msg.position)
-        qd = np.asarray(msg.velocity)
-        qdd = np.asarray(msg.acceleration)
-        tau_sim = np.asarray(msg.effort)
+
+        joint_state = ru.from_joint_state_msg(msg)
+
+        t = joint_state.stamp
+        q = joint_state.positions
+        qd = joint_state.velocities
+        tau_sim = joint_state.efforts
 
         # update current states
-        self.robot.set_joint_state(q, qd, qdd, t)
+        self.robot.set_joint_state(q=q, qd=qd, t=t)
 
         # Store data in buffers
         buf = self.state_buffer
         buf.append('joint_positions', t, q)
         buf.append('joint_velocities', t, qd)
-        buf.append('joint_accelerations', t, qdd)
         buf.append('joint_efforts', t, tau_sim)
 
 
@@ -84,40 +82,19 @@ class RLCMonitorNode(Node):
         output effort, converts them to numpy, updates the latest controller fields,
         and stores them in the state buffer for logging/plotting.
         """
-        # Controller time (sim time) from header
-        t = ru.from_ros_time(msg.header.stamp)
+        ctrl_state = ru.from_joint_ctrl_state_msg(msg)
+        t = ctrl_state.stamp
 
-        # Desired / reference state
-        ref = msg.reference
-        q_des   = np.asarray(ref.positions,      dtype=npu.dtype)
-        qd_des  = np.asarray(ref.velocities,     dtype=npu.dtype)
-        qdd_des = np.asarray(ref.accelerations,  dtype=npu.dtype)
-
-        # Measured / feedback state
-        fb = msg.feedback
-        q   = np.asarray(fb.positions,      dtype=npu.dtype)
-        qd  = np.asarray(fb.velocities,     dtype=npu.dtype)
-        qdd = np.asarray(fb.accelerations,  dtype=npu.dtype)
-
-        # Error (as sent by the controller)
-        err = msg.error
-        e  = np.asarray(err.positions,  dtype=npu.dtype)
-        ed = np.asarray(err.velocities, dtype=npu.dtype)
-
-        # Controller output (torque command)
-        tau = np.asarray(msg.output.effort, dtype=npu.dtype)
-
-        # Store data in buffers for logging / plotting
         buf = self.state_buffer
-        buf.append("ctrl_q",        t, q)
-        buf.append("ctrl_qd",       t, qd)
-        buf.append("ctrl_qdd",      t, qdd)
-        buf.append("ctrl_q_des",    t, q_des)
-        buf.append("ctrl_qd_des",   t, qd_des)
-        buf.append("ctrl_qdd_des",  t, qdd_des)
-        buf.append("ctrl_e",        t, e)
-        buf.append("ctrl_ed",       t, ed)
-        buf.append("ctrl_efforts",  t, tau)
+        buf.append("ctrl_q",        t, ctrl_state.q)
+        buf.append("ctrl_qd",       t, ctrl_state.qd)
+        buf.append("ctrl_qdd",      t, ctrl_state.qdd)
+        buf.append("ctrl_q_des",    t, ctrl_state.q_des)
+        buf.append("ctrl_qd_des",   t, ctrl_state.qd_des)
+        buf.append("ctrl_qdd_des",  t, ctrl_state.qdd_des)
+        buf.append("ctrl_e",        t, ctrl_state.e)
+        buf.append("ctrl_ed",       t, ctrl_state.ed)
+        buf.append("ctrl_efforts",  t, ctrl_state.tau)
 
 
     def publish_frame_states(self) -> None:
@@ -127,10 +104,8 @@ class RLCMonitorNode(Node):
         msg = ru.to_pose_array_msg(
             self.robot.t,
             poses,
-            frame_id="world",
         )
         self.frame_states_pub.publish(msg)
-
 
 
 def main():

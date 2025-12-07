@@ -1,29 +1,35 @@
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose, Twist, Accel
-from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory, MultiDOFJointTrajectory
 from builtin_interfaces.msg import Duration
 
 __all__ = [
-    "CartesianState",
     "FrameStates",
     "JointEffortCmd",
-    "JointState",
     "PlannedJointTrajectory",
-    "EeTrajPoint",
-    "EeTrajectory",
+    "CurrentPlan",
+    "PlannedCartesianTrajectory"
 ]
 
 
-class CartesianState:
-    header: Header
-    pose: Pose
-    twist: Twist
+class CurrentPlan:
+    plan_id: str
+    label: str
+    status: int
+    stamp: Duration 
+    STATUS_NONE: int = ...
+    STATUS_PENDING: int = ...
+    STATUS_ACTIVE: int = ...
+    STATUS_SUCCEEDED: int = ...
+    STATUS_ABORTED: int = ...
+    STATUS_CANCELED: int = ...
 
     def __init__(
         self,
-        header: Header = ...,
-        pose: Pose = ...,
-        twist: Twist = ...,
+        plan_id: str = ...,
+        label: str = ...,
+        status: int = ...,
+        stamp: Duration = ...,  # Time
         *,
         check_fields: bool | None = ...,
     ) -> None: ...
@@ -61,29 +67,6 @@ class JointEffortCmd:
     ) -> None: ...
 
 
-class JointState:
-    header: Header
-    sim_time: float
-    name: list[str]
-    position: list[float]
-    velocity: list[float]
-    acceleration: list[float]
-    effort: list[float]
-
-    def __init__(
-        self,
-        header: Header = ...,
-        sim_time: float = ...,
-        name: list[str] = ...,
-        position: list[float] = ...,
-        velocity: list[float] = ...,
-        acceleration: list[float] = ...,
-        effort: list[float] = ...,
-        *,
-        check_fields: bool | None = ...,
-    ) -> None: ...
-
-
 class PlannedJointTrajectory:
     trajectory_id: str
     trajectory: JointTrajectory
@@ -101,31 +84,20 @@ class PlannedJointTrajectory:
     ) -> None: ...
 
 
-class EeTrajPoint:
-    time_from_start: Duration
-    pose: Pose
-    twist: Twist
-    accel: Accel
+class PlannedCartesianTrajectory:
+    trajectory_id: str
+    trajectory: MultiDOFJointTrajectory
+    execute_immediately: bool
+    label: str
+    derived_from_joint: bool
 
     def __init__(
         self,
-        time_from_start: Duration = ...,
-        pose: Pose = ...,
-        twist: Twist = ...,
-        accel: Accel = ...,
-        *,
-        check_fields: bool | None = ...,
-    ) -> None: ...
-
-
-class EeTrajectory:
-    header: Header
-    points: list[EeTrajPoint]
-
-    def __init__(
-        self,
-        header: Header = ...,
-        points: list[EeTrajPoint] = ...,
+        trajectory_id: str = ...,
+        trajectory: MultiDOFJointTrajectory = ...,
+        execute_immediately: bool = ...,
+        label: str = ...,
+        derived_from_joint: bool = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...

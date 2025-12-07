@@ -7,8 +7,8 @@ float64[] target_positions
 # Desired time to reach the target from the start of the plan.
 builtin_interfaces/Duration time_from_start
 
-# Number of intermediate points to sample between start and goal.
-int32 n_points
+# frequency of the planned trajectory (Hz).
+float64 frequency
 
 # If true, trigger execution immediately after planning.
 bool execute_immediately

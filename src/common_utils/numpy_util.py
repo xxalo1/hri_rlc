@@ -11,7 +11,7 @@ dtype = np.float64
 
 ArrayT = TypeVar("ArrayT", FloatArray, torch.Tensor)
 
-def to_array(a: Sequence[float]) -> np.ndarray:
+def to_array(a: Sequence) -> np.ndarray:
     """Convert input to a NumPy array if it is not already one."""
     return np.asarray(a, dtype=dtype).reshape(-1)
 
