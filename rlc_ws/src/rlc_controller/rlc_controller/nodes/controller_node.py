@@ -31,11 +31,7 @@ class Gen3ControllerNode(Node):
             [np.pi/4, -np.pi/2, np.pi/3, -np.pi/3, 0.0, np.pi/6, 0.0], 
             dtype=npu.dtype
         )
-        self.robot.setup_quintic_traj(q_des, tf=5.0, freq=1000.0)
-
-        self.traj_duration = 0.0
-        self.traj_start_t = 0.0
-        self._active_goal_handle = None
+        self.robot.setup_quintic_traj(q_des, duration=5.0, freq=1000.0)
 
         self.declare_parameter("controller_rate_hz", 200.0)
         self.controller_rate = (
@@ -87,6 +83,7 @@ class Gen3ControllerNode(Node):
             f"Gen3 controller ready with {self.robot.n} joints. "
             f"controller_rate={self.controller_rate} Hz"
         )
+
 
     def set_gains_callback(self, 
         request: SetControllerGainsSrv.Request, 
@@ -215,7 +212,7 @@ class Gen3ControllerNode(Node):
         feedback = FollowTrajAction.Feedback()
         self.get_logger().info(
             f"Executing FollowTrajAction: "
-            f"{len(traj_msg.points)} points over {self.traj_duration:.3f} s"
+            f"{len(traj_msg.points)} points over {self.robot.tf - self.robot.ti:.3f} s"
         )
 
         robot = self.robot

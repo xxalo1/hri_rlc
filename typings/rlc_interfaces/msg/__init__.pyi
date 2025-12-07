@@ -1,7 +1,7 @@
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose, Twist, Accel
 from trajectory_msgs.msg import JointTrajectory, MultiDOFJointTrajectory
-from builtin_interfaces.msg import Duration
+from builtin_interfaces.msg import Time
 
 __all__ = [
     "FrameStates",
@@ -16,7 +16,8 @@ class CurrentPlan:
     plan_id: str
     label: str
     status: int
-    stamp: Duration 
+    stamp: Time 
+    trajectory_id: str
     STATUS_NONE: int = ...
     STATUS_PENDING: int = ...
     STATUS_ACTIVE: int = ...
@@ -29,7 +30,8 @@ class CurrentPlan:
         plan_id: str = ...,
         label: str = ...,
         status: int = ...,
-        stamp: Duration = ...,  # Time
+        stamp: Time = ...,  # Time
+        trajectory_id: str = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...

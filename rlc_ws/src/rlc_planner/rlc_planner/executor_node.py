@@ -15,7 +15,8 @@ from trajectory_msgs.msg import JointTrajectory, MultiDOFJointTrajectory
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
-    PlannedJointTrajMsg, ExecuteTrajSrv, PlannedCartTrajMsg
+    PlannedJointTrajMsg, ExecuteTrajSrv, PlannedCartTrajMsg,
+    CurrentPlan
 )
 
 class TrajKind(Enum):
@@ -124,13 +125,13 @@ class TrajectoryExecutorNode(Node):
         if cached.kind == TrajKind.JOINT:
             return self._send_joint_goal(
                 trajectory_id,
-                cached.traj,   # JointTrajectory
+                cached.traj, # type: ignore
                 f"execute {cached.label or 'joint traj'} ({trajectory_id})",
             )
         else:
             return self._send_cart_goal(
                 trajectory_id,
-                cached.traj,   # EeTrajectory
+                cached.traj, # type: ignore
                 f"execute {cached.label or 'cart traj'} ({trajectory_id})",
             )
 
@@ -233,7 +234,6 @@ class TrajectoryExecutorNode(Node):
 
         send_future = self._traj_action_client.send_goal_async(
             goal_msg,
-            feedback_callback=self._on_feedback,
         )
         rclpy.spin_until_future_complete(self, send_future)
         goal_handle = send_future.result()
@@ -265,7 +265,7 @@ class TrajectoryExecutorNode(Node):
         trajectory_id: str,
         trajectory: MultiDOFJointTrajectory,
         label: str,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str]: # type: ignore
         """Send a trajectory to the controller and wait for completion."""
         pass # TODO: implement cartesian trajectory execution
 

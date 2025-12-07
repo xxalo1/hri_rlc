@@ -14,7 +14,7 @@ from common_utils import ros_util as ru
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
-    JointStateMsg, JointEffortCmdMsg,
+    JointEffortCmdMsg,
     ResetSimSrv, PauseSimSrv,
 )
 
@@ -25,8 +25,13 @@ class Gen3MujocoSimNode(Node):
         self.declare_parameter("publish_rate_hz", 200.0)
         self.declare_parameter("realtime_factor", 1.0)
 
-        self.publish_rate = self.get_parameter("publish_rate_hz").get_parameter_value().double_value
-        self.realtime_factor = self.get_parameter("realtime_factor").get_parameter_value().double_value
+        self.publish_rate = self.get_parameter(
+            "publish_rate_hz"
+            ).get_parameter_value().double_value
+        
+        self.realtime_factor = self.get_parameter(
+            "realtime_factor"
+            ).get_parameter_value().double_value
 
         self.env = Gen3Env.from_default_scene()
         self.env.reset()
@@ -73,7 +78,10 @@ class Gen3MujocoSimNode(Node):
         )
 
 
-    def reset_service_callback(self, request: ResetSimSrv.Request, response: ResetSimSrv.Response):
+    def reset_service_callback(self, 
+        request: ResetSimSrv.Request, 
+        response: ResetSimSrv.Response
+    ) -> ResetSimSrv.Response:
         """
         Reset the simulation.
         """
@@ -83,7 +91,10 @@ class Gen3MujocoSimNode(Node):
         return response
 
 
-    def pause_service_callback(self, request: PauseSimSrv.Request, response: PauseSimSrv.Response):
+    def pause_service_callback(self, 
+        request: PauseSimSrv.Request, 
+        response: PauseSimSrv.Response
+    ) -> PauseSimSrv.Response:
         """
         Pause/unpause physics stepping.
         """
@@ -95,7 +106,8 @@ class Gen3MujocoSimNode(Node):
 
 
     def torque_cmd_callback(self, msg: JointEffortCmdMsg) -> None:
-        tau = np.asarray(msg.effort, dtype=npu.dtype)
+        state = ru.from_joint_effort_cmd_msg(msg)
+        tau = state.efforts
         if tau.size != self.n_joints:
             self.get_logger().warn(
                 f"Received tau size {tau.size}, expected {self.n_joints}"
@@ -110,13 +122,13 @@ class Gen3MujocoSimNode(Node):
         qd = obs["qvel"]
         qdd = obs["qacc"]
 
-        msg = JointStateMsg()
-        msg.header.stamp = ru.to_ros_time(t)
-        msg.name = self.joint_names
-        msg.position = q.tolist()
-        msg.velocity = qd.tolist()
-        msg.acceleration = qdd.tolist()
-        msg.effort = self.tau_cmd.tolist()
+        msg = ru.to_joint_state_msg(
+            stamp=t,
+            joint_names=self.joint_names,
+            positions=q,
+            velocities=qd,
+            efforts=self.tau_cmd,
+        )
 
         clock_msg = Clock()
         clock_msg.clock = ru.to_ros_time(t)

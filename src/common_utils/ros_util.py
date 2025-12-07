@@ -25,6 +25,7 @@ from rbt_core.planning import CartesianTraj, JointTraj
 from common_utils import FloatArray
 from common_utils import numpy_util as npu  
 
+
 class JointStateData(NamedTuple):
     positions: FloatArray
     velocities: FloatArray | None
@@ -71,8 +72,13 @@ class JointTrajData(NamedTuple):
     accelerations: FloatArray | None  # (N, n) or None
 
     def __post_init__(self) -> None:
-        if (self.velocities is not None) and (self.accelerations is not None):
-            self.traj = np.stack([self.positions, self.velocities, self.accelerations], axis=0)
+            if (self.velocities is not None) and (self.accelerations is not None):
+                self.traj = JointTraj(
+                    t = self.time_from_start,
+                    q = self.positions,
+                    qd = self.velocities,
+                    qdd = self.accelerations,
+                )
 
 # ---------------------------------------------------------------------------
 # Time / Duration helpers
