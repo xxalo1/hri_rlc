@@ -28,7 +28,7 @@ from common_utils import numpy_util as npu
 
 class JointStateData(NamedTuple):
     positions: FloatArray
-    velocities: FloatArray | None
+    velocities: FloatArray
     efforts: FloatArray | None
     stamp: float
     joint_names: list[str]
@@ -80,6 +80,7 @@ class JointTrajData(NamedTuple):
                     qdd = self.accelerations,
                 )
 
+
 class PoseArrayData(NamedTuple):
     """
     Parsed representation of a PoseArray message.
@@ -88,7 +89,7 @@ class PoseArrayData(NamedTuple):
     """
     stamp: float
     frame_id: str
-    poses: FloatArray  # (N, 7) [x, y, z, qx, qy, qz, qw]
+    poses: FloatArray  # (N, 7) [x, y, z, qw, qx, qy, qz]
 
 # ---------------------------------------------------------------------------
 # Time / Duration helpers
@@ -247,7 +248,7 @@ def to_multi_dof_traj_msg(
     time_from_start : ndarray, shape (N,) or scalar
         Time from the start of the trajectory for each time step [s].
     poses : ndarray, shape (N, 7) or (7,)
-        Poses as [x, y, z, qx, qy, qz, qw] for each time step.
+        Poses as [x, y, z, qw, qx, qy, qz] for each time step.
     frame_id : str, default "world"
         Fixed frame of the poses.
     joint_name : str, default "ee"
@@ -292,7 +293,7 @@ def to_multi_dof_traj_msg(
 
         # Pose -> Transform
 
-        x, y, z, qx, qy, qz, qw = poses[idx]
+        x, y, z, qw, qx, qy, qz = poses[idx]
         transform = Transform()
         transform.translation.x = float(x)
         transform.translation.y = float(y)
@@ -347,7 +348,7 @@ def to_pose_array_msg(
     stamp : float
         Timestamp of the message in seconds.
     poses : array, shape (N, 7)
-        poses as [x, y, z, qx, qy, qz, qw].
+        poses as [x, y, z, qw, qx, qy, qz].
     frame_id : str
         Fixed frame of the poses (default: "world").
 
@@ -372,10 +373,10 @@ def to_pose_array_msg(
         pose.position.x = p[0]
         pose.position.y = p[1]
         pose.position.z = p[2]
-        pose.orientation.x = p[3]
-        pose.orientation.y = p[4]
-        pose.orientation.z = p[5]
-        pose.orientation.w = p[6]
+        pose.orientation.w = p[3]
+        pose.orientation.x = p[4]
+        pose.orientation.y = p[5]
+        pose.orientation.z = p[6]
         poses_msg.append(pose)
 
     msg.poses = poses_msg
@@ -397,7 +398,7 @@ def from_pose_array_msg(msg: PoseArray) -> PoseArrayData:
         Container with:
         - stamp : float
         - frame_id : str
-        - poses : ndarray, shape (N, 7) as [x, y, z, qx, qy, qz, qw]
+        - poses : ndarray, shape (N, 7) as [x, y, z, qw, qx, qy, qz]
     """
 
     stamp = from_ros_time(msg.header.stamp)
@@ -408,7 +409,7 @@ def from_pose_array_msg(msg: PoseArray) -> PoseArrayData:
     else:
         poses_list = [
             [p.position.x, p.position.y, p.position.z,
-             p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
+             p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z]
             for p in msg.poses
         ]
         poses = npu.to_array(poses_list)
@@ -626,7 +627,7 @@ def from_joint_state_msg(msg: JointState) -> JointStateData:
     """
     
     positions = npu.to_array(msg.position)
-    velocities = npu.to_array(msg.velocity) if msg.velocity else None
+    velocities = npu.to_array(msg.velocity)
     efforts = npu.to_array(msg.effort) if msg.effort else None
 
     stamp = from_ros_time(msg.header.stamp)

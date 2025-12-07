@@ -142,6 +142,7 @@ def check_array_shapes(
                     f"{ref_name} second dimension ({ref_n1})."
                 )
 
+
 def validate_array_shape(
     arr: FloatArray,
     expected_shape: Sequence[int],
