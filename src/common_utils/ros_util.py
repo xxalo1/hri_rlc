@@ -80,6 +80,16 @@ class JointTrajData(NamedTuple):
                     qdd = self.accelerations,
                 )
 
+class PoseArrayData(NamedTuple):
+    """
+    Parsed representation of a PoseArray message.
+
+    All arrays are NumPy arrays (dtype=npu.dtype).
+    """
+    stamp: float
+    frame_id: str
+    poses: FloatArray  # (N, 7) [x, y, z, qx, qy, qz, qw]
+
 # ---------------------------------------------------------------------------
 # Time / Duration helpers
 # ---------------------------------------------------------------------------
@@ -370,6 +380,44 @@ def to_pose_array_msg(
 
     msg.poses = poses_msg
     return msg
+
+
+def from_pose_array_msg(msg: PoseArray) -> PoseArrayData:
+    """
+    Convert a PoseArray message to NumPy arrays.
+
+    Parameters
+    ----------
+    msg : PoseArray
+        Input PoseArray message.
+
+    Returns
+    -------
+    PoseArrayData
+        Container with:
+        - stamp : float
+        - frame_id : str
+        - poses : ndarray, shape (N, 7) as [x, y, z, qx, qy, qz, qw]
+    """
+
+    stamp = from_ros_time(msg.header.stamp)
+    frame_id = msg.header.frame_id
+
+    if not msg.poses:
+        poses = np.zeros((0, 7), dtype=npu.dtype)
+    else:
+        poses_list = [
+            [p.position.x, p.position.y, p.position.z,
+             p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w]
+            for p in msg.poses
+        ]
+        poses = npu.to_array(poses_list)
+
+    return PoseArrayData(
+        stamp=stamp,
+        frame_id=frame_id,
+        poses=poses,
+    )
 
 
 def to_joint_state_msg(
