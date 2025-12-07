@@ -3,10 +3,9 @@ import time
 
 import numpy as np
 import mujoco as mj
-from mujoco import viewer
+from mujoco import viewer # type: ignore
 import rclpy
 from rclpy.node import Node
-from rlc_interfaces.msg import JointState
 from std_srvs.srv import Trigger, SetBool
 from sim_env.mujoco.env import Gen3Env
 from common_utils import ros_util as ru
@@ -110,12 +109,12 @@ class Gen3MujocoVizNode(Node):
 
         Assumes msg.name entries match MuJoCo joint names.
         """
-        target_t = ru.from_ros_time(msg.header.stamp)
-        qpos_target = np.asarray(msg.position, dtype=self.qpos_target.dtype)
-        qvel_target = np.asarray(msg.velocity, dtype=self.qvel_target.dtype)
+        state = ru.from_joint_state_msg(msg)
+        qpos_target = np.asarray(state.positions, dtype=self.qpos_target.dtype)
+        qvel_target = np.asarray(state.velocities, dtype=self.qvel_target.dtype)
         self.qpos_target = qpos_target
         self.qvel_target = qvel_target
-        self.target_t = target_t
+        self.target_t = state.stamp
 
 
 def main(args=None) -> None:
