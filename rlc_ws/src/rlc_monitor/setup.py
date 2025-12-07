@@ -24,7 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'my_node = rlc_monitor.my_node:main'
+            'monitor_node = rlc_monitor.monitor_node:main'
         ],
     },
 )

@@ -46,5 +46,11 @@ def generate_launch_description() -> LaunchDescription:
                 name="executor_node",
                 output="screen",
             ),
+            Node(
+                package="rlc_monitor",
+                executable="monitor_node",
+                name="rlc_monitor",
+                output="screen",
+            ),
         ]
     )
