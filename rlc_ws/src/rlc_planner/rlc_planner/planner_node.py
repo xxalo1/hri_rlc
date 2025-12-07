@@ -2,27 +2,18 @@
 
 from __future__ import annotations
 
-import uuid
-
-import numpy as np
 import rclpy
-from rclpy.duration import Duration
 from rclpy.node import Node
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-from rbt_core import TrajPlanner
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from common_utils import ros_util as ru
-from common_utils import FloatArray
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
-    JointStateMsg, PlannedTrajMsg, 
+    JointStateMsg, 
     PlanQuinticSrv
 )
-from rlc_interfaces.msg import JointState, PlannedJointTrajectory
-from rlc_interfaces.srv import PlanTrajectory
 
 class TrajectoryPlannerNode(Node):
     """ROS 2 node that builds joint trajectories and publishes them for execution."""
@@ -44,9 +35,9 @@ class TrajectoryPlannerNode(Node):
             TOPICS.planned_joint_traj.name,
             10,
         )
-        self.ee_traj_pub = self.create_publisher(
-            TOPICS.planned_ee_traj.type,
-            TOPICS.planned_ee_traj.name,
+        self.cart_traj_pub = self.create_publisher(
+            TOPICS.planned_cart_traj.type,
+            TOPICS.planned_cart_traj.name,
             10,
         )
 
@@ -65,19 +56,17 @@ class TrajectoryPlannerNode(Node):
 
         self.get_logger().info("Trajectory planner node ready")
 
-    @property
-    def joint_names(self) -> list[str]:
-        """Get the robot's joint names."""
-        return self.robot.spec.joint_names
     
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Store the latest joint state for planning."""
-        self.t = ru.from_ros_time(msg.header.stamp)
-        self.q = np.asarray(msg.position, dtype=npu.dtype)
-        self.qd = np.asarray(msg.velocity, dtype=npu.dtype)
-        self.qdd = np.asarray(msg.acceleration, dtype=npu.dtype)
+        joint_state = ru.from_joint_state_msg(msg)
 
-        self.robot.set_joint_state(self.q, self.qd, self.qdd, self.t)        
+        t = joint_state.stamp
+        q = joint_state.positions
+        qd = joint_state.velocities
+
+        # update current states
+        self.robot.set_joint_state(q=q, qd=qd, t=t)
 
 
     def plan_quintic_callback(self, 
@@ -85,64 +74,39 @@ class TrajectoryPlannerNode(Node):
         response: PlanQuinticSrv.Response
     ) -> PlanQuinticSrv.Response:
         """Plan a quintic trajectory from the current state to a target point and publish it."""
-
-        if not self._check_ready(response):
-            return response
-
+        label = "quintic"
+        execute_immediately = request.execute_immediately
         robot = self.robot
-        qf = np.asarray(request.target_positions, dtype=npu.dtype)
-        dt = ru.from_ros_time(request.time_from_start)
-        freq = (request.n_points - 1) / dt
-        tf = dt + robot.t
+        t = robot.t
+        qf = npu.to_array(request.target_positions)
+        duration = ru.from_ros_time(request.time_from_start)
 
-        traj = robot.setup_quintic_traj(qf, tf=tf, freq=freq)
-        q_traj = traj[0]
-        v_traj = traj[1]
-        a_traj = traj[2]
+        if request.frequency: freq = request.frequency
+        else: freq = self.default_freq
 
-        joint_traj_msg = ru.joint_traj(
-            robot.t, self.joint_names, 
-            q_traj, v_traj, a_traj, freq
+        joint_traj = robot.setup_quintic_traj(qf, duration=duration, freq=freq)
+        cart_traj = robot.get_cartesian_traj()
+
+        planned_joint_traj_msg, traj_id = ru.planned_joint_traj(
+            t, 
+            robot.joint_names, 
+            joint_traj,
+            label,
+            execute_immediately = execute_immediately
         )
-
-        poses = robot.get_poses()
-
-        poses_msg = ru.multi_dof_traj(
-            robot.t, poses,
+        planned_cart_traj_msg, _ = ru.planned_cartesian_traj(
+            t,
+            cart_traj,
+            label,
+            derived_from_joint = True,
+            execute_immediately = execute_immediately,
+            traj_id = traj_id
         )
         
-        return self._publish_joint_traj(
-            joint_traj_msg,
-            response,
-            "quintic",
-            request.execute_immediately,
-        )
+        self.cart_traj_pub.publish(planned_cart_traj_msg)
+        self.joint_traj_pub.publish(planned_joint_traj_msg)
 
-
-    def _check_ready(self, response: PlanTrajectory.Response) -> bool:
-        if not self.joint_names:
-            response.success = False
-            response.message = "Waiting for initial joint state"
-            self.get_logger().warning(response.message)
-            return False
-        return True
-
-
-    def _publish_joint_traj(self,
-        trajectory: JointTrajectory,
-        response: PlanQuinticSrv.Response,
-        label: str,
-        execute_immediately: bool,
-    ) -> PlanQuinticSrv.Response:
-        traj_id = str(uuid.uuid4())
-
-        planned_msg = PlannedTrajMsg()
-        planned_msg.trajectory_id = traj_id
-        planned_msg.trajectory = trajectory
-        planned_msg.label = label
-        planned_msg.execute_immediately = execute_immediately
-        self.joint_traj_pub.publish(planned_msg)
-
+        # populate response
         response.success = True
         response.message = (
             f"Published {label} trajectory"
@@ -152,7 +116,7 @@ class TrajectoryPlannerNode(Node):
 
         self.get_logger().info(
             f"Planned {label} trajectory with id {traj_id} "
-            f"({len(trajectory.points)} point(s)) "
+            f"({joint_traj.t.shape[0]} point(s)) "
             + ("and flagged for execution" if execute_immediately else "")
         )
         return response

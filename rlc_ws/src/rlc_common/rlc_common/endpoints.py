@@ -5,21 +5,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
-from trajectory_msgs.msg import pos
 from control_msgs.action import FollowJointTrajectory
 from control_msgs.msg import JointTrajectoryControllerState
+from geometry_msgs.msg import PoseArray
 from sensor_msgs.msg import JointState
 from rlc_interfaces.msg import (
     JointEffortCmd, 
     PlannedJointTrajectory, 
-    FrameStates, 
-    PlannedEeTrajectory,
+    PlannedCartesianTrajectory,
     CurrentPlan,
 )
 
 from rlc_interfaces.srv import (
     ExecuteTrajectory,
-    PlanTrajectory,
+    PlanJointTrajectory,
     SetControllerGains,
     SetControllerMode,
 )
@@ -46,8 +45,8 @@ class TopicEndpoints:
     joint_state: Endpoint[JointState]
     effort_cmd: Endpoint[JointEffortCmd]
     planned_joint_traj: Endpoint[PlannedJointTrajectory]
-    frame_states: Endpoint[FrameStates]
-    planned_ee_traj: Endpoint[PlannedEeTrajectory]
+    frame_states: Endpoint[PoseArray]
+    planned_cart_traj: Endpoint[PlannedCartesianTrajectory]
     controller_state: Endpoint[JointTrajectoryControllerState]
     current_plan: Endpoint[CurrentPlan]
 
@@ -59,8 +58,7 @@ class ServiceEndpoints:
     pause_sim: Endpoint[SetBool]
     set_controller_gains: Endpoint[SetControllerGains]
     set_controller_mode: Endpoint[SetControllerMode]
-    plan_quintic: Endpoint[PlanTrajectory]
-    plan_point: Endpoint[PlanTrajectory]
+    plan_quintic: Endpoint[PlanJointTrajectory]
     execute_traj: Endpoint[ExecuteTrajectory]
 
 
@@ -74,8 +72,8 @@ TOPICS = TopicEndpoints(
     joint_state=Endpoint(f"{SIM_NS}/joint_state", JointState),
     effort_cmd=Endpoint(f"{CTRL_NS}/effort_cmd", JointEffortCmd),
     planned_joint_traj=Endpoint(f"{PLAN_NS}/planned_joint_traj", PlannedJointTrajectory),
-    frame_states=Endpoint(f"{MON_NS}/frame_states", FrameStates),
-    planned_ee_traj=Endpoint(f"{PLAN_NS}/planned_ee_traj", PlannedEeTrajectory),
+    frame_states=Endpoint(f"{MON_NS}/frame_states", PoseArray),
+    planned_cart_traj=Endpoint(f"{PLAN_NS}/planned_cart_traj", PlannedCartesianTrajectory),
     controller_state=Endpoint(f"{CTRL_NS}/controller_state", JointTrajectoryControllerState),
     current_plan=Endpoint(f"{EXEC_NS}/current_plan", CurrentPlan),
 )
@@ -99,11 +97,7 @@ SERVICES = ServiceEndpoints(
     ),
     plan_quintic=Endpoint(
         name=f"{PLAN_NS}/plan_quintic",
-        type=PlanTrajectory,
-    ),
-    plan_point=Endpoint(
-        name=f"{PLAN_NS}/plan_point",
-        type=PlanTrajectory,
+        type=PlanJointTrajectory,
     ),
     execute_traj=Endpoint(
         name=f"{EXEC_NS}/execute",
@@ -124,7 +118,7 @@ JointStateMsg = TOPICS.joint_state.type
 JointEffortCmdMsg = TOPICS.effort_cmd.type
 PlannedJointTrajMsg = TOPICS.planned_joint_traj.type
 FrameStatesMsg = TOPICS.frame_states.type
-PlannedEeTrajMsg = TOPICS.planned_ee_traj.type
+PlannedCartTrajMsg = TOPICS.planned_cart_traj.type
 ControllerStateMsg = TOPICS.controller_state.type
 CurrentPlanMsg = TOPICS.current_plan.type
 
@@ -149,7 +143,7 @@ __all__ = [
     "PlannedJointTrajMsg",
     "FrameStatesMsg",
     "ControllerStateMsg",
-    "PlannedEeTrajMsg",
+    "PlannedCartTrajMsg",
     "CurrentPlanMsg",
 
     "ResetSimSrv",

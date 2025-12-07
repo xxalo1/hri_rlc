@@ -4,13 +4,14 @@ import numpy as np
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from .kin.kinematics import Kinematics
-from .dynamics import Dynamics
-from .controller import Controller
-from .planning import TrajPlanner
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
 from common_utils import transforms as tfm
+
+from .kin.kinematics import Kinematics
+from .dynamics import Dynamics
+from .controller import Controller
+from .planning import TrajPlanner, JointTraj, CartesianTraj
 
 class ControllerMode(Enum):
     CT = auto()
@@ -60,7 +61,8 @@ class Robot:
         self.ti = 0.0
         self.tf = 0.0
         self.freq = 0.0
-        self.joint_traj = np.zeros((3, 100, n), dtype=npu.dtype)
+        self.joint_traj = JointTraj()
+        self.cart_traj = CartesianTraj()
 
         # Control modes
         self.controller_mode = ControllerMode.CT
@@ -101,7 +103,10 @@ class Robot:
         self._qdd = v
         self.kin.step(qdd=v)
 
-
+    @property
+    def joint_names(self) -> list[str]:
+        return self.spec.joint_names
+    
     def set_ctrl_mode(self, mode: str) -> None:
         """
         Set the current controller mode.
@@ -133,10 +138,10 @@ class Robot:
 
     def set_joint_state(
         self,
-        q: FloatArray | None,
-        qd: FloatArray | None,
-        qdd: FloatArray | None,
-        t: float | None,
+        q: FloatArray | None = None,
+        qd: FloatArray | None = None,
+        t: float | None = None,
+        qdd: FloatArray | None = None,
     ) -> None:
         """
         Update current joint state and refresh kinematics.
@@ -182,7 +187,7 @@ class Robot:
         self.freq = 0.0
         self.ti = 0.0
         self.tf = 0.0
-        self.joint_traj = np.zeros((3, 0, self.n), dtype=npu.dtype)
+        self.joint_traj = JointTraj()
 
         self.qd_des = np.zeros_like(self.qd_des)
         self.qdd_des = np.zeros_like(self.qdd_des)
@@ -210,9 +215,9 @@ class Robot:
         if qdd_des is not None: self.qdd_des = qdd_des
 
 
-    def set_joint_traj(self, 
-        joint_traj: FloatArray,
-        tf: float,
+    def set_joint_traj(self,
+        joint_traj: JointTraj,
+        duration: float,
         ti: float | None = None,
     ) -> None:
         """
@@ -220,12 +225,10 @@ class Robot:
         
         Parameters
         -----------
-        traj : ndarray, (3, N, n)
-            traj[0]: desired positions.
-            traj[1]: desired velocities.
-            traj[2]: desired accelerations.
-        tf : float:
-            final time of the trajectory.
+        joint_traj : JointTraj
+            Joint trajectory (times, positions, velocities, accelerations).
+        duration : float
+            Duration of the trajectory.
         ti : float
             initial time offset of the trajectory.
         
@@ -238,8 +241,8 @@ class Robot:
         if ti is None: ti = self.t
         self.joint_traj = joint_traj
         self.ti = ti
+        tf = ti + duration
         self.tf = tf
-        self.freq = 1.0 / ((tf - ti) / (joint_traj.shape[1] - 1))
 
         self.tracking_mode = TrackingMode.TRAJ
 
@@ -278,36 +281,48 @@ class Robot:
 
     def sample_joint_traj(self) -> tuple[FloatArray, FloatArray, FloatArray]:
         """
-        Get desired state from the internally saved trajectory at time `self.t`.
+        Sample the desired joint state from the internally stored trajectory
+        at the current time `self.t`.
 
-        Notes
-        -----
-        - Assumes self.T has shape (3, N, n) and self.freq is the sampling frequency (Hz) of the trajectory.
-        - Times outside [self.ti, self.ti + (N-1)/self.freq] are clamped to the first/last sample.
+        Uses the time stamps in `self.joint_traj.t` and performs linear
+        interpolation between the two neighboring samples. If `self.t` is
+        before the first sample or after the last sample, the boundary
+        sample is returned.
         """
-        T = self.joint_traj
+        traj = self.joint_traj  # type: ignore[attr-defined]
+        t = self.t
 
-        s = (self.t - self.ti) * self.freq
-        N = self.joint_traj.shape[1]
+        t_arr = traj.t      # (N,)
+        q_arr = traj.q      # (N, n)
+        qd_arr = traj.qd    # (N, n)
+        qdd_arr = traj.qdd  # (N, n)
 
-        if s <= 0.0:
-            i0 = i1 = 0
-            alpha = 0.0
-        elif s >= N - 1:
-            i0 = i1 = N - 1
-            alpha = 0.0
-        else:
-            i0 = int(math.floor(s))      # lower index
-            i1 = i0 + 1                  # upper index
-            alpha = s - i0               # interpolation factor in [0,1)
+        # Clamp to first / last sample if outside range
+        if t <= t_arr[0]:
+            return q_arr[0].copy(), qd_arr[0].copy(), qdd_arr[0].copy()
 
-        # linear interpolation between i0 and i1
-        q_des   = (1.0 - alpha) * T[0, i0] + alpha * T[0, i1]
-        qd_des  = (1.0 - alpha) * T[1, i0] + alpha * T[1, i1]
-        qdd_des = (1.0 - alpha) * T[2, i0] + alpha * T[2, i1]
+        if t >= t_arr[-1]:
+            return q_arr[-1].copy(), qd_arr[-1].copy(), qdd_arr[-1].copy()
+
+        # Find indices i0, i1 such that t_arr[i0] <= t_now <= t_arr[i1]
+        i1 = int(np.searchsorted(t_arr, t, side="right"))
+        i0 = i1 - 1
+
+        t0 = float(t_arr[i0])
+        t1 = float(t_arr[i1])
+        dt = t1 - t0
+
+        # Guard against degenerate dt
+        if dt <= 0.0: alpha = 0.0
+        else: alpha = (t - t0) / dt
+
+        # Linear interpolation
+        q_des   = (1.0 - alpha) * q_arr[i0]   + alpha * q_arr[i1]
+        qd_des  = (1.0 - alpha) * qd_arr[i0]  + alpha * qd_arr[i1]
+        qdd_des = (1.0 - alpha) * qdd_arr[i0] + alpha * qdd_arr[i1]
 
         return q_des, qd_des, qdd_des
-    
+
 
     def compute_ctrl_effort(self) -> FloatArray:
         """
@@ -336,33 +351,33 @@ class Robot:
 
     def setup_quintic_traj(self,
         q_des: FloatArray,
+        duration: float  = 10.0,
         q: FloatArray | None = None,
         ti: float | None = None,
-        tf: float  = 10.0,
         freq: float = 100.0,
-    ) -> FloatArray:
+    ) -> JointTraj:
 
         if q is None: q = self.q
         if ti is None: ti = self.t
-        joint_traj = self.planner.quintic_trajs(q, q_des, ti, tf, freq)
-        self.set_joint_traj(joint_traj, tf=tf, ti=ti)
+
+        joint_traj = self.planner.quintic_trajs(q, q_des, duration, freq)
+        self.set_joint_traj(joint_traj, duration)
         return joint_traj
 
 
-    def get_poses(self) -> FloatArray:
+    def get_cartesian_traj(self) -> CartesianTraj:
         """
         Get end-effector pose trajectory as position and quaternion.
+        from the active joint trajectory.
 
         Returns
         -------
-        poses : ndarray, shape (N, 7)
-            End-effector poses along the trajectory.
-            pos[:, :3]: position.
-            pos[:, 3:]: quaternion [w, x, y, z].
-
+        CartesianTraj : CartesianTraj
+            Cartesian trajectory of end-effector.
         """
         joint_traj = self.joint_traj
-        T_wf_traj = self.kin.batch_forward_kinematics(joint_traj[0])
-        T_w_ee_traj = T_wf_traj[:, -1]        
-        self.poses = tfm.transform_to_pos_quat(T_w_ee_traj)
-        return self.poses
+        T_wf_traj = self.kin.batch_forward_kinematics(joint_traj.q)
+        T_w_ee_traj = T_wf_traj[:, -1]
+        poses = tfm.transform_to_pos_quat(T_w_ee_traj)
+        self.cart_traj = CartesianTraj(t=joint_traj.t, pose=poses)
+        return self.cart_traj

@@ -4,7 +4,7 @@ import numpy as np
 import time
 import rclpy
 from rclpy.node import Node
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 
@@ -15,9 +15,9 @@ from common_utils import ros_util as ru
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
-    JointStateMsg, JointEffortCmdMsg, 
+    JointStateMsg, 
     SetControllerGainsSrv, SetControllerModeSrv,
-    FollowTrajAction, ControllerStateMsg,
+    FollowTrajAction,
 )
 
 class Gen3ControllerNode(Node):
@@ -25,7 +25,6 @@ class Gen3ControllerNode(Node):
         super().__init__("gen3_controller")
 
         self.robot = init_kinova_robot()
-        self.joint_names = list(self.robot.spec.joint_names)
         self.robot.ctrl.set_joint_gains(Kp=1.0, Kv=1.0, Ki=0.0)
 
         q_des = np.array(
@@ -81,7 +80,7 @@ class Gen3ControllerNode(Node):
 
         self.publish_period = 1.0 / self.controller_rate
         self.publish_timer = self.create_timer(
-            self.publish_period, self.publish_effort_cmd
+            self.publish_period, self.control_step
         )
 
         self.get_logger().info(
@@ -138,81 +137,55 @@ class Gen3ControllerNode(Node):
     
 
     def joint_state_callback(self, msg: JointStateMsg) -> None:
-        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        q = np.asarray(msg.position, dtype=npu.dtype)
-        qd = np.asarray(msg.velocity, dtype=npu.dtype)
-        qdd = np.asarray(msg.acceleration, dtype=npu.dtype)
+        """Callback for joint state messages."""
+        state = ru.from_joint_state_msg(msg)
 
-        self.robot.set_joint_state(q=q, qd=qd, qdd=qdd, t=t)
+        t = state.stamp
+        q = state.positions
+        qd = state.velocities
+
+        self.robot.set_joint_state(q=q, qd=qd, t=t)
         self.robot.update_joint_des()
 
 
-    def publish_controller_state(self, tau: FloatArray) -> None:
-        """
-        Publish the current controller state on a JointTrajectoryControllerState topic.
-
-        Uses the robot's current joint state (q, qd), desired joint state
-        (q_des, qd_des), and the last computed torque command tau.
-        """
+    def control_step(self) -> None:
         robot = self.robot
-        state = ControllerStateMsg()
-        state.header.stamp = ru.to_ros_time(self.robot.t)
-        state.joint_names = self.joint_names
+        tau = robot.compute_ctrl_effort()
 
-        # Desired / reference state
-        state.reference = JointTrajectoryPoint()
-        state.reference.positions = robot.q_des.tolist()
-        state.reference.velocities = robot.qd_des.tolist()
-        state.reference.accelerations = robot.qdd_des.tolist()
+        cmd_msg = ru.to_joint_effort_cmd_msg(
+            robot.t,
+            robot.joint_names,
+            tau,
+        )
 
-        # Measured / feedback state
-        state.feedback = JointTrajectoryPoint()
-        state.feedback.positions = robot.q.tolist()
-        state.feedback.velocities = robot.qd.tolist()
-        state.feedback.accelerations = robot.qdd.tolist()
+        state_msg = ru.to_joint_ctrl_state_msg(
+            robot.t,
+            robot.joint_names,
+            tau,
+            robot.q,
+            robot.q_des,
+            qd=robot.qd,
+            qd_des=robot.qd_des,
+            qdd=robot.qdd,
+            qdd_des=robot.qdd_des,
+        )
 
-        # Error = reference - feedback
-        state.error = JointTrajectoryPoint()
-        e = robot.q_des - robot.q
-        ed = robot.qd_des - robot.qd
-        state.error.positions = e.tolist()
-        state.error.velocities = ed.tolist()
-
-        # Controller output (your tau command)
-        state.output = JointTrajectoryPoint()
-        state.output.effort = tau.tolist()
-
-        # You can leave time_from_start fields at default zero, or set them if you want.
-        self.ctrl_state_pub.publish(state)
-
-
-    def publish_effort_cmd(self) -> None:
-        tau = self.robot.compute_ctrl_effort()
-
-        cmd = JointEffortCmdMsg()
-        cmd.header.stamp = ru.to_ros_time(self.robot.t)
-        cmd.name = self.joint_names
-        cmd.effort = tau.tolist()
-        self.effort_pub.publish(cmd)
+        self.effort_pub.publish(cmd_msg)
+        self.ctrl_state_pub.publish(state_msg)
 
 
     def _load_trajectory(self, msg: JointTrajectory) -> bool:
         """Load JointTrajectory into the robot, minimal assumptions/checks."""
-        points: list[JointTrajectoryPoint] = list(msg.points)
-        n_pts = len(points)
+        n_pts = len(msg.points)
 
         if n_pts == 0:
             self.get_logger().warning("Received empty JointTrajectory")
             return False
+    
+        joint_traj = ru.from_joint_traj_msg(msg)
+        traj = joint_traj.traj
 
-        q = np.asarray([p.positions for p in points], dtype=npu.dtype)
-        qd = np.asarray([p.velocities for p in points], dtype=npu.dtype)
-        qdd = np.asarray([p.accelerations for p in points], dtype=npu.dtype)
-        traj = np.stack([q, qd, qdd], axis=0)
-
-        last = points[-1].time_from_start
-        time_to_end = float(last.sec) + float(last.nanosec) * 1e-9
-        tf = self.robot.t + time_to_end
+        tf = joint_traj.time_from_start[-1] + self.robot.t
 
         self.robot.set_joint_traj(traj, tf)
 
@@ -227,9 +200,10 @@ class Gen3ControllerNode(Node):
     ) -> FollowTrajAction.Result:
         """Action callback."""
         goal: FollowTrajAction.Goal = goal_handle.request
-        traj_msg = goal.trajectory
 
+        traj_msg = goal.trajectory
         ok = self._load_trajectory(traj_msg)
+
         result = FollowTrajAction.Result()
 
         if not ok:

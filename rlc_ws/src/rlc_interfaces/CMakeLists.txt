@@ -14,15 +14,13 @@ find_package(builtin_interfaces REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/JointEffortCmd.msg"
-  "msg/CartesianState.msg"
-  "msg/JointStateSim.msg"
-  "msg/PlannedTrajectory.msg"
+  "msg/PlannedJointTrajectory.msg"
+  "msg/PlannedCartesianTrajectory.msg"
   "msg/FrameStates.msg"
-  "msg/ControllerState.msg"
   "msg/CurrentPlan.msg"
   "srv/SetControllerGains.srv"
   "srv/SetControllerMode.srv"
-  "srv/PlanTrajectory.srv"
+  "srv/PlanJointTrajectory.srv"
   "srv/ExecuteTrajectory.srv"
   DEPENDENCIES std_msgs geometry_msgs trajectory_msgs builtin_interfaces
 )

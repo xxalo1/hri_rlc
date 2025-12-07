@@ -1,3 +1,3 @@
 """trajectory package public API."""
-from .trajectory import TrajPlanner
-__all__ = ["TrajPlanner"]
+from .trajectory import TrajPlanner, JointTraj, CartesianTraj
+__all__ = ["TrajPlanner", "JointTraj", "CartesianTraj"]

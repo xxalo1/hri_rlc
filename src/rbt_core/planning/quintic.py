@@ -6,7 +6,7 @@ from common_utils import FloatArray
 
 def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, freq: float,
                       v0: FloatArray, a0: FloatArray, vf: FloatArray, af: FloatArray
-                  ) -> tuple[FloatArray, FloatArray, FloatArray]:
+                  ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
         """
         Compute quintic polynomial coefficients and evaluate trajectories.  
         """
@@ -16,7 +16,7 @@ def quintic_trajs(q0: FloatArray, qf: FloatArray, t0: float, tf: float, freq: fl
         n_steps = int(np.round((tf - t0) * freq)) + 1
         T = t0 + np.arange(n_steps, dtype=npu.dtype) * dt
         Q, Qd, Qdd = eval_quintic(A, T)
-        return Q, Qd, Qdd
+        return Q, Qd, Qdd, T
 
 def quintic_coeffs(q0: FloatArray, qf: FloatArray, t0: float, tf: float,
                     v0: FloatArray, a0: FloatArray, vf: FloatArray, af: FloatArray

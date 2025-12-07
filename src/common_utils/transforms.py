@@ -161,10 +161,8 @@ def transform_to_pos_quat(T: FloatArray) -> FloatArray:
 
     Returns
     ----------
-    pos : ndarray, shape (n, 3) or (3,)
-        position vector.
-    quat : ndarray, shape (n, 4) or (4,)
-        quaternion [w, x, y, z].
+    poses : ndarray, shape (n, 7) or (7,)
+            position and quaternion [x, y, z, qw, qx, qy, qz].
     """
     R = T[..., :3, :3]
     pos = T[..., :3, 3]

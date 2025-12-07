@@ -190,14 +190,14 @@ class BufferSet:
         return buf
 
 
-    def append(self, name: str, t: float, sample: ArrayLike) -> None:
+    def append(self, name: str, t: float, sample: ArrayLike | None) -> None:
         """Append to buffer, creating it on first use with inferred shape."""
         buf = self.buffers.get(name)
         if buf is None:
-            # default capacity; you can tune or override by calling ensure first
             buf = RingBuffer(capacity=self.capacity)
             self.buffers[name] = buf
-        buf.append(t, sample)
+
+        if sample is not None: buf.append(t, sample)
 
 
     def get(self, name: str) -> RingBuffer:
