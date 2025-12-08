@@ -7,10 +7,10 @@ from mujoco import viewer # type: ignore
 
 import rclpy
 from rclpy.node import Node
-from std_srvs.srv import Trigger, SetBool
 from sim_env.mujoco.env import Gen3Env
 from sim_env.mujoco.viz_env import VizEnv
-from common_utils import ros_util as ru
+from ros_utils import msg_conv as rmsg
+
 from common_utils import numpy_util as npu
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
@@ -83,7 +83,7 @@ class Gen3MujocoVizNode(Node):
             req.data = pause
             future = self.pause_client.call_async(req)
             self.get_logger().info("pause/unpause service called")
-    
+
 
     def _reset_sim(self) -> None:
         if self.reset_client.wait_for_service(timeout_sec=1.0):
@@ -116,7 +116,7 @@ class Gen3MujocoVizNode(Node):
 
         Assumes msg.name entries match MuJoCo joint names.
         """
-        state = ru.from_pose_array_msg(msg)
+        state = rmsg.from_pose_array_msg(msg)
         self.viz.set_frame_states(state.poses)
 
 
@@ -126,8 +126,13 @@ class Gen3MujocoVizNode(Node):
 
         Assumes msg.name entries match MuJoCo joint names.
         """
-        state = ru.from_joint_state_msg(msg)
-        self.viz.set_joint_states(state.positions, state.velocities, state.stamp)
+        state = rmsg.from_joint_state_msg(msg)
+        self.viz.set_joint_states(
+            state.positions, 
+            state.velocities, 
+            state.efforts, 
+            state.stamp
+        )
 
 
 def main(args=None) -> None:

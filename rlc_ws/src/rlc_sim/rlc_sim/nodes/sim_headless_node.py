@@ -10,7 +10,8 @@ from rosgraph_msgs.msg import Clock
 
 from sim_env.mujoco.env import Gen3Env
 from common_utils import numpy_util as npu
-from common_utils import ros_util as ru
+from ros_utils import msg_conv as rmsg
+from ros_utils import time_util as rtime
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
@@ -106,7 +107,7 @@ class Gen3MujocoSimNode(Node):
 
 
     def torque_cmd_callback(self, msg: JointEffortCmdMsg) -> None:
-        state = ru.from_joint_effort_cmd_msg(msg)
+        state = rmsg.from_joint_effort_cmd_msg(msg)
         tau = state.efforts
         if tau.size != self.n_joints:
             self.get_logger().warn(
@@ -117,21 +118,18 @@ class Gen3MujocoSimNode(Node):
 
 
     def publish_joint_state(self) -> None:
-        obs, t = self.env.observe()
-        q = obs["qpos"]
-        qd = obs["qvel"]
-        qdd = obs["qacc"]
+        obs = self.env.observe()
 
-        msg = ru.to_joint_state_msg(
-            stamp=t,
+        msg = rmsg.to_joint_state_msg(
+            stamp=obs.t,
             joint_names=self.joint_names,
-            positions=q,
-            velocities=qd,
-            efforts=self.tau_cmd,
+            positions=obs.q,
+            velocities=obs.qd,
+            efforts=obs.effort,
         )
 
         clock_msg = Clock()
-        clock_msg.clock = ru.to_ros_time(t)
+        clock_msg.clock = rtime.to_ros_time(obs.t)
         self.joint_state_pub.publish(msg)
         self.clock_pub.publish(clock_msg)
 

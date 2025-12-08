@@ -2,13 +2,9 @@ from __future__ import annotations
 import uuid
 
 import numpy as np
-from dataclasses import dataclass
-from collections.abc import Sequence, Mapping
-from typing import NamedTuple
+from collections.abc import Sequence
 
 from sensor_msgs.msg import JointState
-from builtin_interfaces.msg import Time as TimeMsg
-from builtin_interfaces.msg import Duration as DurationMsg
 from control_msgs.msg import JointTrajectoryControllerState
 from trajectory_msgs.msg import (
     JointTrajectory,
@@ -23,139 +19,16 @@ from geometry_msgs.msg import PoseArray, Pose
 
 from rbt_core.planning import CartesianTraj, JointTraj
 from common_utils import FloatArray
-from common_utils import numpy_util as npu  
+from common_utils import numpy_util as npu
 
-
-class JointStateData(NamedTuple):
-    positions: FloatArray
-    velocities: FloatArray
-    efforts: FloatArray | None
-    stamp: float
-    joint_names: list[str]
-
-
-class JointEffortCmdData(NamedTuple):
-    efforts: FloatArray
-    stamp: float
-    joint_names: list[str]
-
-
-class JointCtrlStateData(NamedTuple):
-    """
-    Parsed representation of a JointTrajectoryControllerState message.
-    """
-    stamp: float
-    joint_names: list[str]
-    tau: FloatArray
-    q: FloatArray
-    q_des: FloatArray
-    qd: FloatArray | None
-    qd_des: FloatArray | None
-    qdd: FloatArray | None
-    qdd_des: FloatArray | None
-    e: FloatArray | None
-    ed: FloatArray | None
-
-
-class JointTrajData(NamedTuple):
-    """
-    Parsed representation of a JointTrajectory message.
-
-    All arrays are NumPy arrays (dtype=npu.dtype). Optional fields are
-    set to None if they are not present in the message.
-    """
-    stamp: float
-    joint_names: list[str]
-    time_from_start: FloatArray     # (N,)
-    positions: FloatArray           # (N, n)
-    velocities: FloatArray | None   # (N, n) or None
-    accelerations: FloatArray | None  # (N, n) or None
-
-    def __post_init__(self) -> None:
-            if (self.velocities is not None) and (self.accelerations is not None):
-                self.traj = JointTraj(
-                    t = self.time_from_start,
-                    q = self.positions,
-                    qd = self.velocities,
-                    qdd = self.accelerations,
-                )
-
-
-class PoseArrayData(NamedTuple):
-    """
-    Parsed representation of a PoseArray message.
-
-    All arrays are NumPy arrays (dtype=npu.dtype).
-    """
-    stamp: float
-    frame_id: str
-    poses: FloatArray  # (N, 7) [x, y, z, qw, qx, qy, qz]
-
-# ---------------------------------------------------------------------------
-# Time / Duration helpers
-# ---------------------------------------------------------------------------
-
-
-def to_ros_time(t: float) -> TimeMsg:
-    """Convert time in seconds (float) to a ROS Time message."""
-    sec = int(t)
-    nanosec = int((t - sec) * 1e9)
-    return TimeMsg(sec=sec, nanosec=nanosec)
-
-
-def to_ros_duration(dt: float) -> DurationMsg:
-    """Convert a duration in seconds (float) to a ROS Duration message."""
-    sec = int(dt)
-    nanosec = int((dt - sec) * 1e9)
-    return DurationMsg(sec=sec, nanosec=nanosec)
-
-
-def from_ros_time(t: TimeMsg | DurationMsg) -> float:
-    """Convert a ROS Time/Duration message to seconds (float)."""
-    return float(t.sec) + float(t.nanosec) * 1e-9
-
-
-def time_from_start(
-    num_samples: int,
-    *,
-    freq: float | None = None,
-    duration: float | None = None,
-) -> FloatArray:
-    """
-    Build a time-from-start vector for an evenly sampled trajectory.
-
-    You must specify exactly one of `freq` (Hz) or `duration` (seconds).
-
-    Parameters
-    ----------
-    num_samples : int
-        Number of trajectory samples N. Must be >= 1.
-    freq : float, optional
-        Sampling frequency in Hz. If given, times are t[k] = k / freq.
-    duration : float, optional
-        Total duration in seconds. If given, times are linearly spaced
-        from 0.0 to duration inclusive.
-
-    Returns
-    -------
-    t : ndarray, shape (N,)
-        Time-from-start values in seconds.
-    """
-
-    if freq is not None:
-        idx = np.arange(num_samples, dtype=npu.dtype)
-        t = idx / freq
-    elif duration is not None:
-        t = np.linspace(0.0, duration, num_samples, dtype=npu.dtype)
-    else:  # neither freq nor duration given
-        raise ValueError("Must specify exactly one of freq or duration")
-
-    return t
-
-
-# ---------------------------------------------------------------------------
-# ROS Message builders
-# ---------------------------------------------------------------------------
+from.msg_types import (
+    JointStateData,
+    JointEffortCommandData,
+    JointControllerStateData,
+    JointTrajectoryData,
+    PoseArrayData,
+)
+from . import time_util as tu
 
 def to_joint_traj_msg(
     stamp: float,
@@ -208,7 +81,7 @@ def to_joint_traj_msg(
 
     msg = JointTrajectory()
     msg.joint_names = list(joint_names)
-    msg.header.stamp = to_ros_time(stamp)
+    msg.header.stamp = tu.to_ros_time(stamp)
 
     points: list[JointTrajectoryPoint] = []
 
@@ -222,7 +95,7 @@ def to_joint_traj_msg(
         if accelerations is not None:
             pt.accelerations = accelerations[idx].tolist()
 
-        pt.time_from_start = to_ros_duration(time_from_start[idx])
+        pt.time_from_start = tu.to_ros_duration(time_from_start[idx])
         points.append(pt)
 
     msg.points = points
@@ -282,7 +155,7 @@ def to_multi_dof_traj_msg(
         npu.validate_array_shape(accels, (N, 6), "accels")
 
     traj_msg = MultiDOFJointTrajectory()
-    traj_msg.header.stamp = to_ros_time(stamp)
+    traj_msg.header.stamp = tu.to_ros_time(stamp)
     traj_msg.header.frame_id = frame_id
     traj_msg.joint_names = [joint_name]
 
@@ -328,7 +201,7 @@ def to_multi_dof_traj_msg(
             acc.angular.z = float(awz)
             pt.accelerations.append(acc) # type: ignore
 
-        pt.time_from_start = to_ros_duration(time_from_start[idx])
+        pt.time_from_start = tu.to_ros_duration(time_from_start[idx])
         points.append(pt)
 
     traj_msg.points = points
@@ -363,7 +236,7 @@ def to_pose_array_msg(
     npu.validate_array_shape(poses, (N, 7), "poses")
 
     msg = PoseArray()
-    msg.header.stamp = to_ros_time(stamp)
+    msg.header.stamp = tu.to_ros_time(stamp)
     msg.header.frame_id = frame_id
 
     poses_msg: list[Pose] = []
@@ -401,7 +274,7 @@ def from_pose_array_msg(msg: PoseArray) -> PoseArrayData:
         - poses : ndarray, shape (N, 7) as [x, y, z, qw, qx, qy, qz]
     """
 
-    stamp = from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time(msg.header.stamp)
     frame_id = msg.header.frame_id
 
     if not msg.poses:
@@ -464,7 +337,7 @@ def to_joint_state_msg(
         npu.validate_array_shape(efforts, (n,), "efforts")
 
     msg = JointState()
-    msg.header.stamp = to_ros_time(stamp)
+    msg.header.stamp = tu.to_ros_time(stamp)
     msg.name = list(joint_names)
 
     if positions is not None:
@@ -508,7 +381,7 @@ def to_joint_effort_cmd_msg(
     npu.validate_array_shape(efforts, (n,), "efforts")
 
     msg = JointEffortCmd()
-    msg.header.stamp = to_ros_time(stamp)
+    msg.header.stamp = tu.to_ros_time(stamp)
     msg.name = list(joint_names)
     msg.effort = efforts.tolist()
 
@@ -570,7 +443,7 @@ def to_joint_ctrl_state_msg(
     if qdd_des is not None: npu.validate_array_shape(qdd_des, (n,), "qdd_des")
 
     msg = JointTrajectoryControllerState()
-    msg.header.stamp = to_ros_time(stamp)
+    msg.header.stamp = tu.to_ros_time(stamp)
     msg.joint_names = list(joint_names)
 
     # Desired / reference state
@@ -630,7 +503,7 @@ def from_joint_state_msg(msg: JointState) -> JointStateData:
     velocities = npu.to_array(msg.velocity)
     efforts = npu.to_array(msg.effort) if msg.effort else None
 
-    stamp = from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time(msg.header.stamp)
 
     joint_names = list(msg.name)
 
@@ -644,7 +517,7 @@ def from_joint_state_msg(msg: JointState) -> JointStateData:
     return data
 
 
-def from_joint_effort_cmd_msg(msg: JointEffortCmd) -> JointEffortCmdData:
+def from_joint_effort_cmd_msg(msg: JointEffortCmd) -> JointEffortCommandData:
     """
     Convert a JointEffortCmdMsg message (used as JointEffortCmd) to a dict of NumPy arrays.
 
@@ -660,10 +533,10 @@ def from_joint_effort_cmd_msg(msg: JointEffortCmd) -> JointEffortCmdData:
     """
     
     efforts = npu.to_array(msg.effort)
-    stamp = from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time(msg.header.stamp)
     joint_names = list(msg.name)
 
-    data = JointEffortCmdData(
+    data = JointEffortCommandData(
         efforts = efforts,
         stamp = stamp,
         joint_names = joint_names,
@@ -673,7 +546,7 @@ def from_joint_effort_cmd_msg(msg: JointEffortCmd) -> JointEffortCmdData:
 
 def from_joint_ctrl_state_msg(
     msg: JointTrajectoryControllerState,
-) -> JointCtrlStateData:
+) -> JointControllerStateData:
     """
     Convert a JointTrajectoryControllerState message to NumPy arrays.
 
@@ -688,7 +561,7 @@ def from_joint_ctrl_state_msg(
         Dataclass with time stamp, joint names, measured/desired joint
         states, and controller output torque.
     """
-    stamp = from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time(msg.header.stamp)
     joint_names = list(msg.joint_names)
 
     # Desired / reference
@@ -710,7 +583,7 @@ def from_joint_ctrl_state_msg(
     # Controller output
     tau = npu.to_array(msg.output.effort)
 
-    return JointCtrlStateData(
+    return JointControllerStateData(
         stamp=stamp,
         joint_names=joint_names,
         tau=tau,
@@ -725,7 +598,7 @@ def from_joint_ctrl_state_msg(
     )
 
 
-def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajData:
+def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajectoryData:
     """
     Convert a JointTrajectory message to NumPy arrays.
 
@@ -740,7 +613,7 @@ def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajData:
         Dataclass with time stamp, joint names, time_from_start,
         positions, velocities, and accelerations.
     """
-    stamp = from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time(msg.header.stamp)
     joint_names = list(msg.joint_names)
     points: list[JointTrajectoryPoint] = list(msg.points)
 
@@ -752,7 +625,7 @@ def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajData:
 
     # time_from_start (N,)
     time_from_start = npu.to_array(
-        [from_ros_time(p.time_from_start) for p in points],
+        [tu.from_ros_time(p.time_from_start) for p in points],
     )
 
     # positions (N, n)
@@ -774,7 +647,7 @@ def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajData:
         accelerations = None
 
 
-    return JointTrajData(
+    return JointTrajectoryData(
         stamp=stamp,
         joint_names=joint_names,
         time_from_start=time_from_start,

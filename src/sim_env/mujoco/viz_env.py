@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Iterable, Optional
+from typing import Callable, Optional
 
 import numpy as np
 import mujoco as mj
@@ -60,12 +60,14 @@ class VizEnv:
     def set_joint_states(self,
         q: FloatArray,
         qd: FloatArray,
+        tau: FloatArray | None,
         t: float,
     ) -> None:
         """Set the current joint states and sim time for visualization."""
         self.q = q
         self.qd = qd
         self.t = t
+        if tau is not None: self.env.d.ctrl = tau
 
 
     def set_frame_states(self, frame_poses: FloatArray) -> None:

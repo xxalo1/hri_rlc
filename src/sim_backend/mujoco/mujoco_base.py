@@ -1,5 +1,6 @@
 # gen3_env.py
 from __future__ import annotations
+from dataclasses import dataclass
 import time
 
 import numpy as np
@@ -9,6 +10,14 @@ from IPython.display import display
 
 from common_utils import numpy_util as npu
 FloatArray = npu.FloatArray
+
+@dataclass(slots=True)
+class Observation:
+    t: float
+    q: FloatArray
+    qd: FloatArray
+    qdd: FloatArray
+    effort: FloatArray
 
 class BaseMujocoEnv:
     def __init__(self, xml_path, nsubsteps=10, seed: int | None = 0):
@@ -93,7 +102,7 @@ class BaseMujocoEnv:
         action: FloatArray, 
         mode: str ="torque",
         nsub: int | None = None
-    ) -> dict[str, FloatArray]:
+    ) -> Observation:
         """Apply action then step physics."""
         if nsub is None: nsub = self.nsub
         if mode == "torque":
@@ -107,7 +116,7 @@ class BaseMujocoEnv:
         action: FloatArray, 
         mode: str = "torque",
         realtime_factor: float =1.0
-    ) -> dict[str, FloatArray]:
+    ) -> Observation:
         """Apply action then step physics in realtime."""
         t0 = time.time()
         sim_time = self.d.time
@@ -124,20 +133,17 @@ class BaseMujocoEnv:
     
 
     def observe(self
-    ) -> tuple[dict[str, FloatArray], float]:
+    ) -> Observation:
         """Return a simple state dict; extend as you need."""
-        obs = {
-            "qpos": self.d.qpos.copy()[self.joint_idx],
-            "qvel": self.d.qvel.copy()[self.joint_idx],
-            "qacc":  self.d.qacc.copy()[self.joint_idx],
-        }
-        for x in self.site_ids:
-            sid = self.site_ids[x]
-            obs[f"{x}_pos"] = self.d.site_xpos[sid].copy()
-            obs[f"{x}_rotmat"] = self.d.site_xmat[sid].reshape(3,3).copy()
-        t = self.d.time
+        obs = Observation(
+            t = self.d.time,
+            q=self.d.qpos[self.joint_idx].copy(),
+            qd=self.d.qvel[self.joint_idx].copy(),
+            qdd=self.d.qacc[self.joint_idx].copy(),
+            effort=self.d.actuator_force[self.act_idx].copy(),
+        )
 
-        return obs, t
+        return obs
 
 
     def set_state(self, 
