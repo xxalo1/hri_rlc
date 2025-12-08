@@ -8,6 +8,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description() -> LaunchDescription:
     start_stack = LaunchConfiguration("start_stack")
+    start_plotjuggler = LaunchConfiguration("start_plotjuggler")
     use_viewer = LaunchConfiguration("use_viewer")
     log_level = LaunchConfiguration("log_level")
     layout_name = LaunchConfiguration("layout_name")
@@ -28,6 +29,7 @@ def generate_launch_description() -> LaunchDescription:
         ],
         name="plotjuggler_layout_gen",
         output="screen",
+        condition=IfCondition(start_plotjuggler),
     )
 
     start_plotjuggler = ExecuteProcess(
@@ -41,6 +43,7 @@ def generate_launch_description() -> LaunchDescription:
         ],
         name="plotjuggler_gui",
         output="screen",
+        condition=IfCondition(start_plotjuggler),
     )
 
     include_stack = IncludeLaunchDescription(
@@ -61,7 +64,12 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 "start_stack",
                 default_value="true",
-                description="Start the RLC stack after PlotJuggler opens.",
+                description="Start the RLC stack.",
+            ),
+            DeclareLaunchArgument(
+                "start_plotjuggler",
+                default_value="true",
+                description="Start PlotJuggler after launching the stack.",
             ),
             DeclareLaunchArgument(
                 "use_viewer",
@@ -78,9 +86,9 @@ def generate_launch_description() -> LaunchDescription:
                 default_value="RLC Telemetry",
                 description="Display name for the PlotJuggler layout.",
             ),
+            include_stack,
             generate_layout,
             # Small delay to ensure the layout file exists before launching PlotJuggler.
             TimerAction(period=0.5, actions=[start_plotjuggler]),
-            include_stack,
         ]
     )
