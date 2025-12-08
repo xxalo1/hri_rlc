@@ -11,7 +11,8 @@ from rclpy.action.server import ServerGoalHandle
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
-from common_utils import ros_util as ru
+from ros_utils import msg_conv as rmsg
+from ros_utils import time_util as rtime
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
@@ -135,7 +136,7 @@ class Gen3ControllerNode(Node):
 
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Callback for joint state messages."""
-        state = ru.from_joint_state_msg(msg)
+        state = rmsg.from_joint_state_msg(msg)
 
         t = state.stamp
         q = state.positions
@@ -149,13 +150,13 @@ class Gen3ControllerNode(Node):
         robot = self.robot
         tau = robot.compute_ctrl_effort()
 
-        cmd_msg = ru.to_joint_effort_cmd_msg(
+        cmd_msg = rmsg.to_joint_effort_cmd_msg(
             robot.t,
             robot.joint_names,
             tau,
         )
 
-        state_msg = ru.to_joint_ctrl_state_msg(
+        state_msg = rmsg.to_joint_ctrl_state_msg(
             robot.t,
             robot.joint_names,
             tau,
@@ -179,7 +180,7 @@ class Gen3ControllerNode(Node):
             self.get_logger().warning("Received empty JointTrajectory")
             return False
     
-        joint_traj = ru.from_joint_traj_msg(msg)
+        joint_traj = rmsg.from_joint_traj_msg(msg)
         traj = joint_traj.traj
 
         tf = joint_traj.time_from_start[-1] + self.robot.t
@@ -233,7 +234,7 @@ class Gen3ControllerNode(Node):
             q_des, qd_des = robot.q_des, robot.qd_des
 
             # publish feedback
-            feedback.header.stamp = ru.to_ros_time(t)
+            feedback.header.stamp = rtime.to_ros_time(t)
             feedback.actual.positions = robot.q.tolist()
             feedback.actual.velocities = robot.qd.tolist()
             feedback.desired.positions = q_des.tolist()

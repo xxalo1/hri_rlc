@@ -4,7 +4,7 @@ import rclpy
 from rclpy.node import Node
 
 from robots.kinova_gen3 import init_kinova_robot
-from common_utils import ros_util as ru
+from ros_utils import msg_conv as rmsg
 from common_utils import transforms as tfu
 from common_utils.buffers import RingBuffer, BufferSet
 
@@ -21,9 +21,13 @@ class RLCMonitorNode(Node):
         super().__init__('rlc_monitor')
 
         self.declare_parameter('capacity', 10000)
-        self.declare_parameter('publish_rate', 10.0)  # Hz
-        self.freq = self.get_parameter('publish_rate').get_parameter_value().double_value
-        self.capacity = self.get_parameter('capacity').get_parameter_value().integer_value
+        self.declare_parameter('publish_rate', 100.0)  # Hz
+        self.freq = self.get_parameter(
+            'publish_rate'
+            ).get_parameter_value().double_value
+        self.capacity = self.get_parameter(
+            'capacity'
+            ).get_parameter_value().integer_value
         
         self.robot = init_kinova_robot()
 
@@ -57,7 +61,7 @@ class RLCMonitorNode(Node):
         """Callback for joint state messages."""
         # Process joint state message and store in buffer
 
-        joint_state = ru.from_joint_state_msg(msg)
+        joint_state = rmsg.from_joint_state_msg(msg)
 
         t = joint_state.stamp
         q = joint_state.positions
@@ -82,7 +86,7 @@ class RLCMonitorNode(Node):
         output effort, converts them to numpy, updates the latest controller fields,
         and stores them in the state buffer for logging/plotting.
         """
-        ctrl_state = ru.from_joint_ctrl_state_msg(msg)
+        ctrl_state = rmsg.from_joint_ctrl_state_msg(msg)
         t = ctrl_state.stamp
 
         buf = self.state_buffer
@@ -101,7 +105,7 @@ class RLCMonitorNode(Node):
         """Publish the current frame states of the robot."""
         T_wf = self.robot.kin.forward_kinematics()
         poses = tfu.transform_to_pos_quat(T_wf)
-        msg = ru.to_pose_array_msg(
+        msg = rmsg.to_pose_array_msg(
             self.robot.t,
             poses,
         )
@@ -109,7 +113,13 @@ class RLCMonitorNode(Node):
 
 
 def main():
-    print('Hi from rlc_monitor.')
+    rclpy.init()
+    node = RLCMonitorNode()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

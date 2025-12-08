@@ -7,7 +7,8 @@ from rclpy.node import Node
 
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
-from common_utils import ros_util as ru
+from ros_utils import msg_conv as rmsg
+from ros_utils import time_util as rtime
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
@@ -59,7 +60,7 @@ class TrajectoryPlannerNode(Node):
     
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Store the latest joint state for planning."""
-        joint_state = ru.from_joint_state_msg(msg)
+        joint_state = rmsg.from_joint_state_msg(msg)
 
         t = joint_state.stamp
         q = joint_state.positions
@@ -79,7 +80,7 @@ class TrajectoryPlannerNode(Node):
         robot = self.robot
         t = robot.t
         qf = npu.to_array(request.target_positions)
-        duration = ru.from_ros_time(request.time_from_start)
+        duration = rtime.from_ros_time(request.time_from_start)
 
         if request.frequency: freq = request.frequency
         else: freq = self.default_freq
@@ -87,14 +88,14 @@ class TrajectoryPlannerNode(Node):
         joint_traj = robot.setup_quintic_traj(qf, duration=duration, freq=freq)
         cart_traj = robot.get_cartesian_traj()
 
-        planned_joint_traj_msg, traj_id = ru.planned_joint_traj(
+        planned_joint_traj_msg, traj_id = rmsg.planned_joint_traj(
             t, 
             robot.joint_names, 
             joint_traj,
             label,
             execute_immediately = execute_immediately
         )
-        planned_cart_traj_msg, _ = ru.planned_cartesian_traj(
+        planned_cart_traj_msg, _ = rmsg.planned_cartesian_traj(
             t,
             cart_traj,
             label,
