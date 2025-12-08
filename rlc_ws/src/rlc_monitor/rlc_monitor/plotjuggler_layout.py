@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 """Generate a PlotJuggler layout mirroring an exported (GUI-created) layout."""
 
 import argparse
