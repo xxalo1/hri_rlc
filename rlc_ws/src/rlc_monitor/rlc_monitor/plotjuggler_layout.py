@@ -1,47 +1,17 @@
 from __future__ import annotations
 
-"""
-Generate a PlotJuggler layout for the RLC stack.
+from __future__ import annotations
 
-Defaults align with topics from ``rlc_common.TOPICS`` and target a 7-DOF arm,
-but everything can be overridden via CLI flags. The script is intentionally
-structured so tabs/plots can be extended without touching the launch files.
-"""
+"""Generate a PlotJuggler layout mirroring an exported (GUI-created) layout."""
 
 import argparse
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 
-@dataclass(frozen=True)
-class Series:
-    topic: str
-    field: str
-    label: str
-    color: str
-
-
-@dataclass(frozen=True)
-class Plot:
-    name: str
-    series: list[Series]
-
-
-@dataclass(frozen=True)
-class Tab:
-    name: str
-    plots: list[Plot]
-
-
 def default_layout_path() -> Path:
-    """
-    Resolve the output path for the layout.
-
-    Prefers the installed share directory; falls back to the source tree config.
-    """
+    """Prefer installed share directory; fall back to source tree."""
     try:
         from ament_index_python.packages import get_package_share_directory
 
@@ -51,117 +21,84 @@ def default_layout_path() -> Path:
 
 
 def default_topics() -> dict[str, str]:
-    """
-    Fetch topic names from rlc_common, or fall back to the expected defaults.
-
-    The fallback keeps this generator usable even when ROS message deps are
-    unavailable in the current environment.
-    """
+    """Read topics from rlc_common if available; otherwise use sane defaults."""
     try:
         from rlc_common.endpoints import TOPICS
 
         return {
-            "sim_tau": TOPICS.joint_state.name,
-            "cmd_tau": TOPICS.effort_cmd.name,
-            "ctrl_state": TOPICS.controller_state.name,
+            "joint_state": f"/{TOPICS.joint_state.name.lstrip('/')}",
+            "effort_cmd": f"/{TOPICS.effort_cmd.name.lstrip('/')}",
+            "controller_state": f"/{TOPICS.controller_state.name.lstrip('/')}",
         }
     except Exception:
         return {
-            "sim_tau": "sim/gen3/joint_state",
-            "cmd_tau": "ctrl/gen3/effort_cmd",
-            "ctrl_state": "ctrl/gen3/controller_state",
+            "joint_state": "/sim/gen3/joint_state",
+            "effort_cmd": "/ctrl/gen3/effort_cmd",
+            "controller_state": "/ctrl/gen3/controller_state",
         }
 
 
-def torque_tab(sim_tau_topic: str, cmd_tau_topic: str, joint_count: int) -> Tab:
-    plots = [
-        Plot(
-            name=f"joint{idx}_tau",
-            series=[
-                Series(
-                    topic=sim_tau_topic,
-                    field=f"effort[{idx}]",
-                    label=f"tau_sim[{idx}]",
-                    color="#1f77b4",
-                ),
-                Series(
-                    topic=cmd_tau_topic,
-                    field=f"effort[{idx}]",
-                    label=f"tau_cmd[{idx}]",
-                    color="#ff7f0e",
-                ),
-            ],
-        )
-        for idx in range(joint_count)
-    ]
-    return Tab(name="Torques", plots=plots)
-
-
-def controller_state_tab(ctrl_state_topic: str, joint_count: int) -> Tab:
-    plots = [
-        Plot(
-            name=f"joint{idx}_state",
-            series=[
-                Series(
-                    topic=ctrl_state_topic,
-                    field=f"error.positions[{idx}]",
-                    label=f"e[{idx}]",
-                    color="#d62728",
-                ),
-                Series(
-                    topic=ctrl_state_topic,
-                    field=f"error.velocities[{idx}]",
-                    label=f"ed[{idx}]",
-                    color="#9467bd",
-                ),
-                Series(
-                    topic=ctrl_state_topic,
-                    field=f"feedback.velocities[{idx}]",
-                    label=f"v[{idx}]",
-                    color="#2ca02c",
-                ),
-            ],
-        )
-        for idx in range(joint_count)
-    ]
-    return Tab(name="Controller State", plots=plots)
-
-
-def build_layout(
-    tabs: Iterable[Tab],
-    layout_name: str,
-    *,
-    use_header_time: bool = True,
-) -> ET.Element:
-    """Construct the PlotJuggler layout XML tree."""
-    # PlotJuggler expects the top-level element to be named "root".
+def build_layout(topics: dict[str, str], joint_names: list[str], layout_name: str, use_header_time: bool) -> ET.Element:
+    """Construct a layout similar to one exported from PlotJuggler."""
     root = ET.Element("root")
     ET.SubElement(root, "version").text = "3.6"
 
-    data_sources = ET.SubElement(root, "data_sources")
-    ros2_live = ET.SubElement(data_sources, "ROS2Live")
-    ET.SubElement(ros2_live, "use_header_time").text = str(use_header_time).lower()
-    ET.SubElement(ros2_live, "qos_reliable").text = "true"
-    ET.SubElement(ros2_live, "qos_durability").text = "volatile"
+    tabbed_widget = ET.SubElement(root, "tabbed_widget", {"name": "Main Window", "parent": "main_window"})
 
-    layouts = ET.SubElement(root, "layouts")
-    layout = ET.SubElement(layouts, "layout", {"name": layout_name})
+    palette = ["#1f77b4", "#ff7f0e", "#d62728", "#1ac938"]
 
-    for tab in tabs:
-        tab_el = ET.SubElement(layout, "tab", {"name": tab.name})
-        for plot in tab.plots:
-            plot_el = ET.SubElement(tab_el, "plot", {"name": plot.name})
-            for series in plot.series:
-                ET.SubElement(
-                    plot_el,
-                    "series",
-                    {
-                        "topic": series.topic,
-                        "field": series.field,
-                        "label": series.label,
-                        "color": series.color,
-                    },
-                )
+    for idx, joint in enumerate(joint_names):
+        tab = ET.SubElement(tabbed_widget, "Tab", {"containers": "1", "tab_name": joint})
+        container = ET.SubElement(tab, "Container")
+        splitter = ET.SubElement(container, "DockSplitter", {"sizes": "1", "count": "1", "orientation": "-"})
+        dock = ET.SubElement(splitter, "DockArea", {"name": "..."})
+        plot = ET.SubElement(dock, "plot", {"flip_y": "false", "mode": "TimeSeries", "flip_x": "false", "style": "Lines"})
+        ET.SubElement(plot, "limitY")
+        # Sim effort for this joint (JointState names are split out per joint by PlotJuggler)
+        ET.SubElement(plot, "curve", {"color": palette[0], "name": f"{topics['joint_state']}/{joint}/effort"})
+        # Controller commanded effort (array by index)
+        ET.SubElement(plot, "curve", {"color": palette[1], "name": f"{topics['effort_cmd']}/effort[{idx}]"})
+        # Controller error e and ed (array by index)
+        ET.SubElement(plot, "curve", {"color": palette[2], "name": f"{topics['controller_state']}/error/positions[{idx}]"})
+        ET.SubElement(plot, "curve", {"color": palette[3], "name": f"{topics['controller_state']}/error/velocities[{idx}]"})
+
+    ET.SubElement(tabbed_widget, "currentTabIndex", {"index": "0"})
+
+    ET.SubElement(root, "use_relative_time_offset", {"enabled": "1"})
+
+    plugins = ET.SubElement(root, "Plugins")
+    ET.SubElement(plugins, "plugin", {"ID": "DataLoad CSV", "delimiter": "0", "time_axis": ""})
+    ET.SubElement(plugins, "plugin", {"ID": "DataLoad MCAP"})
+    dl_ros2 = ET.SubElement(plugins, "plugin", {"ID": "DataLoad ROS2 bags"})
+    ET.SubElement(dl_ros2, "use_header_stamp", {"value": str(use_header_time).lower()})
+    ET.SubElement(dl_ros2, "discard_large_arrays", {"value": "true"})
+    ET.SubElement(dl_ros2, "max_array_size", {"value": "100"})
+    ET.SubElement(dl_ros2, "boolean_strings_to_number", {"value": "true"})
+    ET.SubElement(dl_ros2, "remove_suffix_from_strings", {"value": "true"})
+    ET.SubElement(dl_ros2, "selected_topics", {"value": ""})
+
+    # ROS2 live streamer with the topics we care about
+    streamer = ET.SubElement(plugins, "plugin", {"ID": "ROS2 Topic Subscriber"})
+    ET.SubElement(streamer, "use_header_stamp", {"value": str(use_header_time).lower()})
+    ET.SubElement(streamer, "discard_large_arrays", {"value": "true"})
+    ET.SubElement(streamer, "max_array_size", {"value": "100"})
+    ET.SubElement(streamer, "boolean_strings_to_number", {"value": "true"})
+    ET.SubElement(streamer, "remove_suffix_from_strings", {"value": "true"})
+    ET.SubElement(streamer, "selected_topics", {"value": f"{topics['controller_state']};{topics['effort_cmd']};{topics['joint_state']}"})
+
+    ET.SubElement(plugins, "plugin", {"ID": "UDP Server"})
+    ET.SubElement(plugins, "plugin", {"ID": "WebSocket Server"})
+    ET.SubElement(plugins, "plugin", {"ID": "ZMQ Subscriber"})
+    ET.SubElement(plugins, "plugin", {"ID": "Fast Fourier Transform"})
+    ET.SubElement(plugins, "plugin", {"ID": "Quaternion to RPY"})
+    ET.SubElement(plugins, "plugin", {"ID": "Reactive Script Editor", "library": "", "scripts": ""})
+    ET.SubElement(plugins, "plugin", {"ID": "CSV Exporter"})
+    ET.SubElement(plugins, "plugin", {"ID": "ROS2 Topic Re-Publisher"})
+
+    ET.SubElement(root, "previouslyLoaded_Datafiles")
+    ET.SubElement(root, "previouslyLoaded_Streamer", {"name": "ROS2 Topic Subscriber"})
+    ET.SubElement(root, "customMathEquations")
+    ET.SubElement(root, "snippets")
 
     return root
 
@@ -173,25 +110,13 @@ def serialize_xml(elem: ET.Element) -> str:
     return parsed.toprettyxml(indent="  ", encoding="UTF-8").decode("utf-8")
 
 
-def default_tabs(
-    sim_tau_topic: str,
-    cmd_tau_topic: str,
-    ctrl_state_topic: str,
-    joint_count: int,
-) -> list[Tab]:
-    if joint_count < 1:
-        raise ValueError("joint_count must be positive")
-    return [
-        torque_tab(sim_tau_topic, cmd_tau_topic, joint_count),
-        controller_state_tab(ctrl_state_topic, joint_count),
-    ]
-
-
-def write_layout(out_path: Path, tabs: Iterable[Tab], layout_name: str, use_header_time: bool) -> Path:
+def write_layout(out_path: Path, topics: dict[str, str], joint_count: int, layout_name: str, use_header_time: bool) -> Path:
+    joint_names = [f"gen3_joint_{i+1}" for i in range(joint_count)]
     xml_text = serialize_xml(
         build_layout(
-            tabs,
-            layout_name,
+            topics=topics,
+            joint_names=joint_names,
+            layout_name=layout_name,
             use_header_time=use_header_time,
         )
     )
@@ -201,38 +126,22 @@ def write_layout(out_path: Path, tabs: Iterable[Tab], layout_name: str, use_head
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    default_out = default_layout_path()
     topics = default_topics()
-    parser = argparse.ArgumentParser(description="Generate PlotJuggler layout XML for the RLC stack.")
-    parser.add_argument("--out", "-o", type=Path, default=default_out, help="Destination layout file.")
+    parser = argparse.ArgumentParser(description="Generate a PlotJuggler layout resembling an exported GUI layout.")
+    parser.add_argument("--out", "-o", type=Path, default=default_layout_path(), help="Destination layout file.")
     parser.add_argument("--layout-name", default="RLC Telemetry", help="Name of the PlotJuggler layout.")
     parser.add_argument(
         "--joint-count",
         "-n",
         type=int,
         default=7,
-        help="Number of joints to create plots for.",
-    )
-    parser.add_argument(
-        "--sim-tau-topic",
-        default=topics["sim_tau"],
-        help="Topic providing simulated joint efforts.",
-    )
-    parser.add_argument(
-        "--cmd-tau-topic",
-        default=topics["cmd_tau"],
-        help="Topic providing commanded efforts.",
-    )
-    parser.add_argument(
-        "--ctrl-state-topic",
-        default=topics["ctrl_state"],
-        help="JointTrajectoryControllerState topic.",
+        help="Number of joints to create series for.",
     )
     parser.add_argument(
         "--use-header-time",
         action="store_true",
-        default=True,
-        help="Use ROS header time for PlotJuggler (default).",
+        default=False,
+        help="Use ROS header time for PlotJuggler (default: reception time).",
     )
     parser.add_argument(
         "--no-header-time",
@@ -245,15 +154,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    tabs = default_tabs(
-        sim_tau_topic=args.sim_tau_topic,
-        cmd_tau_topic=args.cmd_tau_topic,
-        ctrl_state_topic=args.ctrl_state_topic,
-        joint_count=args.joint_count,
-    )
     out_path = write_layout(
         out_path=args.out,
-        tabs=tabs,
+        topics=default_topics(),
+        joint_count=args.joint_count,
         layout_name=args.layout_name,
         use_header_time=args.use_header_time,
     )

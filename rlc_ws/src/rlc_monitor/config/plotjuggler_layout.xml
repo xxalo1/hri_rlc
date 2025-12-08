@@ -1,82 +1,145 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
   <version>3.6</version>
-  <data_sources>
-    <ROS2Live>
-      <use_header_time>true</use_header_time>
-      <qos_reliable>true</qos_reliable>
-      <qos_durability>volatile</qos_durability>
-    </ROS2Live>
-  </data_sources>
-  <layouts>
-    <layout name="RLC Telemetry">
-      <tab name="Torques">
-        <plot name="joint0_tau">
-          <series topic="sim/gen3/joint_state" field="effort[0]" label="tau_sim[0]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[0]" label="tau_cmd[0]" color="#ff7f0e"/>
-        </plot>
-        <plot name="joint1_tau">
-          <series topic="sim/gen3/joint_state" field="effort[1]" label="tau_sim[1]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[1]" label="tau_cmd[1]" color="#ff7f0e"/>
-        </plot>
-        <plot name="joint2_tau">
-          <series topic="sim/gen3/joint_state" field="effort[2]" label="tau_sim[2]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[2]" label="tau_cmd[2]" color="#ff7f0e"/>
-        </plot>
-        <plot name="joint3_tau">
-          <series topic="sim/gen3/joint_state" field="effort[3]" label="tau_sim[3]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[3]" label="tau_cmd[3]" color="#ff7f0e"/>
-        </plot>
-        <plot name="joint4_tau">
-          <series topic="sim/gen3/joint_state" field="effort[4]" label="tau_sim[4]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[4]" label="tau_cmd[4]" color="#ff7f0e"/>
-        </plot>
-        <plot name="joint5_tau">
-          <series topic="sim/gen3/joint_state" field="effort[5]" label="tau_sim[5]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[5]" label="tau_cmd[5]" color="#ff7f0e"/>
-        </plot>
-        <plot name="joint6_tau">
-          <series topic="sim/gen3/joint_state" field="effort[6]" label="tau_sim[6]" color="#1f77b4"/>
-          <series topic="ctrl/gen3/effort_cmd" field="effort[6]" label="tau_cmd[6]" color="#ff7f0e"/>
-        </plot>
-      </tab>
-      <tab name="Controller State">
-        <plot name="joint0_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[0]" label="e[0]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[0]" label="ed[0]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[0]" label="v[0]" color="#2ca02c"/>
-        </plot>
-        <plot name="joint1_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[1]" label="e[1]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[1]" label="ed[1]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[1]" label="v[1]" color="#2ca02c"/>
-        </plot>
-        <plot name="joint2_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[2]" label="e[2]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[2]" label="ed[2]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[2]" label="v[2]" color="#2ca02c"/>
-        </plot>
-        <plot name="joint3_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[3]" label="e[3]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[3]" label="ed[3]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[3]" label="v[3]" color="#2ca02c"/>
-        </plot>
-        <plot name="joint4_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[4]" label="e[4]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[4]" label="ed[4]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[4]" label="v[4]" color="#2ca02c"/>
-        </plot>
-        <plot name="joint5_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[5]" label="e[5]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[5]" label="ed[5]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[5]" label="v[5]" color="#2ca02c"/>
-        </plot>
-        <plot name="joint6_state">
-          <series topic="ctrl/gen3/controller_state" field="error.positions[6]" label="e[6]" color="#d62728"/>
-          <series topic="ctrl/gen3/controller_state" field="error.velocities[6]" label="ed[6]" color="#9467bd"/>
-          <series topic="ctrl/gen3/controller_state" field="feedback.velocities[6]" label="v[6]" color="#2ca02c"/>
-        </plot>
-      </tab>
-    </layout>
-  </layouts>
+  <tabbed_widget name="Main Window" parent="main_window">
+    <Tab containers="1" tab_name="gen3_joint_1">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_1/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[0]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[0]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[0]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <Tab containers="1" tab_name="gen3_joint_2">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_2/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[1]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[1]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[1]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <Tab containers="1" tab_name="gen3_joint_3">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_3/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[2]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[2]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[2]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <Tab containers="1" tab_name="gen3_joint_4">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_4/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[3]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[3]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[3]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <Tab containers="1" tab_name="gen3_joint_5">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_5/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[4]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[4]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[4]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <Tab containers="1" tab_name="gen3_joint_6">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_6/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[5]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[5]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[5]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <Tab containers="1" tab_name="gen3_joint_7">
+      <Container>
+        <DockSplitter sizes="1" count="1" orientation="-">
+          <DockArea name="...">
+            <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
+              <limitY/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_7/effort"/>
+              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[6]"/>
+              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[6]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[6]"/>
+            </plot>
+          </DockArea>
+        </DockSplitter>
+      </Container>
+    </Tab>
+    <currentTabIndex index="0"/>
+  </tabbed_widget>
+  <use_relative_time_offset enabled="1"/>
+  <Plugins>
+    <plugin ID="DataLoad CSV" delimiter="0" time_axis=""/>
+    <plugin ID="DataLoad MCAP"/>
+    <plugin ID="DataLoad ROS2 bags">
+      <use_header_stamp value="false"/>
+      <discard_large_arrays value="true"/>
+      <max_array_size value="100"/>
+      <boolean_strings_to_number value="true"/>
+      <remove_suffix_from_strings value="true"/>
+      <selected_topics value=""/>
+    </plugin>
+    <plugin ID="ROS2 Topic Subscriber">
+      <use_header_stamp value="false"/>
+      <discard_large_arrays value="true"/>
+      <max_array_size value="100"/>
+      <boolean_strings_to_number value="true"/>
+      <remove_suffix_from_strings value="true"/>
+      <selected_topics value="/ctrl/gen3/controller_state;/ctrl/gen3/effort_cmd;/sim/gen3/joint_state"/>
+    </plugin>
+    <plugin ID="UDP Server"/>
+    <plugin ID="WebSocket Server"/>
+    <plugin ID="ZMQ Subscriber"/>
+    <plugin ID="Fast Fourier Transform"/>
+    <plugin ID="Quaternion to RPY"/>
+    <plugin ID="Reactive Script Editor" library="" scripts=""/>
+    <plugin ID="CSV Exporter"/>
+    <plugin ID="ROS2 Topic Re-Publisher"/>
+  </Plugins>
+  <previouslyLoaded_Datafiles/>
+  <previouslyLoaded_Streamer name="ROS2 Topic Subscriber"/>
+  <customMathEquations/>
+  <snippets/>
 </root>
