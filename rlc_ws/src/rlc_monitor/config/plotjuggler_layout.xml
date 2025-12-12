@@ -8,10 +8,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_1/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[0]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[0]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[0]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_1/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_1/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[0]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[0]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[0]"/>
             </plot>
           </DockArea>
         </DockSplitter>
@@ -23,10 +24,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_2/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[1]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[1]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[1]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_2/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_2/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[1]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[1]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[1]"/>
             </plot>
           </DockArea>
         </DockSplitter>
@@ -38,10 +40,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_3/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[2]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[2]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[2]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_3/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_3/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[2]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[2]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[2]"/>
             </plot>
           </DockArea>
         </DockSplitter>
@@ -53,10 +56,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_4/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[3]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[3]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[3]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_4/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_4/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[3]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[3]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[3]"/>
             </plot>
           </DockArea>
         </DockSplitter>
@@ -68,10 +72,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_5/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[4]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[4]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[4]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_5/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_5/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[4]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[4]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[4]"/>
             </plot>
           </DockArea>
         </DockSplitter>
@@ -83,10 +88,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_6/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[5]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[5]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[5]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_6/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_6/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[5]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[5]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[5]"/>
             </plot>
           </DockArea>
         </DockSplitter>
@@ -98,10 +104,11 @@
           <DockArea name="...">
             <plot flip_y="false" mode="TimeSeries" flip_x="false" style="Lines">
               <limitY/>
-              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_7/effort"/>
-              <curve color="#ff7f0e" name="/ctrl/gen3/effort_cmd/effort[6]"/>
-              <curve color="#d62728" name="/ctrl/gen3/controller_state/error/positions[6]"/>
-              <curve color="#1ac938" name="/ctrl/gen3/controller_state/error/velocities[6]"/>
+              <curve color="#1f77b4" name="/sim/gen3/joint_state/gen3_joint_7/position"/>
+              <curve color="#ff7f0e" name="/sim/gen3/joint_state/gen3_joint_7/effort"/>
+              <curve color="#d62728" name="/ctrl/gen3/effort_cmd/effort[6]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/reference/positions[6]"/>
+              <curve color="#1ac938" name="/ctrl/gen3/controller_state/feedback/positions[6]"/>
             </plot>
           </DockArea>
         </DockSplitter>

@@ -28,12 +28,6 @@ class Gen3ControllerNode(Node):
         self.robot = init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=1.0, Kv=1.0, Ki=0.0)
 
-        q_des = np.array(
-            [np.pi/4, -np.pi/2, np.pi/3, -np.pi/3, 0.0, np.pi/6, 0.0], 
-            dtype=npu.dtype
-        )
-        self.robot.setup_quintic_traj(q_des, duration=5.0, freq=1000.0)
-
         self.declare_parameter("controller_rate_hz", 200.0)
         self.controller_rate = (
             self.get_parameter("controller_rate_hz").get_parameter_value().double_value

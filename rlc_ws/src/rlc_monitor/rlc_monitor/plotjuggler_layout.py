@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-"""Generate a PlotJuggler layout mirroring an exported (GUI-created) layout."""
+"""Programmatic PlotJuggler layout builder (no CLI parsing)."""
 
-import argparse
 from pathlib import Path
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+
+from rlc_common.endpoints import TOPICS as RLC_TOPICS
+
+# Static topic paths (always available in this package).
+TOPIC_PATHS = {
+    "joint_state": f"/{RLC_TOPICS.joint_state.name.lstrip('/')}",
+    "effort_cmd": f"/{RLC_TOPICS.effort_cmd.name.lstrip('/')}",
+    "controller_state": f"/{RLC_TOPICS.controller_state.name.lstrip('/')}",
+}
 
 
 def default_layout_path() -> Path:
@@ -18,52 +26,53 @@ def default_layout_path() -> Path:
         return Path(__file__).resolve().parent.parent / "config" / "plotjuggler_layout.xml"
 
 
-def default_topics() -> dict[str, str]:
-    """Read topics from rlc_common if available; otherwise use sane defaults."""
-    try:
-        from rlc_common.endpoints import TOPICS
+def joint_effort_error_tabs(joint_names: list[str]) -> list[dict]:
+    """
+    Build per-joint tabs with sim effort, commanded effort, and controller e/ed.
 
-        return {
-            "joint_state": f"/{TOPICS.joint_state.name.lstrip('/')}",
-            "effort_cmd": f"/{TOPICS.effort_cmd.name.lstrip('/')}",
-            "controller_state": f"/{TOPICS.controller_state.name.lstrip('/')}",
-        }
-    except Exception:
-        return {
-            "joint_state": "/sim/gen3/joint_state",
-            "effort_cmd": "/ctrl/gen3/effort_cmd",
-            "controller_state": "/ctrl/gen3/controller_state",
-        }
+    Returns a list of tab dicts:
+      {"name": <tab name>, "curves": [{"name": <series>, "color": <hex>}, ...]}
+    """
+    palette = ["#1f77b4", "#ff7f0e", "#d62728", "#1ac938", "#1ac938"]
+    tabs: list[dict] = []
+    for idx, joint in enumerate(joint_names):
+        curves = [
+            {"name": f"{TOPIC_PATHS['joint_state']}/{joint}/position", "color": palette[0]},  # sim tau
+            {"name": f"{TOPIC_PATHS['joint_state']}/{joint}/effort", "color": palette[1]},  # sim tau
+            {"name": f"{TOPIC_PATHS['effort_cmd']}/effort[{idx}]", "color": palette[2]},    # cmd tau
+            {"name": f"{TOPIC_PATHS['controller_state']}/reference/positions[{idx}]", "color": palette[3]},  # e
+            {"name": f"{TOPIC_PATHS['controller_state']}/feedback/positions[{idx}]", "color": palette[4]}, # ed
+        ]
+        tabs.append({"name": joint, "curves": curves})
+    return tabs
 
 
-def build_layout(topics: dict[str, str], joint_names: list[str], layout_name: str, use_header_time: bool) -> ET.Element:
-    """Construct a layout similar to one exported from PlotJuggler."""
+def build_layout_from_tabs(tabs: list[dict], layout_name: str, use_header_time: bool) -> ET.Element:
+    """
+    Build a PlotJuggler layout from a list of tab dicts.
+
+    Each tab dict must contain:
+      - name: str
+      - curves: list of dicts with keys {"name": series_path, "color": hex_color}
+    """
     root = ET.Element("root")
     ET.SubElement(root, "version").text = "3.6"
 
     tabbed_widget = ET.SubElement(root, "tabbed_widget", {"name": "Main Window", "parent": "main_window"})
-
-    palette = ["#1f77b4", "#ff7f0e", "#d62728", "#1ac938"]
-
-    for idx, joint in enumerate(joint_names):
-        tab = ET.SubElement(tabbed_widget, "Tab", {"containers": "1", "tab_name": joint})
+    for tab_def in tabs:
+        tab = ET.SubElement(tabbed_widget, "Tab", {"containers": "1", "tab_name": tab_def["name"]})
         container = ET.SubElement(tab, "Container")
         splitter = ET.SubElement(container, "DockSplitter", {"sizes": "1", "count": "1", "orientation": "-"})
         dock = ET.SubElement(splitter, "DockArea", {"name": "..."})
         plot = ET.SubElement(dock, "plot", {"flip_y": "false", "mode": "TimeSeries", "flip_x": "false", "style": "Lines"})
         ET.SubElement(plot, "limitY")
-        # Sim effort for this joint (JointState names are split out per joint by PlotJuggler)
-        ET.SubElement(plot, "curve", {"color": palette[0], "name": f"{topics['joint_state']}/{joint}/effort"})
-        # Controller commanded effort (array by index)
-        ET.SubElement(plot, "curve", {"color": palette[1], "name": f"{topics['effort_cmd']}/effort[{idx}]"})
-        # Controller error e and ed (array by index)
-        ET.SubElement(plot, "curve", {"color": palette[2], "name": f"{topics['controller_state']}/error/positions[{idx}]"})
-        ET.SubElement(plot, "curve", {"color": palette[3], "name": f"{topics['controller_state']}/error/velocities[{idx}]"})
+        for curve in tab_def["curves"]:
+            ET.SubElement(plot, "curve", {"color": curve["color"], "name": curve["name"]})
 
     ET.SubElement(tabbed_widget, "currentTabIndex", {"index": "0"})
-
     ET.SubElement(root, "use_relative_time_offset", {"enabled": "1"})
 
+    # Plugins configuration mirrors the exported layout to keep ROS2 streaming happy.
     plugins = ET.SubElement(root, "Plugins")
     ET.SubElement(plugins, "plugin", {"ID": "DataLoad CSV", "delimiter": "0", "time_axis": ""})
     ET.SubElement(plugins, "plugin", {"ID": "DataLoad MCAP"})
@@ -75,14 +84,17 @@ def build_layout(topics: dict[str, str], joint_names: list[str], layout_name: st
     ET.SubElement(dl_ros2, "remove_suffix_from_strings", {"value": "true"})
     ET.SubElement(dl_ros2, "selected_topics", {"value": ""})
 
-    # ROS2 live streamer with the topics we care about
     streamer = ET.SubElement(plugins, "plugin", {"ID": "ROS2 Topic Subscriber"})
     ET.SubElement(streamer, "use_header_stamp", {"value": str(use_header_time).lower()})
     ET.SubElement(streamer, "discard_large_arrays", {"value": "true"})
     ET.SubElement(streamer, "max_array_size", {"value": "100"})
     ET.SubElement(streamer, "boolean_strings_to_number", {"value": "true"})
     ET.SubElement(streamer, "remove_suffix_from_strings", {"value": "true"})
-    ET.SubElement(streamer, "selected_topics", {"value": f"{topics['controller_state']};{topics['effort_cmd']};{topics['joint_state']}"})
+    ET.SubElement(
+        streamer,
+        "selected_topics",
+        {"value": f"{TOPIC_PATHS['controller_state']};{TOPIC_PATHS['effort_cmd']};{TOPIC_PATHS['joint_state']}"},
+    )
 
     ET.SubElement(plugins, "plugin", {"ID": "UDP Server"})
     ET.SubElement(plugins, "plugin", {"ID": "WebSocket Server"})
@@ -108,57 +120,23 @@ def serialize_xml(elem: ET.Element) -> str:
     return parsed.toprettyxml(indent="  ", encoding="UTF-8").decode("utf-8")
 
 
-def write_layout(out_path: Path, topics: dict[str, str], joint_count: int, layout_name: str, use_header_time: bool) -> Path:
-    joint_names = [f"gen3_joint_{i+1}" for i in range(joint_count)]
-    xml_text = serialize_xml(
-        build_layout(
-            topics=topics,
-            joint_names=joint_names,
-            layout_name=layout_name,
-            use_header_time=use_header_time,
-        )
-    )
+def write_layout(out_path: Path, tabs: list[dict], layout_name: str = "RLC Telemetry", use_header_time: bool = False) -> Path:
+    """
+    Write the layout file from tab definitions.
+
+    tabs: list of {"name": str, "curves": [{"name": str, "color": str}, ...]}
+    """
+    xml_text = serialize_xml(build_layout_from_tabs(tabs=tabs, layout_name=layout_name, use_header_time=use_header_time))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(xml_text)
     return out_path
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    topics = default_topics()
-    parser = argparse.ArgumentParser(description="Generate a PlotJuggler layout resembling an exported GUI layout.")
-    parser.add_argument("--out", "-o", type=Path, default=default_layout_path(), help="Destination layout file.")
-    parser.add_argument("--layout-name", default="RLC Telemetry", help="Name of the PlotJuggler layout.")
-    parser.add_argument(
-        "--joint-count",
-        "-n",
-        type=int,
-        default=7,
-        help="Number of joints to create series for.",
-    )
-    parser.add_argument(
-        "--use-header-time",
-        action="store_true",
-        default=False,
-        help="Use ROS header time for PlotJuggler (default: reception time).",
-    )
-    parser.add_argument(
-        "--no-header-time",
-        dest="use_header_time",
-        action="store_false",
-        help="Disable header time and fall back to reception time.",
-    )
-    return parser.parse_args(argv)
-
-
-def main(argv: list[str] | None = None) -> None:
-    args = parse_args(argv)
-    out_path = write_layout(
-        out_path=args.out,
-        topics=default_topics(),
-        joint_count=args.joint_count,
-        layout_name=args.layout_name,
-        use_header_time=args.use_header_time,
-    )
+def main() -> None:
+    """Generate the default per-joint effort/error layout."""
+    joint_names = [f"gen3_joint_{i+1}" for i in range(7)]
+    tabs = joint_effort_error_tabs(joint_names)
+    out_path = write_layout(default_layout_path(), tabs, layout_name="RLC Telemetry", use_header_time=False)
     print(f"Wrote PlotJuggler layout to: {out_path}")
 
 
