@@ -157,7 +157,7 @@ class Robot:
         t : float
             Current time in seconds.
         """
-        if q is not None: self._q = q
+        if q is not None: self.q = q
         if qd is not None: self.qd = qd
         if qdd is not None: self.qdd = qdd
         if t is not None: self.t_prev = self.t; self.t = t

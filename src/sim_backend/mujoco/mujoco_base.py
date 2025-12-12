@@ -55,7 +55,6 @@ class BaseMujocoEnv:
         # optional: remember a keyframe to reset to (uses Menagerie keys if present)
         self.key_home = mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_KEY, "home") if self.m.nkey > 0 else -1
 
-
         # self.display()
 
 
@@ -112,25 +111,31 @@ class BaseMujocoEnv:
         return self.observe()
 
 
-    def step_realtime(self, 
-        action: FloatArray, 
+    def reset_realtime_clock(self):
+        self.wall0 = time.perf_counter()
+        self.sim0 = self.d.time
+
+
+    def step_realtime(self,
+        action: FloatArray,
         mode: str = "torque",
-        realtime_factor: float =1.0
+        realtime_factor: float = 1.0,
+        nsub: int = 1
     ) -> Observation:
-        """Apply action then step physics in realtime."""
-        t0 = time.time()
-        sim_time = self.d.time
-        target_wall = t0 + sim_time / realtime_factor
+        if not hasattr(self, "wall0"):
+            self.reset_realtime_clock()
 
-        obs = self.step(action, mode=mode, nsub=1)
+        obs = self.step(action, mode=mode, nsub=nsub)
 
-        now = time.time()
-        while now < target_wall:
-            time.sleep(0.0001)
-            now = time.time()
-        
+        sim_elapsed = self.d.time - self.sim0
+        target_wall = self.wall0 + sim_elapsed / realtime_factor
+
+        remaining = target_wall - time.perf_counter()
+        if remaining > 0:
+            time.sleep(remaining)
+
         return obs
-    
+
 
     def observe(self
     ) -> Observation:
