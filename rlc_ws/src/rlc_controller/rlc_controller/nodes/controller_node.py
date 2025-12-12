@@ -28,7 +28,7 @@ class Gen3ControllerNode(Node):
         self.robot = init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=1.0, Kv=1.0, Ki=0.0)
 
-        self.declare_parameter("controller_rate_hz", 200.0)
+        self.declare_parameter("controller_rate_hz", 2000.0)
         self.controller_rate = (
             self.get_parameter("controller_rate_hz").get_parameter_value().double_value
         )
@@ -138,9 +138,18 @@ class Gen3ControllerNode(Node):
 
         self.robot.set_joint_state(q=q, qd=qd, t=t)
         self.robot.update_joint_des()
+        tau = self.robot.compute_ctrl_effort()
+
+        cmd_msg = rmsg.to_joint_effort_cmd_msg(
+            self.robot.t,
+            self.robot.joint_names,
+            tau,
+        )
+        self.effort_pub.publish(cmd_msg)
 
 
     def control_step(self) -> None:
+        return
         robot = self.robot
         tau = robot.compute_ctrl_effort()
 
@@ -173,13 +182,12 @@ class Gen3ControllerNode(Node):
         if n_pts == 0:
             self.get_logger().warning("Received empty JointTrajectory")
             return False
-    
+
         joint_traj = rmsg.from_joint_traj_msg(msg)
         traj = joint_traj.traj
 
-        tf = joint_traj.time_from_start[-1] + self.robot.t
-
-        self.robot.set_joint_traj(traj, tf)
+        duration = float(joint_traj.time_from_start[-1])
+        self.robot.set_joint_traj(traj, duration, ti=self.robot.t)
 
         self.get_logger().info(
             f"Trajectory loaded: {n_pts} points, {self.robot.n} joints"

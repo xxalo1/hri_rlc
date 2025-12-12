@@ -9,7 +9,8 @@ from rclpy.node import Node
 from rosgraph_msgs.msg import Clock
 
 from sim_env.mujoco.env import Gen3Env
-from common_utils import numpy_util as npu
+from robots.kinova_gen3 import init_kinova_robot
+from common_utils import numpy_util as npu, FloatArray
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
 
@@ -22,8 +23,9 @@ from rlc_common.endpoints import (
 class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_sim")
+        self.robot = init_kinova_robot()
 
-        self.declare_parameter("publish_rate_hz", 200.0)
+        self.declare_parameter("publish_rate_hz", 2000.0)
         self.declare_parameter("realtime_factor", 1.0)
 
         self.publish_rate = self.get_parameter(
@@ -114,7 +116,18 @@ class Gen3MujocoSimNode(Node):
                 f"Received tau size {tau.size}, expected {self.n_joints}"
             )
             return
+    
+        # tau = self.compute_tau()
+
         self.tau_cmd = tau
+
+    def compute_tau(self) -> FloatArray:
+        robot = self.robot
+        obs = self.env.observe()
+        self.robot.set_joint_state(q=obs.q, qd=obs.qd, t=obs.t)
+        self.robot.update_joint_des()
+        tau = robot.compute_ctrl_effort()
+        return tau
 
 
     def publish_joint_state(self) -> None:
@@ -128,10 +141,11 @@ class Gen3MujocoSimNode(Node):
             efforts=obs.effort,
         )
 
-        clock_msg = Clock()
-        clock_msg.clock = rtime.to_ros_time(obs.t)
+        # clock_msg = Clock()
+        # clock_msg.clock = rtime.to_ros_time(obs.t)
+
         self.joint_state_pub.publish(msg)
-        self.clock_pub.publish(clock_msg)
+        # self.clock_pub.publish(clock_msg)
 
 
 def main(args=None) -> None:
@@ -148,9 +162,13 @@ def main(args=None) -> None:
                 time.sleep(0.001)
                 continue
 
-            env.step(node.tau_cmd)
+            env.step_realtime(
+                node.tau_cmd,
+                mode = "torque",
+                realtime_factor = rt_factor,
+            )
 
-            time.sleep(0.001)
+            # time.sleep(0.001)
 
     except KeyboardInterrupt:
         pass
