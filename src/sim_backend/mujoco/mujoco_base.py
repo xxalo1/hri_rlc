@@ -21,7 +21,6 @@ class Observation:
 
 class BaseMujocoEnv:
     def __init__(self, xml_path, nsubsteps=10, seed: int | None = 0):
-        self._mj_lock = threading.RLock()
 
         self.m = mj.MjModel.from_xml_path(xml_path)
         self.d = mj.MjData(self.m)
@@ -57,6 +56,13 @@ class BaseMujocoEnv:
         # optional: remember a keyframe to reset to (uses Menagerie keys if present)
         self.key_home = mj.mj_name2id(self.m, mj.mjtObj.mjOBJ_KEY, "home") if self.m.nkey > 0 else -1
 
+        self._obs = Observation(
+            t = 0.0,
+            q = self.d.qpos[self.joint_idx].copy(),
+            qd = self.d.qvel[self.joint_idx].copy(),
+            qdd = self.d.qacc[self.joint_idx].copy(),
+            effort = self.d.ctrl[self.act_idx].copy(),
+        )
         # self.display()
 
 
@@ -90,14 +96,13 @@ class BaseMujocoEnv:
 
     def reset(self):
         """Reset to 'home' keyframe if it exists; otherwise to default qpos=0."""
-        with self._mj_lock: 
-            if self.key_home >= 0:
-                mj.mj_resetDataKeyframe(self.m, self.d, self.key_home)
-            else:
-                mj.mj_resetData(self.m, self.d)
+        if self.key_home >= 0:
+            mj.mj_resetDataKeyframe(self.m, self.d, self.key_home)
+        else:
+            mj.mj_resetData(self.m, self.d)
 
-            mj.mj_forward(self.m, self.d)
-            self.reset_realtime_clock()
+        mj.mj_forward(self.m, self.d)
+        self.reset_realtime_clock()
         return self.observe()
 
 
@@ -108,18 +113,16 @@ class BaseMujocoEnv:
     ) -> Observation:
         """Apply action then step physics."""
         if nsub is None: nsub = self.nsub
-        with self._mj_lock:
-            if mode == "torque":
-                self.d.ctrl[self.act_idx[:len(action)]] = action
-            mj.mj_step(self.m, self.d, nsub)
+        if mode == "torque":
+            self.d.ctrl[self.act_idx[:len(action)]] = action
+        mj.mj_step(self.m, self.d, nsub)
 
         return self.observe()
 
 
     def reset_realtime_clock(self):
-        with self._mj_lock:
-            self.wall0 = time.perf_counter()
-            self.sim0 = self.d.time
+        self._wall0 = time.perf_counter()
+        self._sim0 = self.d.time
 
 
     def step_realtime(self,
@@ -133,12 +136,9 @@ class BaseMujocoEnv:
 
         obs = self.step(action, mode=mode, nsub=nsub)
 
-        # compute desired wall-clock time for this sim time without blocking MJ access
-        with self._mj_lock:
-            sim_elapsed = obs.t - self.sim0
-            wall0 = self.wall0
+        sim_elapsed = self.d.time - self._sim0
+        target_wall = self._wall0 + sim_elapsed / realtime_factor
 
-        target_wall = wall0 + sim_elapsed / realtime_factor
         remaining = target_wall - time.perf_counter()
         if remaining > 0:
             time.sleep(remaining)
@@ -146,18 +146,22 @@ class BaseMujocoEnv:
         return obs
 
 
-    def observe(self
-    ) -> Observation:
-        """Return a simple state dict; extend as you need."""
-        with self._mj_lock:
-            obs = Observation(
-                t = self.d.time,
-                q=self.d.qpos[self.joint_idx].copy(),
-                qd=self.d.qvel[self.joint_idx].copy(),
-                qdd=self.d.qacc[self.joint_idx].copy(),
-                effort=self.d.actuator_force[self.act_idx].copy(),
-            )
+    def observe(self) -> Observation:
+        obs = self._obs
+        obs.t = float(self.d.time)
+        obs.q[:] = self.d.qpos[self.joint_idx]
+        obs.qd[:] = self.d.qvel[self.joint_idx]
+        obs.qdd[:] = self.d.qacc[self.joint_idx]
+        obs.effort[:] = self.d.actuator_force[self.act_idx]
         return obs
+
+
+    def observe_into(self, obs: Observation) -> None:
+        obs.t = float(self.d.time)
+        obs.q[:] = self.d.qpos[self.joint_idx]
+        obs.qd[:] = self.d.qvel[self.joint_idx]
+        obs.qdd[:] = self.d.qacc[self.joint_idx]
+        obs.effort[:] = self.d.actuator_force[self.act_idx]
 
 
     def set_state(self, 
@@ -165,8 +169,8 @@ class BaseMujocoEnv:
         qvel: FloatArray,
         t: float
     ) -> None:
-        with self._mj_lock:
-            aji = self.joint_idx
-            self.d.qpos[aji], self.d.qvel[aji], self.d.time = qpos, qvel, t
-            mj.mj_forward(self.m, self.d)
+        aji = self.joint_idx
+        self.d.qpos[aji], self.d.qvel[aji], self.d.time = qpos, qvel, t
+        mj.mj_forward(self.m, self.d)
+
 

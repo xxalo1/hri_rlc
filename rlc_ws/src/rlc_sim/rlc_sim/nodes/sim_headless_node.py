@@ -10,6 +10,7 @@ from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rosgraph_msgs.msg import Clock
 
+from sim_backend.mujoco.mujoco_base import Observation
 from sim_env.mujoco.env import Gen3Env
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu, FloatArray
@@ -23,13 +24,38 @@ from rlc_common.endpoints import (
 )
 
 class Gen3MujocoSimNode(Node):
-    def __init__(self) -> None:
+    def __init__(self, 
+        joint_names: list[str]
+    ) -> None:
         super().__init__("gen3_mujoco_sim")
         self.robot = init_kinova_robot()
-        self._cmd_lock = threading.Lock()
-        self._paused = threading.Event()
 
-        self.declare_parameter("publish_rate_hz", 2000.0)
+        self.joint_names = joint_names
+        self.n = len(joint_names)
+
+        self._cmd_lock = threading.Lock()
+        self._cmd_pending = np.zeros(self.n, dtype=npu.dtype)
+        self.cmd = np.zeros(self.n, dtype=npu.dtype)
+        self._pause_req = threading.Event()
+        self._reset_req = threading.Event()
+
+        self._state_lock = threading.Lock()
+        self.state = Observation(
+            t = 0.0,
+            q = np.zeros(self.n, dtype=npu.dtype),
+            qd = np.zeros(self.n, dtype=npu.dtype),
+            qdd = np.zeros(self.n, dtype=npu.dtype),
+            effort = np.zeros(self.n, dtype=npu.dtype)
+        )
+        self._state_back = Observation(
+            t = 0.0,
+            q = np.zeros(self.n, dtype=npu.dtype),
+            qd = np.zeros(self.n, dtype=npu.dtype),
+            qdd = np.zeros(self.n, dtype=npu.dtype),
+            effort = np.zeros(self.n, dtype=npu.dtype)
+        )
+
+        self.declare_parameter("publish_rate_hz", 1000.0)
         self.declare_parameter("realtime_factor", 1.0)
 
         self.publish_rate = self.get_parameter(
@@ -40,26 +66,18 @@ class Gen3MujocoSimNode(Node):
             "realtime_factor"
             ).get_parameter_value().double_value
 
-        self.env = Gen3Env.from_default_scene()
-        self.env.reset()
-
-        self.joint_names = list(self.env.active_joints.keys())
-        self.n_joints = len(self.joint_names)
-
-        self.tau_cmd = np.zeros(self.n_joints, dtype=npu.dtype)
-        self.paused = False
 
         self.torque_sub = self.create_subscription(
             TOPICS.effort_cmd.type,
             TOPICS.effort_cmd.name,
             self.torque_cmd_callback,
-            10,
+            1,
         )
 
         self.joint_state_pub = self.create_publisher(
             TOPICS.joint_state.type, 
             TOPICS.joint_state.name, 
-            10,
+            1,
         )
         self.clock_pub = self.create_publisher(Clock, "/clock", 10)
 
@@ -80,7 +98,7 @@ class Gen3MujocoSimNode(Node):
         )
 
         self.get_logger().info(
-            f"Headless Gen3 MuJoCo sim ready with {self.n_joints} joints. "
+            f"Headless Gen3 MuJoCo sim ready with {self.n} joints. "
             f"publish_rate={self.publish_rate} Hz, realtime_factor={self.realtime_factor}"
         )
 
@@ -92,9 +110,9 @@ class Gen3MujocoSimNode(Node):
         """
         Reset the simulation.
         """
-        self.env.reset()
+        self._reset_req.set()
         response.success = True
-        response.message = "Simulation reset."
+        response.message = "Reset requested."
         return response
 
 
@@ -106,11 +124,11 @@ class Gen3MujocoSimNode(Node):
         Pause/unpause physics stepping.
         """
 
-        if request.data: self._paused.set()
-        else: self._paused.clear()
+        if request.data: self._pause_req.set()
+        else: self._pause_req.clear()
 
         response.success = True
-        state = "paused" if self._paused.is_set() else "running"
+        state = "pause requested" if self._pause_req.is_set() else "run requested"
         response.message = f"Simulation is now {state}."
         return response
 
@@ -118,48 +136,125 @@ class Gen3MujocoSimNode(Node):
     def torque_cmd_callback(self, msg: JointEffortCmdMsg) -> None:
         state = rmsg.from_joint_effort_cmd_msg(msg)
         tau = state.efforts
-        if tau.size != self.n_joints:
+        if tau.size != self.n:
             self.get_logger().warn(
-                f"Received tau size {tau.size}, expected {self.n_joints}"
+                f"Received tau size {tau.size}, expected {self.n}"
             )
             return
-    
-        # tau = self.compute_tau()
-
         with self._cmd_lock:
-            self.tau_cmd = tau
+            self._cmd_pending[:] = tau
+
 
     def compute_tau(self) -> FloatArray:
         robot = self.robot
-        obs = self.env.observe()
-        self.robot.set_joint_state(q=obs.q, qd=obs.qd, t=obs.t)
+        with self._state_lock:
+            t = self.state.t
+            q = self.state.q.copy()
+            qd = self.state.qd.copy()
+
+        self.robot.set_joint_state(q=q, qd=qd, t=t)
         self.robot.update_joint_des()
         tau = robot.compute_ctrl_effort()
         return tau
 
 
     def publish_joint_state(self) -> None:
-        obs = self.env.observe()
+        with self._state_lock:
+            t = self.state.t
+            q = self.state.q.copy()
+            qd = self.state.qd.copy()
+            effort = self.state.effort.copy()
 
         msg = rmsg.to_joint_state_msg(
-            stamp=obs.t,
+            stamp=t,
             joint_names=self.joint_names,
-            positions=obs.q,
-            velocities=obs.qd,
-            efforts=obs.effort,
+            positions=q,
+            velocities=qd,
+            efforts=effort,
         )
-
-        # clock_msg = Clock()
-        # clock_msg.clock = rtime.to_ros_time(obs.t)
-
         self.joint_state_pub.publish(msg)
+
+        # If you want /clock and use_sim_time, publish it here too
+        # clock_msg = Clock()
+        # clock_msg.clock = rtime.to_ros_time(t)
         # self.clock_pub.publish(clock_msg)
+
+
+    def step_cmd(self) -> FloatArray:
+        with self._cmd_lock:
+            self.cmd[:] = self._cmd_pending
+        return self.cmd
+
+
+    def reset_cmd(self) -> FloatArray:
+        with self._cmd_lock:
+            self._cmd_pending[:] = 0.0
+            self.cmd[:] = 0.0
+        return self.cmd
+
+
+    def step_state(self) -> None:
+        with self._state_lock:
+            self.state, self._state_back = self._state_back, self.state
+
+
+def physics_loop(
+    env: Gen3Env, 
+    node: Gen3MujocoSimNode,
+    rt : float = 1.0
+) -> None:
+    env.reset()
+    dt_phy = env.m.opt.timestep
+
+    servo_rate = node.publish_rate
+    sense_rate = node.publish_rate
+
+    dt_servo = 1.0 / servo_rate
+    dt_sense = 1.0 / sense_rate
+
+    n_servo = max(1, int(round(dt_servo / dt_phy)))
+    n_sense = max(1, int(round(dt_sense / dt_phy)))
+
+    t0_wall = time.perf_counter()
+    k = 0
+
+    cmd = node.step_cmd()
+
+    while rclpy.ok():
+        if node._reset_req.is_set():
+            env.reset()
+            cmd = node.reset_cmd()
+            env.observe_into(node._state_back)
+            node.step_state()
+            k = 0
+            t0_wall = time.perf_counter()
+            node._reset_req.clear()
+
+        if node._pause_req.is_set():
+            time.sleep(0.01)
+            continue
+
+        if (k % n_servo) == 0: 
+            cmd = node.step_cmd()
+
+        env.step(cmd, mode="torque")
+
+        if (k % n_sense) == 0:
+            env.observe_into(node._state_back)
+            node.step_state()
+
+        k += 1
+        target_wall = t0_wall + (k * dt_phy) / rt
+        now = time.perf_counter()
+        sleep_s = target_wall - now
+        if sleep_s > 0:
+            time.sleep(sleep_s)
 
 
 def main(args=None) -> None:
     rclpy.init(args=args)
-    node = Gen3MujocoSimNode()
-    env = node.env
+    env = Gen3Env.from_default_scene()
+    node = Gen3MujocoSimNode(env.joint_names)
     rt_factor = node.realtime_factor
 
     executor = MultiThreadedExecutor()
@@ -168,21 +263,17 @@ def main(args=None) -> None:
     spin_thread = threading.Thread(target=executor.spin, daemon=True)
     spin_thread.start()
 
+    phys_thread = threading.Thread(
+        target=physics_loop,
+        args=(env, node),
+        kwargs={"rt": rt_factor},
+        daemon=True,
+    )
+    phys_thread.start()
+
     try:
         while rclpy.ok():
-            if node._paused.is_set():
-                time.sleep(0.001)
-                continue
-
-            with node._cmd_lock:
-                tau = node.tau_cmd.copy()
-
-            env.step_realtime(
-                tau,
-                mode = "torque",
-                realtime_factor = rt_factor,
-            )
-
+            time.sleep(0.1)
     except KeyboardInterrupt:
         pass
     finally:

@@ -28,7 +28,7 @@ class Gen3ControllerNode(Node):
         self.robot = init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=1.0, Kv=1.0, Ki=0.0)
 
-        self.declare_parameter("controller_rate_hz", 2000.0)
+        self.declare_parameter("controller_rate_hz", 1000.0)
         self.controller_rate = (
             self.get_parameter("controller_rate_hz").get_parameter_value().double_value
         )
@@ -37,18 +37,18 @@ class Gen3ControllerNode(Node):
             TOPICS.joint_state.type,
             TOPICS.joint_state.name,
             self.joint_state_callback,
-            10,
+            1,
         )
 
         self.effort_pub = self.create_publisher(
             TOPICS.effort_cmd.type,
             TOPICS.effort_cmd.name,
-            10,
+            1,
         )
         self.ctrl_state_pub = self.create_publisher(
             TOPICS.controller_state.type,
             TOPICS.controller_state.name,
-            10,
+            1,
         )
 
         self._traj_action_server = ActionServer(
@@ -138,18 +138,9 @@ class Gen3ControllerNode(Node):
 
         self.robot.set_joint_state(q=q, qd=qd, t=t)
         self.robot.update_joint_des()
-        tau = self.robot.compute_ctrl_effort()
-
-        cmd_msg = rmsg.to_joint_effort_cmd_msg(
-            self.robot.t,
-            self.robot.joint_names,
-            tau,
-        )
-        self.effort_pub.publish(cmd_msg)
 
 
     def control_step(self) -> None:
-        return
         robot = self.robot
         tau = robot.compute_ctrl_effort()
 
