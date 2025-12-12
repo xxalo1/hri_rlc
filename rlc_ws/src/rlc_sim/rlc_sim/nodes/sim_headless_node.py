@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import threading
 import time
 
 import mujoco as mj
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
 from rosgraph_msgs.msg import Clock
 
 from sim_env.mujoco.env import Gen3Env
@@ -24,6 +26,8 @@ class Gen3MujocoSimNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_sim")
         self.robot = init_kinova_robot()
+        self._cmd_lock = threading.Lock()
+        self._paused = threading.Event()
 
         self.declare_parameter("publish_rate_hz", 2000.0)
         self.declare_parameter("realtime_factor", 1.0)
@@ -101,9 +105,12 @@ class Gen3MujocoSimNode(Node):
         """
         Pause/unpause physics stepping.
         """
-        self.paused = request.data
+
+        if request.data: self._paused.set()
+        else: self._paused.clear()
+
         response.success = True
-        state = "paused" if self.paused else "running"
+        state = "paused" if self._paused.is_set() else "running"
         response.message = f"Simulation is now {state}."
         return response
 
@@ -119,7 +126,8 @@ class Gen3MujocoSimNode(Node):
     
         # tau = self.compute_tau()
 
-        self.tau_cmd = tau
+        with self._cmd_lock:
+            self.tau_cmd = tau
 
     def compute_tau(self) -> FloatArray:
         robot = self.robot
@@ -154,25 +162,32 @@ def main(args=None) -> None:
     env = node.env
     rt_factor = node.realtime_factor
 
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+
+    spin_thread = threading.Thread(target=executor.spin, daemon=True)
+    spin_thread.start()
+
     try:
         while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.0)
-
-            if node.paused:
+            if node._paused.is_set():
                 time.sleep(0.001)
                 continue
 
+            with node._cmd_lock:
+                tau = node.tau_cmd.copy()
+
             env.step_realtime(
-                node.tau_cmd,
+                tau,
                 mode = "torque",
                 realtime_factor = rt_factor,
             )
 
-            # time.sleep(0.001)
-
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
+        spin_thread.join(timeout=1.0)
         node.destroy_node()
         rclpy.shutdown()
 
