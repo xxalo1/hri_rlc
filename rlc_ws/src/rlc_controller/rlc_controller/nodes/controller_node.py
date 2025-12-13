@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import numpy as np
 import time
+
+import threading
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+
 import rclpy
 from rclpy.node import Node
 from trajectory_msgs.msg import JointTrajectory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 
-from robots.kinova_gen3 import init_kinova_robot
+
+from robots import kinova_gen3
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
 from ros_utils import msg_conv as rmsg
@@ -25,21 +31,17 @@ class Gen3ControllerNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_controller")
 
-        self.robot = init_kinova_robot()
+        self.robot = kinova_gen3.init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=1.0, Kv=1.0, Ki=0.0)
+
+        self._robot_lock = threading.Lock()
 
         self.declare_parameter("controller_rate_hz", 1000.0)
         self.controller_rate = (
             self.get_parameter("controller_rate_hz").get_parameter_value().double_value
         )
 
-        self.joint_state_sub = self.create_subscription(
-            TOPICS.joint_state.type,
-            TOPICS.joint_state.name,
-            self.joint_state_callback,
-            1,
-        )
-
+        # ---------- Publishers ----------
         self.effort_pub = self.create_publisher(
             TOPICS.effort_cmd.type,
             TOPICS.effort_cmd.name,
@@ -50,7 +52,21 @@ class Gen3ControllerNode(Node):
             TOPICS.controller_state.name,
             1,
         )
+        self.publish_period = 1.0 / self.controller_rate
+        self.publish_timer = self.create_timer(
+            self.publish_period,
+            self.control_step
+        )
 
+        # ---------- Subscribers ----------
+        self.joint_state_sub = self.create_subscription(
+            TOPICS.joint_state.type,
+            TOPICS.joint_state.name,
+            self.joint_state_callback,
+            1,
+        )
+
+        # ---------- Action Servers ----------
         self._traj_action_server = ActionServer(
             self,
             ACTIONS.follow_traj.type,
@@ -58,6 +74,7 @@ class Gen3ControllerNode(Node):
             execute_callback=self.follow_trajectory,
         )
 
+        # ---------- Services ----------
         self._set_ctrl_gains = self.create_service(
             SERVICES.set_controller_gains.type,
             SERVICES.set_controller_gains.name,
@@ -67,11 +84,6 @@ class Gen3ControllerNode(Node):
             SERVICES.set_controller_mode.type,
             SERVICES.set_controller_mode.name,
             self.set_mode_callback,
-        )
-
-        self.publish_period = 1.0 / self.controller_rate
-        self.publish_timer = self.create_timer(
-            self.publish_period, self.control_step
         )
 
         self.get_logger().info(
