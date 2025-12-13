@@ -3,12 +3,13 @@ from __future__ import annotations
 import threading
 import time
 
-import mujoco as mj
 import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rosgraph_msgs.msg import Clock
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from sim_backend.mujoco.mujoco_base import Observation
 from sim_env.mujoco.env import Gen3Env
@@ -33,12 +34,14 @@ class Gen3MujocoSimNode(Node):
         self.joint_names = joint_names
         self.n = len(joint_names)
 
+
+        # ---------- Command ----------
         self._cmd_lock = threading.Lock()
         self._cmd_pending = np.zeros(self.n, dtype=npu.dtype)
         self.cmd = np.zeros(self.n, dtype=npu.dtype)
-        self._pause_req = threading.Event()
-        self._reset_req = threading.Event()
 
+
+        # ---------- State ----------
         self._state_lock = threading.Lock()
         self.state = Observation(
             t = 0.0,
@@ -55,9 +58,16 @@ class Gen3MujocoSimNode(Node):
             effort = np.zeros(self.n, dtype=npu.dtype)
         )
 
+
+        # ---------- Control flags ----------
+        self._pause_req = threading.Event()
+        self._reset_req = threading.Event()
+
+
+        # ---------- ROS parameters ----------
         self.declare_parameter("publish_rate_hz", 1000.0)
         self.declare_parameter("realtime_factor", 1.0)
-
+        
         self.publish_rate = self.get_parameter(
             "publish_rate_hz"
             ).get_parameter_value().double_value
@@ -67,35 +77,66 @@ class Gen3MujocoSimNode(Node):
             ).get_parameter_value().double_value
 
 
+        # ---------- QoS Profiles ----------
+        qos_latest = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+        )
+
+
+        # ---------- Callback Groups ----------
+        self._cb_cmd = MutuallyExclusiveCallbackGroup()
+        self._cb_pub = MutuallyExclusiveCallbackGroup()
+        self._cb_srv = MutuallyExclusiveCallbackGroup()
+
+
+        # ---------- Publishers ----------
+        self.joint_state_pub = self.create_publisher(
+            TOPICS.joint_state.type, 
+            TOPICS.joint_state.name, 
+            qos_latest,
+            callback_group=self._cb_pub,
+        )
+        self.clock_pub = self.create_publisher(
+            Clock, 
+            "/clock", 
+            10, 
+            callback_group=self._cb_pub
+        )
+
+        self.publish_period = 1.0 / self.publish_rate
+        self.publish_timer = self.create_timer(
+            self.publish_period, 
+            self.publish_joint_state,
+            callback_group=self._cb_pub,
+        )
+
+        # ---------- Subscribers ----------
         self.torque_sub = self.create_subscription(
             TOPICS.effort_cmd.type,
             TOPICS.effort_cmd.name,
             self.torque_cmd_callback,
-            1,
+            qos_latest,
+            callback_group=self._cb_cmd,
         )
 
-        self.joint_state_pub = self.create_publisher(
-            TOPICS.joint_state.type, 
-            TOPICS.joint_state.name, 
-            1,
-        )
-        self.clock_pub = self.create_publisher(Clock, "/clock", 10)
 
+        # ---------- Services ----------
         self.reset_srv = self.create_service(
             SERVICES.reset_sim.type,
             SERVICES.reset_sim.name,
             self.reset_service_callback,
+            callback_group=self._cb_srv,
         )
         self.pause_srv = self.create_service(
             SERVICES.pause_sim.type,
             SERVICES.pause_sim.name,
             self.pause_service_callback,
+            callback_group=self._cb_srv,
         )
 
-        self.publish_period = 1.0 / self.publish_rate
-        self.publish_timer = self.create_timer(
-            self.publish_period, self.publish_joint_state
-        )
 
         self.get_logger().info(
             f"Headless Gen3 MuJoCo sim ready with {self.n} joints. "
@@ -201,6 +242,7 @@ class Gen3MujocoSimNode(Node):
 def physics_loop(
     env: Gen3Env, 
     node: Gen3MujocoSimNode,
+    stop_evt: threading.Event,
     rt : float = 1.0
 ) -> None:
     env.reset()
@@ -220,7 +262,7 @@ def physics_loop(
 
     cmd = node.step_cmd()
 
-    while rclpy.ok():
+    while rclpy.ok() and not stop_evt.is_set():
         if node._reset_req.is_set():
             env.reset()
             cmd = node.reset_cmd()
@@ -257,28 +299,32 @@ def main(args=None) -> None:
     node = Gen3MujocoSimNode(env.joint_names)
     rt_factor = node.realtime_factor
 
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
+    stop_evt = threading.Event()
 
-    spin_thread = threading.Thread(target=executor.spin, daemon=True)
-    spin_thread.start()
+    executor = MultiThreadedExecutor(num_threads=3)
+    executor.add_node(node)
+    spin_thread = threading.Thread(target=executor.spin, daemon=False)
 
     phys_thread = threading.Thread(
         target=physics_loop,
         args=(env, node),
         kwargs={"rt": rt_factor},
-        daemon=True,
+        daemon=False,
     )
+
+    spin_thread.start()
     phys_thread.start()
 
     try:
-        while rclpy.ok():
+        while rclpy.ok() and not stop_evt.is_set():
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass
     finally:
+        stop_evt.set()
         executor.shutdown()
-        spin_thread.join(timeout=1.0)
+        phys_thread.join(timeout=2.0)
+        spin_thread.join(timeout=2.0)
         node.destroy_node()
         rclpy.shutdown()
 
