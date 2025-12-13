@@ -9,6 +9,7 @@ from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
+from ros_utils.config import qos_latest
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
@@ -24,6 +25,7 @@ class TrajectoryPlannerNode(Node):
 
         self.robot = init_kinova_robot()
 
+        # ---------- Parameters ----------
         self.declare_parameter("default_plan_frequency", 100.0)
         self.default_freq = (
             self.get_parameter("default_plan_frequency")
@@ -31,6 +33,7 @@ class TrajectoryPlannerNode(Node):
             .double_value
         )
 
+        # ---------- Publishers ----------
         self.joint_traj_pub = self.create_publisher(
             TOPICS.planned_joint_traj.type,
             TOPICS.planned_joint_traj.name,
@@ -42,22 +45,25 @@ class TrajectoryPlannerNode(Node):
             10,
         )
 
+        # ---------- Subscribers ----------
         self.joint_state_sub = self.create_subscription(
             TOPICS.joint_state.type,
             TOPICS.joint_state.name,
             self.joint_state_callback,
-            10,
+            qos_latest,
         )
 
+        # ---------- Services ----------
         self.quintic_service = self.create_service(
             SERVICES.plan_quintic.type,
             SERVICES.plan_quintic.name,
             self.plan_quintic_callback,
         )
 
+        # ---------- Logging ----------
         self.get_logger().info("Trajectory planner node ready")
 
-    
+
     def joint_state_callback(self, msg: JointStateMsg) -> None:
         """Store the latest joint state for planning."""
         joint_state = rmsg.from_joint_state_msg(msg)
@@ -80,7 +86,7 @@ class TrajectoryPlannerNode(Node):
         robot = self.robot
         t = robot.t
         qf = npu.to_array(request.target_positions)
-        duration = rtime.from_ros_time(request.time_from_start)
+        duration = rtime.from_ros_time_or_duration(request.time_from_start)
 
         if request.frequency: freq = request.frequency
         else: freq = self.default_freq

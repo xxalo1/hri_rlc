@@ -5,6 +5,7 @@ from rclpy.node import Node
 
 from robots.kinova_gen3 import init_kinova_robot
 from ros_utils import msg_conv as rmsg
+from ros_utils.config import qos_latest
 from common_utils import transforms as tfu
 from common_utils.buffers import RingBuffer, BufferSet
 
@@ -37,13 +38,13 @@ class RLCMonitorNode(Node):
             TOPICS.joint_state.type,
             TOPICS.joint_state.name,
             self.joint_state_callback,
-            10,
+            qos_latest,
         )
         self.controller_state_sub = self.create_subscription(
             TOPICS.controller_state.type,
             TOPICS.controller_state.name,
             self.controller_state_callback,
-            10,
+            qos_latest,
         )
         self.frame_states_pub = self.create_publisher(
             TOPICS.frame_states.type,

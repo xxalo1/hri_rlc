@@ -156,12 +156,12 @@ class BaseMujocoEnv:
         return obs
 
 
-    def observe_into(self, obs: Observation) -> None:
+    def observe_into(self, obs: Observation, effort: FloatArray | None = None) -> None:
         obs.t = float(self.d.time)
         obs.q[:] = self.d.qpos[self.joint_idx]
         obs.qd[:] = self.d.qvel[self.joint_idx]
         obs.qdd[:] = self.d.qacc[self.joint_idx]
-        obs.effort[:] = self.d.actuator_force[self.act_idx]
+        obs.effort[:] = effort if effort is not None else self.d.actuator_force[self.act_idx]
 
 
     def set_state(self, 

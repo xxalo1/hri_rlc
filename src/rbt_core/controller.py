@@ -93,6 +93,9 @@ class Controller:
         n = self.kin.n
         I = np.eye(n, dtype=npu.dtype)
 
+        if isinstance(Kp, int): Kp = float(Kp)
+        if isinstance(Kv, int): Kv = float(Kv)
+        if isinstance(Ki, int): Ki = float(Ki)
         if isinstance(Kp, float): Kp = Kp * I
         if isinstance(Kv, float): Kv = Kv * I
         if isinstance(Ki, float): Ki = Ki * I

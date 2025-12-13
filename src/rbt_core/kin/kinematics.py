@@ -196,7 +196,7 @@ class Kinematics(Generic[ArrayT]):
         self._validate_array(v, self._q, "q")
         if xp.array_equal(v, self._q):
             return
-        self._q = v
+        self._q[:] = v
         self._invalidate_kinematics()
 
     @property
@@ -206,7 +206,7 @@ class Kinematics(Generic[ArrayT]):
         self._validate_array(v, self._qd, "qd")
         if xp.array_equal(v, self._qd):
             return
-        self._qd = v
+        self._qd[:] = v
 
     @property
     def qdd(self) -> ArrayT: return self._qdd
@@ -215,7 +215,7 @@ class Kinematics(Generic[ArrayT]):
         self._validate_array(v, self._qdd, "qdd")
         if xp.array_equal(v, self._qdd):
             return
-        self._qdd = v
+        self._qdd[:] = v
 
     @property
     def com_wl(self) -> ArrayT:
