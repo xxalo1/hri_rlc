@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import uuid
 
 import numpy as np
@@ -10,23 +11,25 @@ from common_utils import numpy_util as npu
 
 
 
+NSEC = 1_000_000_000
+
 def to_ros_time(t: float) -> TimeMsg:
-    """Convert time in seconds (float) to a ROS Time message."""
-    sec = int(t)
-    nanosec = int((t - sec) * 1e9)
+    """Convert a time in seconds to a ROS Time message."""
+    total_ns = int(round(t * NSEC))
+    sec = int(math.floor(total_ns / NSEC))
+    nanosec = int(total_ns - sec * NSEC)  # always 0..1e9-1
     return TimeMsg(sec=sec, nanosec=nanosec)
 
-
 def to_ros_duration(dt: float) -> DurationMsg:
-    """Convert a duration in seconds (float) to a ROS Duration message."""
-    sec = int(dt)
-    nanosec = int((dt - sec) * 1e9)
+    """Convert a duration in seconds to a ROS Duration message."""
+    total_ns = int(round(dt * NSEC))
+    sec = int(math.floor(total_ns / NSEC))
+    nanosec = int(total_ns - sec * NSEC)
     return DurationMsg(sec=sec, nanosec=nanosec)
 
-
-def from_ros_time(t: TimeMsg | DurationMsg) -> float:
-    """Convert a ROS Time/Duration message to seconds (float)."""
-    return float(t.sec) + float(t.nanosec) * 1e-9
+def from_ros_time_or_duration(t: TimeMsg | DurationMsg) -> float:
+    """Convert a ROS Time or Duration message to a time in seconds."""
+    return float(t.sec) + 1e-9 * float(t.nanosec)
 
 
 def time_from_start(

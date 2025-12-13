@@ -13,10 +13,11 @@ from .dynamics import Dynamics
 from .controller import Controller
 from .planning import TrajPlanner, JointTraj, CartesianTraj
 
-class ControllerMode(Enum):
+class CtrlMode(Enum):
     CT = auto()
     PID = auto()
     IM = auto()
+    GC = auto()
 
 class TrackingMode(Enum):
     HOLD = auto()
@@ -53,19 +54,18 @@ class Robot:
         self.t_prev = 0.0
 
         # Desired state
-        self.q_des = np.zeros(n, dtype=npu.dtype)
-        self.qd_des = np.zeros(n, dtype=npu.dtype)
-        self.qdd_des = np.zeros(n, dtype=npu.dtype)
+        self._q_des = np.zeros(n, dtype=npu.dtype)
+        self._qd_des = np.zeros(n, dtype=npu.dtype)
+        self._qdd_des = np.zeros(n, dtype=npu.dtype)
 
         # Trajectory storage
         self.ti = 0.0
         self.tf = 0.0
-        self.freq = 0.0
         self.joint_traj = JointTraj()
         self.cart_traj = CartesianTraj()
 
         # Control modes
-        self.controller_mode = ControllerMode.CT
+        self.controller_mode = CtrlMode.CT
         self.tracking_mode = TrackingMode.HOLD
 
 
@@ -86,28 +86,47 @@ class Robot:
     def q(self) -> FloatArray: return self._q
     @q.setter
     def q(self, v: FloatArray) -> None:
-        self._q = v
+        self._q[:] = v
         self.kin.step(q=v)
 
     @property
     def qd(self) -> FloatArray: return self._qd
     @qd.setter
     def qd(self, v: FloatArray) -> None:
-        self._qd = v
+        self._qd[:] = v
         self.kin.step(qd=v)
 
     @property
     def qdd(self) -> FloatArray: return self._qdd
     @qdd.setter
     def qdd(self, v: FloatArray) -> None:
-        self._qdd = v
+        self._qdd[:] = v
         self.kin.step(qdd=v)
+
+    @property
+    def q_des(self) -> FloatArray: return self._q_des
+    @q_des.setter
+    def q_des(self, v: FloatArray) -> None:
+        self._q_des[:] = v
+
+    @property
+    def qd_des(self) -> FloatArray: return self._qd_des
+    @qd_des.setter
+    def qd_des(self, v: FloatArray) -> None:
+        self._qd_des[:] = v
+
+    @property
+    def qdd_des(self) -> FloatArray: return self._qdd_des
+    @qdd_des.setter
+    def qdd_des(self, v: FloatArray) -> None:
+        self._qdd_des[:] = v
 
     @property
     def joint_names(self) -> list[str]:
         return self.spec.joint_names
-    
-    def set_ctrl_mode(self, mode: str) -> None:
+
+
+    def set_ctrl_mode(self, mode: str | CtrlMode) -> None:
         """
         Set the current controller mode.
 
@@ -123,13 +142,17 @@ class Robot:
             If an invalid mode is provided.
         """
 
+        if isinstance(mode, CtrlMode):
+            self.controller_mode = mode
+            return
+        
         match mode:
             case "pid":
-                ctrl_mode = ControllerMode.PID
+                ctrl_mode = CtrlMode.PID
             case "ct":
-                ctrl_mode = ControllerMode.CT
+                ctrl_mode = CtrlMode.CT
             case "im":
-                ctrl_mode = ControllerMode.IM
+                ctrl_mode = CtrlMode.IM
             case _:
                 raise ValueError(f"Unknown control mode '{mode}'")
 
@@ -184,13 +207,9 @@ class Robot:
         """
         Clear the currently set trajectory.
         """
-        self.freq = 0.0
         self.ti = 0.0
         self.tf = 0.0
         self.joint_traj = JointTraj()
-
-        self.qd_des = np.zeros_like(self.qd_des)
-        self.qdd_des = np.zeros_like(self.qdd_des)
 
 
     def set_joint_des(self,
@@ -271,6 +290,7 @@ class Robot:
         if self.has_traj():
             q_des, qd_des, qdd_des = self.sample_joint_traj()
         else: 
+            self.clear_traj()
             q_des = self.q_des
             qd_des = np.zeros_like(self.q_des)
             qdd_des = np.zeros_like(self.q_des)
@@ -338,11 +358,13 @@ class Robot:
         q_des, qd_des, qdd_des = self.q_des, self.qd_des, self.qdd_des
 
         match self.controller_mode:
-            case ControllerMode.CT:
+            case CtrlMode.CT:
                 tau = self.ctrl.computed_torque(q, qd, q_des, qd_des, qdd_des)
-            case ControllerMode.PID:
+            case CtrlMode.PID:
                 dt = self.t - self.t_prev
                 tau = self.ctrl.pid(q, qd, q_des, qd_des, dt)
+            case CtrlMode.GC:
+                tau = self.dyn.gravity_vector()
             case _:
                 tau = np.zeros(self.n, dtype=npu.dtype)
 

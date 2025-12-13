@@ -10,6 +10,7 @@ from rclpy.node import Node
 from sim_env.mujoco.env import Gen3Env
 from sim_env.mujoco.viz_env import VizEnv
 from ros_utils import msg_conv as rmsg
+from ros_utils.config import qos_latest
 
 from common_utils import numpy_util as npu
 from rlc_common.endpoints import (
@@ -42,7 +43,7 @@ class Gen3MujocoVizNode(Node):
             TOPICS.joint_state.type,
             TOPICS.joint_state.name,
             self.joint_state_callback,
-            10,
+            qos_latest,
         )
         self.cart_traj_sub = self.create_subscription(
             TOPICS.planned_cart_traj.type,

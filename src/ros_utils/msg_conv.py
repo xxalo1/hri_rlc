@@ -274,7 +274,7 @@ def from_pose_array_msg(msg: PoseArray) -> PoseArrayData:
         - poses : ndarray, shape (N, 7) as [x, y, z, qw, qx, qy, qz]
     """
 
-    stamp = tu.from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
     frame_id = msg.header.frame_id
 
     if not msg.poses:
@@ -503,7 +503,7 @@ def from_joint_state_msg(msg: JointState) -> JointStateData:
     velocities = npu.to_array(msg.velocity)
     efforts = npu.to_array(msg.effort) if msg.effort else None
 
-    stamp = tu.from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
 
     joint_names = list(msg.name)
 
@@ -533,7 +533,7 @@ def from_joint_effort_cmd_msg(msg: JointEffortCmd) -> JointEffortCommandData:
     """
     
     efforts = npu.to_array(msg.effort)
-    stamp = tu.from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
     joint_names = list(msg.name)
 
     data = JointEffortCommandData(
@@ -561,7 +561,7 @@ def from_joint_ctrl_state_msg(
         Dataclass with time stamp, joint names, measured/desired joint
         states, and controller output torque.
     """
-    stamp = tu.from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
     joint_names = list(msg.joint_names)
 
     # Desired / reference
@@ -613,7 +613,7 @@ def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajectoryData:
         Dataclass with time stamp, joint names, time_from_start,
         positions, velocities, and accelerations.
     """
-    stamp = tu.from_ros_time(msg.header.stamp)
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
     joint_names = list(msg.joint_names)
     points: list[JointTrajectoryPoint] = list(msg.points)
 
@@ -625,7 +625,7 @@ def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajectoryData:
 
     # time_from_start (N,)
     time_from_start = npu.to_array(
-        [tu.from_ros_time(p.time_from_start) for p in points],
+        [tu.from_ros_time_or_duration(p.time_from_start) for p in points],
     )
 
     # positions (N, n)

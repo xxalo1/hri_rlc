@@ -9,7 +9,6 @@ from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rosgraph_msgs.msg import Clock
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from sim_backend.mujoco.mujoco_base import Observation
 from sim_env.mujoco.env import Gen3Env
@@ -17,6 +16,8 @@ from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu, FloatArray
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
+from ros_utils.config import qos_latest
+from rbt_core.robot import CtrlMode
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
@@ -30,16 +31,17 @@ class Gen3MujocoSimNode(Node):
     ) -> None:
         super().__init__("gen3_mujoco_sim")
         self.robot = init_kinova_robot()
+        self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
+        self.robot.set_ctrl_mode(CtrlMode.CT)
 
         self.joint_names = joint_names
         self.n = len(joint_names)
-
 
         # ---------- Command ----------
         self._cmd_lock = threading.Lock()
         self._cmd_pending = np.zeros(self.n, dtype=npu.dtype)
         self.cmd = np.zeros(self.n, dtype=npu.dtype)
-
+        self._cmd_fresh = threading.Event()
 
         # ---------- State ----------
         self._state_lock = threading.Lock()
@@ -58,11 +60,9 @@ class Gen3MujocoSimNode(Node):
             effort = np.zeros(self.n, dtype=npu.dtype)
         )
 
-
         # ---------- Control flags ----------
         self._pause_req = threading.Event()
         self._reset_req = threading.Event()
-
 
         # ---------- ROS parameters ----------
         self.declare_parameter("publish_rate_hz", 1000.0)
@@ -76,21 +76,10 @@ class Gen3MujocoSimNode(Node):
             "realtime_factor"
             ).get_parameter_value().double_value
 
-
-        # ---------- QoS Profiles ----------
-        qos_latest = QoSProfile(
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            durability=DurabilityPolicy.VOLATILE,
-        )
-
-
         # ---------- Callback Groups ----------
         self._cb_cmd = MutuallyExclusiveCallbackGroup()
         self._cb_pub = MutuallyExclusiveCallbackGroup()
         self._cb_srv = MutuallyExclusiveCallbackGroup()
-
 
         # ---------- Publishers ----------
         self.joint_state_pub = self.create_publisher(
@@ -98,12 +87,6 @@ class Gen3MujocoSimNode(Node):
             TOPICS.joint_state.name, 
             qos_latest,
             callback_group=self._cb_pub,
-        )
-        self.clock_pub = self.create_publisher(
-            Clock, 
-            "/clock", 
-            10, 
-            callback_group=self._cb_pub
         )
 
         self.publish_period = 1.0 / self.publish_rate
@@ -122,7 +105,6 @@ class Gen3MujocoSimNode(Node):
             callback_group=self._cb_cmd,
         )
 
-
         # ---------- Services ----------
         self.reset_srv = self.create_service(
             SERVICES.reset_sim.type,
@@ -137,7 +119,7 @@ class Gen3MujocoSimNode(Node):
             callback_group=self._cb_srv,
         )
 
-
+        # ---------- Info log ----------
         self.get_logger().info(
             f"Headless Gen3 MuJoCo sim ready with {self.n} joints. "
             f"publish_rate={self.publish_rate} Hz, realtime_factor={self.realtime_factor}"
@@ -184,6 +166,7 @@ class Gen3MujocoSimNode(Node):
             return
         with self._cmd_lock:
             self._cmd_pending[:] = tau
+            self._cmd_fresh.set()
 
 
     def compute_tau(self) -> FloatArray:
@@ -222,8 +205,10 @@ class Gen3MujocoSimNode(Node):
 
 
     def step_cmd(self) -> FloatArray:
-        with self._cmd_lock:
-            self.cmd[:] = self._cmd_pending
+        if self._cmd_fresh.is_set():
+            with self._cmd_lock:
+                self.cmd[:] = self._cmd_pending
+                self._cmd_fresh.clear()
         return self.cmd
 
 
@@ -231,6 +216,7 @@ class Gen3MujocoSimNode(Node):
         with self._cmd_lock:
             self._cmd_pending[:] = 0.0
             self.cmd[:] = 0.0
+            self._cmd_fresh.clear()
         return self.cmd
 
 
@@ -248,19 +234,8 @@ def physics_loop(
     env.reset()
     dt_phy = env.m.opt.timestep
 
-    servo_rate = node.publish_rate
-    sense_rate = node.publish_rate
-
-    dt_servo = 1.0 / servo_rate
-    dt_sense = 1.0 / sense_rate
-
-    n_servo = max(1, int(round(dt_servo / dt_phy)))
-    n_sense = max(1, int(round(dt_sense / dt_phy)))
-
     t0_wall = time.perf_counter()
     k = 0
-
-    cmd = node.step_cmd()
 
     while rclpy.ok() and not stop_evt.is_set():
         if node._reset_req.is_set():
@@ -276,16 +251,17 @@ def physics_loop(
             time.sleep(0.01)
             continue
 
-        if (k % n_servo) == 0: 
-            cmd = node.step_cmd()
+        cmd_g = node.compute_tau()
+        env.observe_into(node._state_back, effort=cmd_g)
+        node.step_state()
+
+        cmd = node.step_cmd()
 
         env.step(cmd, mode="torque")
 
-        if (k % n_sense) == 0:
-            env.observe_into(node._state_back)
-            node.step_state()
-
         k += 1
+        time.sleep(0.001)
+        continue  # TEMP DISABLE REALTIME SLEEP
         target_wall = t0_wall + (k * dt_phy) / rt
         now = time.perf_counter()
         sleep_s = target_wall - now
@@ -297,7 +273,7 @@ def main(args=None) -> None:
     rclpy.init(args=args)
     env = Gen3Env.from_default_scene()
     node = Gen3MujocoSimNode(env.joint_names)
-    rt_factor = node.realtime_factor
+    rt_factor = 0.1
 
     stop_evt = threading.Event()
 
@@ -307,7 +283,7 @@ def main(args=None) -> None:
 
     phys_thread = threading.Thread(
         target=physics_loop,
-        args=(env, node),
+        args=(env, node, stop_evt),
         kwargs={"rt": rt_factor},
         daemon=False,
     )
