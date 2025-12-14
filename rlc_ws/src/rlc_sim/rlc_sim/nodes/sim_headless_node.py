@@ -259,6 +259,7 @@ class Gen3MujocoSimNode(Node):
             self.state, self._state_back = self._state_back, self.state
             self.state_action, self._state_action_back \
                 = self._state_action_back, self.state_action
+        self._cmd_fresh.clear()
 
 
 def physics_loop(
@@ -273,11 +274,12 @@ def physics_loop(
     t0_wall = time.perf_counter()
     k = 0
 
+    obs = env.observe()
     while rclpy.ok() and not stop_evt.is_set():
         if node._reset_req.is_set():
             env.reset()
             cmd = node.reset_cmd()
-            env.observe_into(node._state_back)
+            obs = env.observe_into(node._state_back)
             node.step_state()
             k = 0
             t0_wall = time.perf_counter()
@@ -286,12 +288,12 @@ def physics_loop(
         if node._pause_req.is_set():
             time.sleep(0.01)
             continue
-
+        
+        node._cmd_fresh.wait()
         cmd = node.step_cmd()
-        env.step(cmd, mode="torque")
-
-        obs = env.observe()
         effort_bl = node.compute_tau(obs)
+        obs = env.step(cmd, mode="torque", nsub=1)
+
         env.observe_into(node._state_back)
         env.state_action_into(node._state_action_back, effort_bl=effort_bl)
         node.step_state()
