@@ -13,7 +13,10 @@ from trajectory_msgs.msg import (
     MultiDOFJointTrajectoryPoint,
     
 )
-from rlc_interfaces.msg import JointEffortCmd, PlannedCartesianTrajectory, PlannedJointTrajectory
+from rlc_interfaces.msg import (
+    JointEffortCmd, PlannedCartesianTrajectory, PlannedJointTrajectory,
+    JointStateAction
+)
 from geometry_msgs.msg import Transform, Twist
 from geometry_msgs.msg import PoseArray, Pose
 
@@ -27,6 +30,7 @@ from.msg_types import (
     JointControllerStateData,
     JointTrajectoryData,
     PoseArrayData,
+    JointStateActionData,
 )
 from . import time_util as tu
 
@@ -254,6 +258,102 @@ def to_pose_array_msg(
 
     msg.poses = poses_msg
     return msg
+
+
+def to_joint_state_action_msg(
+    stamp: float,
+    joint_names: Sequence[str],
+    position: FloatArray,
+    velocity: FloatArray,
+    action: FloatArray,
+    action_baseline: FloatArray,
+) -> JointStateAction:
+    """
+    Build a JointStateAction message from joint positions, velocities, actions, and baseline actions.
+
+    Parameters
+    ----------
+    stamp : float
+        Timestamp of the message in seconds.
+    joint_names : sequence of str
+        Names of the joints.
+    position : array, shape (n,)
+        Joint positions.
+    velocity : array, shape (n,)
+        Joint velocities.
+    action : array, shape (n,)
+        Joint actions.
+    action_baseline : array, shape (n,)
+        Baseline joint actions.
+
+    Returns
+    -------
+    JointStateAction
+        Populated JointStateAction message.
+    """
+
+    n = len(joint_names)
+
+    position = np.atleast_1d(position)
+    npu.validate_array_shape(position, (n,), "position")
+
+    velocity = np.atleast_1d(velocity)
+    npu.validate_array_shape(velocity, (n,), "velocity")
+
+    action = np.atleast_1d(action)
+    npu.validate_array_shape(action, (n,), "action")
+
+    action_baseline = np.atleast_1d(action_baseline)
+    npu.validate_array_shape(action_baseline, (n,), "action_baseline")
+
+    msg = JointStateAction()
+    msg.header.stamp = tu.to_ros_time(stamp)
+    msg.name = list(joint_names)
+    msg.position = position.tolist()
+    msg.velocity = velocity.tolist()
+    msg.action = action.tolist()
+    msg.action_baseline = action_baseline.tolist()
+
+    return msg
+
+
+def from_joint_state_action_msg(msg: JointStateAction) -> JointStateActionData:
+    """
+    Convert a JointStateAction message to JointStateActionData.
+
+    Parameters
+    ----------
+    msg : JointStateAction
+        Input JointStateAction message.
+
+    Returns
+    -------
+    JointStateActionData
+        Container with:
+        - stamp : float
+        - joint_names : list of str
+        - position : ndarray, shape (n,)
+        - velocity : ndarray, shape (n,)
+        - action : ndarray, shape (n,)
+        - action_baseline : ndarray, shape (n,)
+    """
+
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
+    joint_names = list(msg.name)
+
+    position = npu.to_array(msg.position)
+    velocity = npu.to_array(msg.velocity)
+    action = npu.to_array(msg.action)
+    action_baseline = npu.to_array(msg.action_baseline)
+
+    return JointStateActionData(
+        stamp=stamp,
+        joint_names=joint_names,
+        positions=position,
+        velocities=velocity,
+        actions=action,
+        actions_baseline=action_baseline,
+    )
 
 
 def from_pose_array_msg(msg: PoseArray) -> PoseArrayData:

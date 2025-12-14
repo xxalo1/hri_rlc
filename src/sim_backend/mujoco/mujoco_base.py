@@ -17,7 +17,15 @@ class Observation:
     q: FloatArray
     qd: FloatArray
     qdd: FloatArray
-    effort: FloatArray
+
+@dataclass(slots=True)
+class StateAction:
+    t: float
+    q: FloatArray
+    qd: FloatArray
+    qdd: FloatArray
+    effort_applied: FloatArray
+    effort_bl: FloatArray
 
 class BaseMujocoEnv:
     def __init__(self, xml_path, nsubsteps=10, seed: int | None = 0):
@@ -61,11 +69,20 @@ class BaseMujocoEnv:
             q = self.d.qpos[self.joint_idx].copy(),
             qd = self.d.qvel[self.joint_idx].copy(),
             qdd = self.d.qacc[self.joint_idx].copy(),
-            effort = self.d.ctrl[self.act_idx].copy(),
         )
+
+        self._st_act = StateAction(
+            t = 0.0,
+            q = self.d.qpos[self.joint_idx].copy(),
+            qd = self.d.qvel[self.joint_idx].copy(),
+            qdd = self.d.qacc[self.joint_idx].copy(),
+            effort_applied = np.zeros(len(self.act_idx), dtype=npu.dtype),
+            effort_bl = np.zeros(len(self.act_idx), dtype=npu.dtype),
+        )
+
         # self.display()
 
-
+        
     def display(self):
         """display attributes for debugging as a panda table"""
         data = [
@@ -92,6 +109,15 @@ class BaseMujocoEnv:
 
         df = pd.DataFrame(data, columns=["Attribute", "Value"])
         display(df)
+    
+
+    @property
+    def obs(self):
+        return self._obs
+
+    @property
+    def st_act(self):
+        return self._st_act
 
 
     def reset(self):
@@ -115,6 +141,7 @@ class BaseMujocoEnv:
         if nsub is None: nsub = self.nsub
         if mode == "torque":
             self.d.ctrl[self.act_idx[:len(action)]] = action
+        self.sample_state_action(action, )
         mj.mj_step(self.m, self.d, nsub)
 
         return self.observe()
@@ -152,16 +179,43 @@ class BaseMujocoEnv:
         obs.q[:] = self.d.qpos[self.joint_idx]
         obs.qd[:] = self.d.qvel[self.joint_idx]
         obs.qdd[:] = self.d.qacc[self.joint_idx]
-        obs.effort[:] = self.d.actuator_force[self.act_idx]
         return obs
 
 
-    def observe_into(self, obs: Observation, effort: FloatArray | None = None) -> None:
-        obs.t = float(self.d.time)
-        obs.q[:] = self.d.qpos[self.joint_idx]
-        obs.qd[:] = self.d.qvel[self.joint_idx]
-        obs.qdd[:] = self.d.qacc[self.joint_idx]
-        obs.effort[:] = effort if effort is not None else self.d.actuator_force[self.act_idx]
+    def sample_state_action(self, effort_bl: FloatArray | None = None) -> StateAction:
+        st_act = self._st_act
+        st_act.t = float(self.d.time)
+        st_act.q[:] = self.d.qpos[self.joint_idx]
+        st_act.qd[:] = self.d.qvel[self.joint_idx]
+        st_act.qdd[:] = self.d.qacc[self.joint_idx]
+        st_act.effort_applied[:] = self.d.ctrl[self.act_idx]
+        st_act.effort_bl[:] = effort_bl if effort_bl is not None else self.d.ctrl[self.act_idx]
+        return st_act
+
+
+    def observe_into(self, 
+        obs_out: Observation
+    ) -> Observation:
+        obs = self.obs
+        obs_out.t = obs.t
+        obs_out.q[:] = obs.q
+        obs_out.qd[:] = obs.qd
+        obs_out.qdd[:] = obs.qdd
+        return obs_out
+
+
+    def state_action_into(self,
+        st_act_out: StateAction,
+        effort_bl: FloatArray | None = None
+    ) -> StateAction:
+        st_act = self.st_act
+        st_act_out.t = st_act.t
+        st_act_out.q[:] = st_act.q
+        st_act_out.qd[:] = st_act.qd
+        st_act_out.qdd[:] = st_act.qdd
+        st_act_out.effort_applied[:] = st_act.effort_applied
+        st_act_out.effort_bl[:] = st_act.effort_bl if effort_bl is None else effort_bl
+        return st_act_out
 
 
     def set_state(self, 
@@ -172,5 +226,7 @@ class BaseMujocoEnv:
         aji = self.joint_idx
         self.d.qpos[aji], self.d.qvel[aji], self.d.time = qpos, qvel, t
         mj.mj_forward(self.m, self.d)
+
+
 
 

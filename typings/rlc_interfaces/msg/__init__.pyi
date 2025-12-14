@@ -1,3 +1,4 @@
+from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose, Twist, Accel
 from trajectory_msgs.msg import JointTrajectory, MultiDOFJointTrajectory
@@ -8,7 +9,8 @@ __all__ = [
     "JointEffortCmd",
     "PlannedJointTrajectory",
     "CurrentPlan",
-    "PlannedCartesianTrajectory"
+    "PlannedCartesianTrajectory",
+    "JointStateAction"
 ]
 
 
@@ -56,14 +58,12 @@ class JointEffortCmd:
     header: Header
     name: list[str]
     effort: list[float]
-    time_sim: float
 
     def __init__(
         self,
         header: Header = ...,
         name: list[str] = ...,
         effort: list[float] = ...,
-        time_sim: float = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...
@@ -100,6 +100,26 @@ class PlannedCartesianTrajectory:
         execute_immediately: bool = ...,
         label: str = ...,
         derived_from_joint: bool = ...,
+        *,
+        check_fields: bool | None = ...,
+    ) -> None: ...
+
+
+class JointStateAction:
+    header: Header
+    name: list[str]
+    position: list[float]
+    velocity: list[float]
+    action: list[float]
+    action_baseline: list[float]
+
+    def __init__(
+        self,
+        header: Header = ...,
+        name: list[str] = ...,
+        state: JointState = ...,
+        action: list[float] = ...,
+        action_baseline: list[float] = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...

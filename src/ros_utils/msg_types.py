@@ -9,7 +9,15 @@ from common_utils import FloatArray
 from common_utils import numpy_util as npu 
 
 
-
+@dataclass(slots=True)
+class JointStateActionData():
+    positions: FloatArray
+    velocities: FloatArray
+    actions: FloatArray
+    actions_baseline: FloatArray
+    stamp: float
+    joint_names: list[str]
+    
 @dataclass(slots=True)
 class JointStateData():
     positions: FloatArray

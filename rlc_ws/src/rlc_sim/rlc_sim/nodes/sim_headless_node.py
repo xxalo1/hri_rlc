@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 
+from netplan import State
 import numpy as np
 import rclpy
 from rclpy.node import Node
@@ -10,7 +11,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rosgraph_msgs.msg import Clock
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
-from sim_backend.mujoco.mujoco_base import Observation
+from sim_backend.mujoco.mujoco_base import Observation, StateAction
 from sim_env.mujoco.env import Gen3Env
 from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu, FloatArray
@@ -50,14 +51,28 @@ class Gen3MujocoSimNode(Node):
             q = np.zeros(self.n, dtype=npu.dtype),
             qd = np.zeros(self.n, dtype=npu.dtype),
             qdd = np.zeros(self.n, dtype=npu.dtype),
-            effort = np.zeros(self.n, dtype=npu.dtype)
         )
         self._state_back = Observation(
             t = 0.0,
             q = np.zeros(self.n, dtype=npu.dtype),
             qd = np.zeros(self.n, dtype=npu.dtype),
             qdd = np.zeros(self.n, dtype=npu.dtype),
-            effort = np.zeros(self.n, dtype=npu.dtype)
+        )
+        self.state_action = StateAction(
+            t = 0.0,
+            q = np.zeros(self.n, dtype=npu.dtype),
+            qd = np.zeros(self.n, dtype=npu.dtype),
+            qdd = np.zeros(self.n, dtype=npu.dtype),
+            effort_applied = np.zeros(self.n, dtype=npu.dtype),
+            effort_bl = np.zeros(self.n, dtype=npu.dtype),
+        )
+        self._state_action_back = StateAction(
+            t = 0.0,
+            q = np.zeros(self.n, dtype=npu.dtype),
+            qd = np.zeros(self.n, dtype=npu.dtype),
+            qdd = np.zeros(self.n, dtype=npu.dtype),
+            effort_applied = np.zeros(self.n, dtype=npu.dtype),
+            effort_bl = np.zeros(self.n, dtype=npu.dtype),
         )
 
         # ---------- Control flags ----------
@@ -85,6 +100,13 @@ class Gen3MujocoSimNode(Node):
         self.joint_state_pub = self.create_publisher(
             TOPICS.joint_state.type, 
             TOPICS.joint_state.name, 
+            qos_latest,
+            callback_group=self._cb_pub,
+        )
+
+        self.joint_state_action_pub = self.create_publisher(
+            TOPICS.joint_state_action.type, 
+            TOPICS.joint_state_action.name, 
             qos_latest,
             callback_group=self._cb_pub,
         )
@@ -169,12 +191,11 @@ class Gen3MujocoSimNode(Node):
             self._cmd_fresh.set()
 
 
-    def compute_tau(self) -> FloatArray:
+    def compute_tau(self, obs: Observation) -> FloatArray:
         robot = self.robot
-        with self._state_lock:
-            t = self.state.t
-            q = self.state.q.copy()
-            qd = self.state.qd.copy()
+        t = obs.t
+        q = obs.q
+        qd = obs.qd
 
         self.robot.set_joint_state(q=q, qd=qd, t=t)
         self.robot.update_joint_des()
@@ -184,19 +205,32 @@ class Gen3MujocoSimNode(Node):
 
     def publish_joint_state(self) -> None:
         with self._state_lock:
-            t = self.state.t
-            q = self.state.q.copy()
-            qd = self.state.qd.copy()
-            effort = self.state.effort.copy()
+            t_state = self.state.t
+            q_state = self.state.q.copy()
+            qd_state = self.state.qd.copy()
 
-        msg = rmsg.to_joint_state_msg(
-            stamp=t,
+            t_st_act = self.state_action.t
+            q_st_act = self.state_action.q.copy()
+            qd_st_act = self.state_action.qd.copy()
+            effort = self.state_action.effort_applied.copy()
+            effort_bl = self.state_action.effort_bl.copy()
+
+        msg_st_act = rmsg.to_joint_state_action_msg(
+            stamp=t_st_act,
             joint_names=self.joint_names,
-            positions=q,
-            velocities=qd,
-            efforts=effort,
+            position=q_st_act,
+            velocity=qd_st_act,
+            action=effort,
+            action_baseline=effort_bl,
         )
-        self.joint_state_pub.publish(msg)
+        msg_state = rmsg.to_joint_state_msg(
+            stamp=t_state,
+            joint_names=self.joint_names,
+            positions=q_state,
+            velocities=qd_state,
+        )
+        self.joint_state_action_pub.publish(msg_st_act)
+        self.joint_state_pub.publish(msg_state)
 
         # If you want /clock and use_sim_time, publish it here too
         # clock_msg = Clock()
@@ -223,6 +257,8 @@ class Gen3MujocoSimNode(Node):
     def step_state(self) -> None:
         with self._state_lock:
             self.state, self._state_back = self._state_back, self.state
+            self.state_action, self._state_action_back \
+                = self._state_action_back, self.state_action
 
 
 def physics_loop(
@@ -251,13 +287,14 @@ def physics_loop(
             time.sleep(0.01)
             continue
 
-        cmd_g = node.compute_tau()
-        env.observe_into(node._state_back, effort=cmd_g)
-        node.step_state()
-
         cmd = node.step_cmd()
-
         env.step(cmd, mode="torque")
+
+        obs = env.observe()
+        effort_bl = node.compute_tau(obs)
+        env.observe_into(node._state_back)
+        env.state_action_into(node._state_action_back, effort_bl=effort_bl)
+        node.step_state()
 
         k += 1
         time.sleep(0.001)
