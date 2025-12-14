@@ -13,6 +13,7 @@ TOPIC_PATHS = {
     "joint_state": f"/{RLC_TOPICS.joint_state.name.lstrip('/')}",
     "effort_cmd": f"/{RLC_TOPICS.effort_cmd.name.lstrip('/')}",
     "controller_state": f"/{RLC_TOPICS.controller_state.name.lstrip('/')}",
+    "joint_state_action": f"/{RLC_TOPICS.joint_state_action.name.lstrip('/')}",
 }
 
 
@@ -33,15 +34,15 @@ def joint_effort_error_tabs(joint_names: list[str]) -> list[dict]:
     Returns a list of tab dicts:
       {"name": <tab name>, "curves": [{"name": <series>, "color": <hex>}, ...]}
     """
-    palette = ["#1f77b4", "#ff7f0e", "#d62728", "#1ac938", "#1ac938"]
+    palette = ["#ff0000", "#001eff", "#002f87", "#8a0000", "#007d21"]
     tabs: list[dict] = []
     for idx, joint in enumerate(joint_names):
         curves = [
-            {"name": f"{TOPIC_PATHS['joint_state']}/{joint}/position", "color": palette[0]},  # sim tau
-            {"name": f"{TOPIC_PATHS['joint_state']}/{joint}/effort", "color": palette[1]},  # sim tau
-            {"name": f"{TOPIC_PATHS['effort_cmd']}/effort[{idx}]", "color": palette[2]},    # cmd tau
-            {"name": f"{TOPIC_PATHS['controller_state']}/reference/positions[{idx}]", "color": palette[3]},  # e
-            {"name": f"{TOPIC_PATHS['controller_state']}/feedback/positions[{idx}]", "color": palette[4]}, # ed
+            {"name": f"{TOPIC_PATHS['joint_state_action']}/position[{idx}]", "color": palette[0]},
+            {"name": f"{TOPIC_PATHS['controller_state']}/feedback/positions[{idx}]", "color": palette[1]}, # ed
+            {"name": f"{TOPIC_PATHS['joint_state_action']}/action[{idx}]", "color": palette[2]},
+            {"name": f"{TOPIC_PATHS['joint_state_action']}/action_baseline[{idx}]", "color": palette[3]},
+            {"name": f"{TOPIC_PATHS['effort_cmd']}/effort[{idx}]", "color": palette[4]},
         ]
         tabs.append({"name": joint, "curves": curves})
     return tabs

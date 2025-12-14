@@ -10,7 +10,8 @@ from control_msgs.msg import JointTrajectoryControllerState
 from geometry_msgs.msg import PoseArray
 from sensor_msgs.msg import JointState
 from rlc_interfaces.msg import (
-    JointEffortCmd, 
+    JointEffortCmd,
+    JointStateAction, 
     PlannedJointTrajectory, 
     PlannedCartesianTrajectory,
     CurrentPlan,
@@ -43,6 +44,7 @@ MON_NS   = "mon/gen3"
 @dataclass(frozen=True)
 class TopicEndpoints:
     joint_state: Endpoint[JointState]
+    joint_state_action: Endpoint[JointStateAction]
     effort_cmd: Endpoint[JointEffortCmd]
     planned_joint_traj: Endpoint[PlannedJointTrajectory]
     frame_states: Endpoint[PoseArray]
@@ -70,6 +72,7 @@ class ActionEndpoints:
 
 TOPICS = TopicEndpoints(
     joint_state=Endpoint(f"{SIM_NS}/joint_state", JointState),
+    joint_state_action=Endpoint(f"{SIM_NS}/joint_state_action", JointStateAction),
     effort_cmd=Endpoint(f"{CTRL_NS}/effort_cmd", JointEffortCmd),
     planned_joint_traj=Endpoint(f"{PLAN_NS}/planned_joint_traj", PlannedJointTrajectory),
     frame_states=Endpoint(f"{MON_NS}/frame_states", PoseArray),
@@ -121,6 +124,7 @@ FrameStatesMsg = TOPICS.frame_states.type
 PlannedCartTrajMsg = TOPICS.planned_cart_traj.type
 ControllerStateMsg = TOPICS.controller_state.type
 CurrentPlanMsg = TOPICS.current_plan.type
+JointStateActionMsg = TOPICS.joint_state_action.type
 
 # services
 ResetSimSrv = SERVICES.reset_sim.type
@@ -145,6 +149,7 @@ __all__ = [
     "ControllerStateMsg",
     "PlannedCartTrajMsg",
     "CurrentPlanMsg",
+    "JointStateActionMsg",
 
     "ResetSimSrv",
     "PauseSimSrv",

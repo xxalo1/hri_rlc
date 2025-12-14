@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/PlannedCartesianTrajectory.msg"
   "msg/FrameStates.msg"
   "msg/CurrentPlan.msg"
+  "msg/JointStateAction.msg"
   "srv/SetControllerGains.srv"
   "srv/SetControllerMode.srv"
   "srv/PlanJointTrajectory.srv"
