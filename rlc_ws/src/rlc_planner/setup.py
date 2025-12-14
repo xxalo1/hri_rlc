@@ -14,6 +14,8 @@ setup(
     install_requires=[
         'setuptools',
         'numpy',
+        # Core robotics utilities (robots, ros_utils, common_utils)
+        'hri-rlc-core',
     ],
     zip_safe=True,
     maintainer='rwolv',
