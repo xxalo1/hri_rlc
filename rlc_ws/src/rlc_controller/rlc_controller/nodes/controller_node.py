@@ -70,6 +70,7 @@ class Gen3ControllerNode(Node):
         self.robot = kinova_gen3.init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
         self.robot.set_ctrl_mode(CtrlMode.CT)
+        self.robot.set_joint_des()
 
         # ---------- State ----------
         self._state_lock = threading.Lock()
@@ -130,20 +131,20 @@ class Gen3ControllerNode(Node):
             TOPICS.effort_cmd.type,
             TOPICS.effort_cmd.name,
             qos_latest,
-            callback_group=self._cb_ctrl
+            callback_group=self._cb_state
         )
         self.ctrl_state_pub = self.create_publisher(
             TOPICS.controller_state.type,
             TOPICS.controller_state.name,
             qos_latest,
-            callback_group=self._cb_ctrl
+            callback_group=self._cb_state
         )
         self.publish_period = 1.0 / self.controller_rate
-        self.publish_timer = self.create_timer(
-            self.publish_period,
-            self.control_step,
-            callback_group=self._cb_ctrl
-        )
+        # self.publish_timer = self.create_timer(
+        #    self.publish_period,
+        #    self.control_step,
+        #    callback_group=self._cb_ctrl
+        #)
 
         # ---------- Subscribers ----------
         self.joint_state_sub = self.create_subscription(
@@ -258,6 +259,8 @@ class Gen3ControllerNode(Node):
             self.state.positions[:] = s.positions
             self.state.velocities[:] = s.velocities
             self.state.stamp = s.stamp
+
+        self.control_step()
 
 
     def _consume_traj_requests(self) -> None:
