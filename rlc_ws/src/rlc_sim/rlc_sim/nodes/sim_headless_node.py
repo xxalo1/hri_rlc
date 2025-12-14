@@ -80,7 +80,7 @@ class Gen3MujocoSimNode(Node):
         self._reset_req = threading.Event()
 
         # ---------- ROS parameters ----------
-        self.declare_parameter("publish_rate_hz", 1000.0)
+        self.declare_parameter("publish_rate_hz", 100.0)
         self.declare_parameter("realtime_factor", 1.0)
         
         self.publish_rate = self.get_parameter(

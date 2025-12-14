@@ -121,7 +121,7 @@ class Gen3ControllerNode(Node):
         self._cb_srv = MutuallyExclusiveCallbackGroup()
 
         # ---------- Parameters ----------
-        self.declare_parameter("controller_rate_hz", 1000.0)
+        self.declare_parameter("controller_rate_hz", 100.0)
         self.controller_rate = (
             self.get_parameter("controller_rate_hz").get_parameter_value().double_value
         )
