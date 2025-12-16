@@ -299,7 +299,6 @@ def physics_loop(
         node.step_state()
 
         k += 1
-        time.sleep(0.001)
         continue  # TEMP DISABLE REALTIME SLEEP
         target_wall = t0_wall + (k * dt_phy) / rt
         now = time.perf_counter()
