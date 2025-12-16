@@ -6,10 +6,12 @@ import numpy as np
 import mujoco as mj
 from mujoco import viewer  # type: ignore
 
+from sim_backend.mujoco.mujoco_base import Observation
 from sim_env.mujoco.env import Gen3Env
 from common_utils import FloatArray
 from common_utils import numpy_util as npu
 import common_utils.transforms as trf
+
 
 class VizEnv:
     """
@@ -25,6 +27,7 @@ class VizEnv:
     - Provide `on_pause(bool)` and `on_reset()` callbacks injected from node
     - Call `sync(viewer, qpos, qvel, t)` inside the viewer lock each frame
     """
+
 
     def __init__(self,
         env: Gen3Env,
@@ -60,14 +63,14 @@ class VizEnv:
     def set_joint_states(self,
         q: FloatArray,
         qd: FloatArray,
-        tau: FloatArray | None,
         t: float,
+        tau: FloatArray | None = None,
     ) -> None:
         """Set the current joint states and sim time for visualization."""
         self.q = q
         self.qd = qd
         self.t = t
-        if tau is not None: self.env.d.ctrl = tau
+        if tau is not None: self.tau = tau
 
 
     def set_frame_states(self, frame_poses: FloatArray) -> None:
@@ -88,17 +91,12 @@ class VizEnv:
         c = chr(keycode)
         match c:
             case " ":
-                # Toggle pause; notify node via injected callback
                 self.paused = not self.paused
-                if self.on_pause:
-                    self.on_pause(self.paused)
+                if self.on_pause: self.on_pause(self.paused)
             case "r" | "R":
-                # Reset simulation and pause after reset
-                if self.on_reset:
-                    self.on_reset()
+                if self.on_reset: self.on_reset()
                 self.paused = True
-                if self.on_pause:
-                    self.on_pause(True)
+                if self.on_pause: self.on_pause(True)
             case "1":
                 self.show_frames = not self.show_frames
                 self._invalidate_frames()
@@ -111,7 +109,6 @@ class VizEnv:
             case "'":
                 self.show_com = not self.show_com
             case _:
-                # Unhandled keys are ignored
                 return
 
 
@@ -122,19 +119,18 @@ class VizEnv:
         Apply sim state and update visualization each render tick.
         Call inside `with v.lock():`.
         """
-        # Mirror sim state into env
         self.env.set_state(qpos=self.q, qvel=self.qd, t=self.t)
 
-        # Update frames visualization on demand
         if self.show_frames:
             self._ensure_frames(v)
         else:
             self._destroy_frames(v)
 
-        # Update trajectory visualization on demand
         self._refresh_trajectory(v)
 
+
     # ---------- Internal helpers ----------
+
 
     def _invalidate_frames(self) -> None:
         self.frames_dirty = True
@@ -245,7 +241,7 @@ class VizEnv:
             # Fallback: no-op if viewer doesn't expose user_scn
             pass
 
-        
+
     def _add_sphere(self,
         v: viewer.MjViewer,
         center: np.ndarray,
@@ -267,3 +263,5 @@ class VizEnv:
                 scn.ngeom += 1
         except Exception:
             pass
+
+

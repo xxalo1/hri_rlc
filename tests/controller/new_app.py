@@ -9,7 +9,7 @@ from .ops import compare_jacs, compare_dynamics, log_ic_mass_compare
 from robots.kinova_gen3 import init_kinova_robot
 from sim_env.mujoco.env import Gen3Env
 from sim_backend.mujoco.util import draw_all_frames, draw_ee_traj
-
+from sim_env.mujoco.viz_env import VizEnv
 from common_utils import numpy_util as npu
 
 FloatArray = npu.FloatArray
@@ -35,6 +35,9 @@ class Gen3App:
         self.robot = init_kinova_robot()
         self.robot.ctrl.set_joint_gains(Kp=2.0, Kv=2.0, Ki=1.0)
         self.env = Gen3Env.from_default_scene()
+        self.viz = VizEnv(Gen3Env.from_default_scene(), 
+                          on_pause=self.on_pause, 
+                          on_reset=self.on_reset)
 
         # basic trajectory
         self.q0 = np.zeros(self.robot.kin.n, dtype=npu.dtype)
@@ -86,6 +89,16 @@ class Gen3App:
                 self.robot.clear_traj()
 
 
+    def on_reset(self):
+        self.env.set_state(self.q0, self.qd0, 0.0)
+        obs = self.env.observe()
+        self.robot.set_joint_state(q=obs.q, qd=obs.qd, t=obs.t)
+
+
+    def on_pause(self, paused: bool):
+        pass
+
+
     def logging(self, v):
         if self.show_jacobian:
             msg = compare_jacs(self.robot.kin, self.env)
@@ -116,7 +129,7 @@ class Gen3App:
             self.show_inertia = False
 
 
-    def step_once(self, v): 
+    def step_once(self, v):
         if self.reset:
             self.reset = False
             self.env.set_state(self.q0, self.qd0, 0.0)
@@ -126,11 +139,12 @@ class Gen3App:
 
         self.robot.set_joint_state(q=obs.q, qd=obs.qd, t=obs.t)
 
-        self.logging(v)
 
         self.robot.update_joint_des()
         tau = self.robot.compute_ctrl_effort()
         self.env.step(tau, nsub=1)
+        self.viz.set_joint_states(q=obs.q, qd=obs.qd, t=obs.t)
+        self.viz.sync(v)
 
         v.sync()
 
@@ -141,9 +155,7 @@ class Gen3App:
 
         log_ic_mass_compare(self.logger, self.robot.kin, self.env)
 
-        with viewer.launch_passive(self.env.m, self.env.d, key_callback=self.key_callback) as v:
-            draw_ee_traj(v.user_scn, self.cart_traj.pose[:, :3], radius=0.002, stride=20)
-            v.sync()
+        with viewer.launch_passive(self.viz.env.m, self.viz.env.d, key_callback=self.viz.key_callback) as v:
             while v.is_running():
                 if not self.paused:
                     with v.lock():
