@@ -69,19 +69,20 @@ class CartesianTraj:
         pose in the world frame. Each row pose[k] is the
         [x, y, z, qw, qx, qy, qz] pose at time t[k].
 
-    twist : ndarray, shape (N, 6)
+    twist : ndarray, shape (N, 6) or None
         Spatial velocity of the pose at time t[k], stored as
         [vx, vy, vz, wx, wy, wz] where v is linear velocity and w is angular
-        velocity in the world frame.
+        velocity in the world frame. None by default (optional).
 
-    acc : ndarray, shape (N, 6)
+    acc : ndarray, shape (N, 6) or None
         Spatial acceleration of the pose at time t[k], stored as
         [ax, ay, az, awx, awy, awz], with a linear part and an angular part.
+        None by default (optional).
 
     Notes
     -----
     All arrays share the same number of samples N. For the default-constructed
-    object, these arrays are empty.
+    object, t and pose are initialized as empty arrays; twist and acc are None.
     """
 
     t: FloatArray = field(
@@ -92,14 +93,13 @@ class CartesianTraj:
         default_factory=lambda: np.zeros((0, 7), dtype=npu.dtype)
     )  # (N, 7)
 
+    twist: FloatArray | None = field(
+        default_factory=lambda: None
+    )  # (N, 6) or None
 
-    twist: FloatArray = field(
-        default_factory=lambda: np.zeros((0, 6), dtype=npu.dtype)
-    )  # (N, 6)
-
-    acc: FloatArray = field(
-        default_factory=lambda: np.zeros((0, 6), dtype=npu.dtype)
-    )  # (N, 6)
+    acc: FloatArray | None = field(
+        default_factory=lambda: None
+    )  # (N, 6) or None
 
 
 class TrajPlanner:

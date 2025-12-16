@@ -283,6 +283,10 @@ class Gen3ControllerNode(Node):
         
         if cmd.type == TrajectoryType.JOINT:
             robot.set_joint_traj(cmd.traj, cmd.duration, ti=cmd.ti)
+            self.get_logger().info(
+                f"Set joint trajectory: duration={cmd.duration:.3f} s, "
+                f"start_time={cmd.ti:.3f} s"
+            )
         else:
             self.get_logger().warn(
                 f"Received unsupported trajectory type: {cmd.type}"
@@ -442,83 +446,81 @@ class Gen3ControllerNode(Node):
 
             self._active_goal = goal_handle
             self._preempt_evt_by_goal[gid] = threading.Event()
+        
+        self.get_logger().info(
+            f"Accepted new trajectory goal {bytes(goal_handle.goal_id.uuid)}"
+        )
 
-        t = threading.Thread(target=self._run_goal_worker, args=(goal_handle,), daemon=False)
+        t = threading.Thread(target=goal_handle.execute, daemon=False)
         t.start()
-
-
-    def _run_goal_worker(self, 
-        goal_handle: ServerGoalHandle
-    ) -> None:
-        try:
-            goal_handle.execute()
-        finally:
-            gid = bytes(goal_handle.goal_id.uuid)
-            with self._goal_lock:
-                self._preempt_evt_by_goal.pop(gid, None)
-                if self._active_goal is goal_handle:
-                    self._active_goal = None
 
 
     def _execute_follow_traj(self, 
         goal_handle: ServerGoalHandle
     ) -> FollowTrajAction.Result:
         goal: FollowTrajAction.Goal = goal_handle.request
-        result = FollowTrajAction.Result()
-
-        cmd = self._build_traj_command(goal.trajectory)
-        if cmd is None:
-            result.error_code = FollowTrajAction.Result.INVALID_GOAL
-            result.error_string = "Empty or invalid trajectory"
-            goal_handle.abort()
-            return result
 
         gid = bytes(goal_handle.goal_id.uuid)
         with self._goal_lock:
             preempt_evt = self._preempt_evt_by_goal[gid]
 
-        self._traj_clear_req.clear()
-        with self._traj_lock:
-            self._traj_pending = cmd
+        result = FollowTrajAction.Result()
 
-        tf = cmd.ti + cmd.duration
-        feedback = FollowTrajAction.Feedback()
-        feedback_dt = 0.02  # 50 Hz
-
-        while rclpy.ok():
-            if goal_handle.is_cancel_requested:
-                self._traj_clear_req.set()
-                goal_handle.canceled()
-                result.error_code = FollowTrajAction.Result.SUCCESSFUL
-                result.error_string = "Trajectory cancelled"
-                return result
-
-            if preempt_evt.is_set():
-                # Preempted by a newer goal
-                self._traj_clear_req.set()
+        try:
+            cmd = self._build_traj_command(goal.trajectory)
+            if cmd is None:
+                result.error_code = FollowTrajAction.Result.INVALID_GOAL
+                result.error_string = "Empty or invalid trajectory"
                 goal_handle.abort()
-                result.error_code = FollowTrajAction.Result.SUCCESSFUL
-                result.error_string = "Preempted by a newer goal"
                 return result
 
-            t, q, qd, q_des, qd_des = self._read_snapshot()
-            feedback.header.stamp = rtime.to_ros_time(t)
-            feedback.actual.positions = q.tolist()
-            feedback.actual.velocities = qd.tolist()
-            feedback.desired.positions = q_des.tolist()
-            feedback.desired.velocities = qd_des.tolist()
-            feedback.error.positions = (q_des - q).tolist()
-            goal_handle.publish_feedback(feedback)
+            self._traj_clear_req.clear()
+            with self._traj_lock:
+                self._traj_pending = cmd
 
-            if t >= tf:
-                break
+            tf = cmd.ti + cmd.duration
+            feedback = FollowTrajAction.Feedback()
+            feedback_dt = 0.02  # 50 Hz
 
-            time.sleep(feedback_dt)
+            while rclpy.ok():
+                if goal_handle.is_cancel_requested:
+                    self._traj_clear_req.set()
+                    goal_handle.canceled()
+                    result.error_code = FollowTrajAction.Result.SUCCESSFUL
+                    result.error_string = "Trajectory cancelled"
+                    return result
 
-        goal_handle.succeed()
-        result.error_code = FollowTrajAction.Result.SUCCESSFUL
-        result.error_string = ""
-        return result
+                if preempt_evt.is_set():
+                    # self._traj_clear_req.set()
+                    goal_handle.abort()
+                    result.error_code = FollowTrajAction.Result.SUCCESSFUL
+                    result.error_string = "Preempted by a newer goal"
+                    return result
+
+                t, q, qd, q_des, qd_des = self._read_snapshot()
+                feedback.header.stamp = rtime.to_ros_time(t)
+                feedback.actual.positions = q.tolist()
+                feedback.actual.velocities = qd.tolist()
+                feedback.desired.positions = q_des.tolist()
+                feedback.desired.velocities = qd_des.tolist()
+                feedback.error.positions = (q_des - q).tolist()
+                goal_handle.publish_feedback(feedback)
+
+                if t >= tf:
+                    break
+
+                time.sleep(feedback_dt)
+
+            goal_handle.succeed()
+            result.error_code = FollowTrajAction.Result.SUCCESSFUL
+            result.error_string = ""
+            return result
+        
+        finally:
+            with self._goal_lock:
+                self._preempt_evt_by_goal.pop(gid, None)
+                if self._active_goal is goal_handle:
+                    self._active_goal = None
 
 
 def main(args=None) -> None:
