@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable
 
 import numpy as np
-import mujoco as mj
 from mujoco import viewer  # type: ignore
 
-from sim_backend.mujoco.mujoco_base import Observation
 from sim_env.mujoco.env import Gen3Env
 from common_utils import FloatArray
 from common_utils import numpy_util as npu
-import common_utils.transforms as trf
+import common_utils.transforms as tfm
+from sim_backend.mujoco.scene_overlay import SceneOverlay
 
 
 class VizEnv:
@@ -31,33 +30,36 @@ class VizEnv:
 
     def __init__(self,
         env: Gen3Env,
-        on_pause: Optional[Callable[[bool], None]] = None,
-        on_reset: Optional[Callable[[], None]] = None,
+        on_pause: Callable[[bool], None] | None = None,
+        on_reset: Callable[[], None] | None = None,
     ) -> None:
         self.env = env
         self.on_pause = on_pause
         self.on_reset = on_reset
 
-        self.t: float = 0.0
-        self.q: FloatArray = np.zeros((0,), dtype=npu.dtype)
-        self.qd: FloatArray = np.zeros((0,), dtype=npu.dtype)
+        self.t = 0.0
+        self.q = np.zeros((0,), dtype=npu.dtype)
+        self.qd = np.zeros((0,), dtype=npu.dtype)
 
         # Runtime viz state
-        self.paused: bool = True
-        self.show_frames: bool = False
-        self.show_jacobian: bool = False
-        self.show_dynamics: bool = False
-        self.show_inertia: bool = False
-        self.show_com: bool = False
+        self.paused = True
+        self.show_frames = True
+        self.show_jacobian = False
+        self.show_dynamics = False
+        self.show_inertia = False
+        self.show_com = False
 
         # Frames cache: rows are [px, py, pz, qx, qy, qz, qw]
-        self.frames_dirty: bool = False
-        self.frames_exists: bool = False
-        self.frame_poses: FloatArray = np.empty((0, 7), dtype=npu.dtype)
+        self.frames_dirty = False
+        self.frames_exists = False
+        self.frame_poses = np.empty((0, 7), dtype=npu.dtype)
+        self._overlay: SceneOverlay | None = None
 
         # Trajectory cache
-        self.traj_dirty: bool = False
-        self.cartesian_poses: FloatArray = np.empty((0, 7), dtype=npu.dtype)  # shape (N, 3)
+        self.traj_dirty = False
+        self.traj_exists = False
+        self.cartesian_poses = np.empty((0, 7), dtype=npu.dtype)  # shape (N, 3)
+        self.has_traj = False
 
 
     def set_joint_states(self,
@@ -70,7 +72,9 @@ class VizEnv:
         self.q = q
         self.qd = qd
         self.t = t
-        if tau is not None: self.tau = tau
+        if tau is not None: 
+            self.tau = tau
+            self.env.d.ctrl[self.env.act_idx[:len(tau)]] = tau
 
 
     def set_frame_states(self, frame_poses: FloatArray) -> None:
@@ -81,9 +85,25 @@ class VizEnv:
         self._invalidate_frames()
 
 
-    def set_planned_traj(self, cartesian_poses: FloatArray) -> None:
+    def set_planned_traj(self, cartesian_poses: FloatArray | None) -> None:
         """Accepts Nx3 world-frame waypoints for planned Cartesian trajectory."""
+        if cartesian_poses is None:
+            self.cartesian_poses = np.empty((0, 7), dtype=npu.dtype)
+            self.has_traj = False
+            self._invalidate_traj()
+            return
+
+        cartesian_poses = np.asarray(cartesian_poses, dtype=npu.dtype)
+
+        # Decimate to keep overlay geom count reasonable for interactive rendering
+        target_pts = 100
+        n = len(cartesian_poses)
+        if n > target_pts:
+            idx = np.linspace(0, n - 1, target_pts, dtype=int)
+            cartesian_poses = cartesian_poses[idx]
+
         self.cartesian_poses = cartesian_poses
+        self.has_traj = True
         self._invalidate_traj()
 
 
@@ -100,14 +120,9 @@ class VizEnv:
             case "1":
                 self.show_frames = not self.show_frames
                 self._invalidate_frames()
-            case "j" | "J":
-                self.show_jacobian = not self.show_jacobian
-            case "d" | "D":
-                self.show_dynamics = not self.show_dynamics
-            case "i" | "I":
-                self.show_inertia = not self.show_inertia
-            case "'":
-                self.show_com = not self.show_com
+            case "t" | "T":
+                self.has_traj = not self.has_traj
+                self._invalidate_traj()
             case _:
                 return
 
@@ -119,17 +134,22 @@ class VizEnv:
         Apply sim state and update visualization each render tick.
         Call inside `with v.lock():`.
         """
+        if self._overlay is None or self._overlay.scn is not v.user_scn:
+            self._overlay = SceneOverlay(v.user_scn)
+            self._overlay.reserve("frames", cap=3 * 10)
+            self._overlay.reserve("traj",   cap=2 * 4000)
+
         self.env.set_state(qpos=self.q, qvel=self.qd, t=self.t)
 
         if self.show_frames:
-            self._ensure_frames(v)
+            self._ensure_frames()
         else:
-            self._destroy_frames(v)
+            self._destroy_frames()
 
-        self._refresh_trajectory(v)
-
-
-    # ---------- Internal helpers ----------
+        if self.has_traj:
+            self._ensure_traj()
+        else:
+            self._destroy_traj()
 
 
     def _invalidate_frames(self) -> None:
@@ -140,128 +160,64 @@ class VizEnv:
         self.traj_dirty = True
 
 
-    def _ensure_frames(self, v: viewer.MjViewer) -> None:
+    def _ensure_frames(self) -> None:
         if self.frames_dirty or not self.frames_exists:
-            # Recreate frame axes visuals based on latest poses
-            self._destroy_frames(v)
-            self._create_frame_axes(v)
+            self._destroy_frames()
+            self._create_frame_axes()
             self.frames_exists = True
             self.frames_dirty = False
 
 
-    def _destroy_frames(self, v: viewer.MjViewer) -> None:
+    def _ensure_traj(self) -> None:
+        if self.traj_dirty or not self.traj_exists:
+            self._destroy_traj()
+            self._draw_traj(self.cartesian_poses)
+            self.traj_exists = True
+            self.traj_dirty = False
+
+
+    def _destroy_frames(self) -> None:
         if self.frames_exists:
-            # Clearing user geoms/markers if previously created
-            self._clear_user_markers(v)
+            if self._overlay is not None:
+                self._overlay.clear("frames")
             self.frames_exists = False
 
 
-    def _create_frame_axes(self, v: viewer.MjViewer) -> None:
-        # Draw axes for each pose using simple markers (line segments)
-        # Axes length and thickness defaults
-        axis_len = 0.08
-        rgba_x = np.array([1.0, 0.2, 0.2, 1.0])
-        rgba_y = np.array([0.2, 1.0, 0.2, 1.0])
-        rgba_z = np.array([0.2, 0.2, 1.0, 1.0])
-
-        for pose in self.frame_poses:
-            if pose.shape != (7,):
-                continue
-            origin = pose[:3]
-            quat = pose[3:7]
-            R = trf.quat_to_rotation_matrix(quat)
-            Rx = R[:, 0]
-            Ry = R[:, 1]
-            Rz = R[:, 2]
-            self._add_line(v, origin, origin + axis_len * Rx, rgba_x)
-            self._add_line(v, origin, origin + axis_len * Ry, rgba_y)
-            self._add_line(v, origin, origin + axis_len * Rz, rgba_z)
+    def _destroy_traj(self) -> None:
+        if self.traj_exists:
+            if self._overlay is not None:
+                self._overlay.clear("traj")
+            self.traj_exists = False
 
 
-    def _refresh_trajectory(self, v: viewer.MjViewer) -> None:
-        if not self.traj_dirty:
+    def _create_frame_axes(self) -> None:
+        if self._overlay is None:
             return
-        # Clear previous traj markers and redraw if a traj is present
-        self._clear_traj_markers(v)
-        if self.cartesian_poses is not None and len(self.cartesian_poses) > 0:
-            pts = self.cartesian_poses
-            # Draw small spheres at waypoints and line segments between them
-            rgba_pt = np.array([1.0, 0.7, 0.2, 1.0])
-            rgba_ln = np.array([1.0, 0.8, 0.2, 0.8])
+
+        axis_len = 0.3
+        rgba_x = np.array([1.0, 0.2, 0.2, 1.0], dtype=np.float32)
+        rgba_y = np.array([0.2, 1.0, 0.2, 1.0], dtype=np.float32)
+        rgba_z = np.array([0.2, 0.2, 1.0, 1.0], dtype=np.float32)
+
+        with self._overlay.layer("frames") as L:
+            for pose in self.frame_poses:
+                origin = pose[:3]
+                quat = pose[3:7]
+                R = tfm.quat_to_rotation_matrix(quat)
+                L.arrow(origin, origin + axis_len * R[:, 0], rgba_x, width=0.005)
+                L.arrow(origin, origin + axis_len * R[:, 1], rgba_y, width=0.005)
+                L.arrow(origin, origin + axis_len * R[:, 2], rgba_z, width=0.005)
+
+
+    def _draw_traj(self, pts: FloatArray) -> None:
+        rgba_pt = np.array([1.0, 0.7, 0.2, 1.0])
+        rgba_ln = np.array([1.0, 0.8, 0.2, 0.8])
+        if self._overlay is None:
+            return
+        with self._overlay.layer("traj") as L:
             for i in range(len(pts)):
                 p = pts[i][:3] if pts.shape[1] >= 3 else pts[i]
-                self._add_sphere(v, p, radius=0.01, rgba=rgba_pt)
+                L.sphere(p, radius=0.01, rgba=rgba_pt)
                 if i > 0:
                     p_prev = pts[i - 1][:3] if pts.shape[1] >= 3 else pts[i - 1]
-                    self._add_line(v, p_prev, p, rgba_ln)
-        self.traj_dirty = False
-
-    # ---------- Marker primitives (viewer helper wrappers) ----------
-
-    def _clear_user_markers(self, v: viewer.MjViewer) -> None:
-        # Best-effort clear: reset the user scene if available
-        try:
-            scn = v.user_scn
-            if hasattr(scn, "ngeom"):
-                scn.ngeom = 0
-        except Exception:
-            pass
-
-
-    def _clear_traj_markers(self, v: viewer.MjViewer) -> None:
-        # For simplicity, clear all and let frames be re-added if needed
-        self._clear_user_markers(v)
-        # Mark frames dirty so they are re-created after clear if showing
-        if self.show_frames:
-            self.frames_dirty = True
-
-
-    def _add_line(self,
-        v: viewer.MjViewer,
-        p0: np.ndarray,
-        p1: np.ndarray,
-        rgba: np.ndarray,
-    ) -> None:
-        # Use mjv function to append a thin capsule/segment into user scene if exposed
-        try:
-            scn = v.user_scn
-            geom_id = scn.ngeom
-            if geom_id < scn.maxgeom:
-                mj.mjv_initGeom(
-                    scn.geoms[geom_id],
-                    mj.mjtGeom.mjGEOM_LINE,
-                    size=np.zeros(3),
-                    rgba=rgba,
-                    pos=np.zeros(3),
-                    mat=np.eye(3),
-                )
-                scn.geoms[geom_id].data = np.concatenate([p0, p1]).astype(float)
-                scn.ngeom += 1
-        except Exception:
-            # Fallback: no-op if viewer doesn't expose user_scn
-            pass
-
-
-    def _add_sphere(self,
-        v: viewer.MjViewer,
-        center: np.ndarray,
-        radius: float,
-        rgba: np.ndarray,
-    ) -> None:
-        try:
-            scn = v.user_scn
-            geom_id = scn.ngeom
-            if geom_id < scn.maxgeom:
-                mj.mjv_initGeom(
-                    scn.geoms[geom_id],
-                    mj.mjtGeom.mjGEOM_SPHERE,
-                    size=np.array([radius, 0.0, 0.0]),
-                    rgba=rgba,
-                    pos=center.astype(float),
-                    mat=np.eye(3),
-                )
-                scn.ngeom += 1
-        except Exception:
-            pass
-
-
+                    L.line(p_prev, p, rgba_ln, width=0.002)
