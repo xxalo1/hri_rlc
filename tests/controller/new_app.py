@@ -11,7 +11,7 @@ from sim_env.mujoco.env import Gen3Env
 from sim_backend.mujoco.util import draw_all_frames, draw_ee_traj
 from sim_env.mujoco.viz_env import VizEnv
 from common_utils import numpy_util as npu
-
+from common_utils import transforms as tfm
 FloatArray = npu.FloatArray
 
 
@@ -90,13 +90,11 @@ class Gen3App:
 
 
     def on_reset(self):
-        self.env.set_state(self.q0, self.qd0, 0.0)
-        obs = self.env.observe()
-        self.robot.set_joint_state(q=obs.q, qd=obs.qd, t=obs.t)
+        self.reset = True
 
 
     def on_pause(self, paused: bool):
-        pass
+        self.paused = paused
 
 
     def logging(self, v):
@@ -139,11 +137,14 @@ class Gen3App:
 
         self.robot.set_joint_state(q=obs.q, qd=obs.qd, t=obs.t)
 
-
         self.robot.update_joint_des()
         tau = self.robot.compute_ctrl_effort()
         self.env.step(tau, nsub=1)
-        self.viz.set_joint_states(q=obs.q, qd=obs.qd, t=obs.t)
+
+        self.viz.set_joint_states(q=obs.q, qd=obs.qd, t=obs.t, tau=tau)
+        T_wf = self.robot.kin.forward_kinematics()
+        frame_poses = tfm.transform_to_pos_quat(T_wf)
+        self.viz.set_frame_states(frame_poses)
         self.viz.sync(v)
 
         v.sync()
@@ -151,11 +152,15 @@ class Gen3App:
 
     def run(self):
         self.env.set_state(self.q0, self.qd0, 0.0)
-        self.env.display()
 
-        log_ic_mass_compare(self.logger, self.robot.kin, self.env)
+        # log_ic_mass_compare(self.logger, self.robot.kin, self.env)
+        self.viz.set_planned_traj(self.cart_traj.pose)
 
-        with viewer.launch_passive(self.viz.env.m, self.viz.env.d, key_callback=self.viz.key_callback) as v:
+        with viewer.launch_passive(
+            self.viz.env.m,
+            self.viz.env.d,
+            key_callback=self.viz.key_callback
+        ) as v:
             while v.is_running():
                 if not self.paused:
                     with v.lock():
