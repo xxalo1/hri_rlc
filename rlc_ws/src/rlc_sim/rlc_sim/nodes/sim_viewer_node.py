@@ -18,7 +18,7 @@ from rlc_common.endpoints import (
     JointStateMsg, JointEffortCmdMsg, PlannedCartTrajMsg, CurrentPlanMsg,
     ResetSimSrv, PauseSimSrv, FrameStatesMsg
 )
-
+from rlc_planner.executor_node import TrajectoryCache, CachedTraj, TrajKind
 
 class Gen3MujocoVizNode(Node):
     """
@@ -31,6 +31,7 @@ class Gen3MujocoVizNode(Node):
     def __init__(self) -> None:
         super().__init__("gen3_mujoco_viz")
 
+        self.cache = TrajectoryCache(ttl_sec=120.0)
         self.env = Gen3Env.from_default_scene()
         self.viz = VizEnv(
             env=self.env,
@@ -95,12 +96,19 @@ class Gen3MujocoVizNode(Node):
 
     def cart_traj_callback(self, msg: PlannedCartTrajMsg) -> None:
         """
-        Update qpos_target from the latest JointStateSim message.
-
-        Assumes msg.name entries match MuJoCo joint names.
         """
-        pass
+        now = self._now()
+        item = CachedTraj(
+            stamp=now,
+            kind=TrajKind.CART,
+            label=msg.label,
+            traj=msg.trajectory,
+        )
+        self.cache.put(msg.trajectory_id, item)
+        self.cache.cleanup(now)
 
+        if self.active_trajectory_id == msg.trajectory_id:
+            self.viz.set_planned_traj(msg.trajectory)
 
     def current_plan_callback(self, msg: CurrentPlanMsg) -> None:
         """
@@ -108,7 +116,14 @@ class Gen3MujocoVizNode(Node):
 
         Assumes msg.name entries match MuJoCo joint names.
         """
-        pass
+        trajectory_id = msg.trajectory_id
+        status = msg.status
+        
+        if status == CurrentPlanMsg.STATUS_ACTIVE:
+            self.active_trajectory_id = trajectory_id
+            return
+        if trajectory_id == self.active_trajectory_id:
+            self.active_trajectory_id = None
 
 
     def frame_state_callback(self, msg: FrameStatesMsg) -> None:
@@ -131,9 +146,14 @@ class Gen3MujocoVizNode(Node):
         self.viz.set_joint_states(
             state.positions, 
             state.velocities, 
+            state.stamp,
             state.efforts, 
-            state.stamp
         )
+
+
+    def _now(self) -> float:
+        """Current time in seconds."""
+        return self.get_clock().now().nanoseconds * 1e-9
 
 
 def main(args=None) -> None:
