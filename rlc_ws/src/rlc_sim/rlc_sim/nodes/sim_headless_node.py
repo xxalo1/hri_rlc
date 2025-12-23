@@ -3,7 +3,6 @@ from __future__ import annotations
 import threading
 import time
 
-from netplan import State
 import numpy as np
 import rclpy
 from rclpy.node import Node

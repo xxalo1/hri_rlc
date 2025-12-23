@@ -103,3 +103,42 @@ class PoseArrayData():
     frame_id: str
     poses: FloatArray  # (N, 7) [x, y, z, qw, qx, qy, qz]
 
+@dataclass(slots=True)
+class CartesianTrajectoryData:
+    """
+    Parsed representation of a PlannedCartTraj message.
+
+    All arrays are NumPy arrays (dtype=npu.dtype). If velocities or
+    accelerations are not present in the message, they are filled with
+    zeros of shape positions.shape.
+    """
+    stamp: float
+    time_from_start: FloatArray        # (N,)
+    poses: FloatArray                  # (N, 7) [x, y, z, qw, qx, qy, qz]
+    twists: FloatArray | None      # (N, 6) or None
+    accelerations: FloatArray | None   # (N, 6) or None
+    _traj: CartesianTraj | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        if self.twists is None:
+            self.twists = np.zeros(self.shape, dtype=self.dtype)
+
+        if self.accelerations is None:
+            self.accelerations = np.zeros(self.shape, dtype=self.dtype)
+
+        self._traj = CartesianTraj(
+            t=self.time_from_start,
+            pose=self.poses,
+        )
+
+    @property
+    def traj(self) -> CartesianTraj:
+        return self._traj # type: ignore
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self.poses.shape
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self.poses.dtype

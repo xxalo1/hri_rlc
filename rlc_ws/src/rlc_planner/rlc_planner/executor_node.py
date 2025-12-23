@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
+from functools import partial
 from typing import Any, Dict, Tuple
 
 import rclpy
@@ -18,7 +19,7 @@ from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
 
 from rlc_common.endpoints import (
-    TOPICS, SERVICES, ACTIONS, 
+    TOPICS, SERVICES, ACTIONS, CurrentPlanMsg, 
     PlannedJointTrajMsg, ExecuteTrajSrv, PlannedCartTrajMsg,
     CurrentPlan
 )
@@ -195,8 +196,8 @@ class TrajectoryExecutorNode(Node):
         label: str,
         status: int,
     ) -> None:
-        msg = CurrentPlan()
-        msg.trajectory_id = trajectory_id
+        msg = CurrentPlanMsg()
+        msg.plan_id = trajectory_id
         msg.label = label
         msg.status = status
 
@@ -228,7 +229,7 @@ class TrajectoryExecutorNode(Node):
         trajectory: JointTrajectory,
         label: str,
     ) -> tuple[bool, str]:
-        """Send a trajectory to the controller and wait for completion."""
+        """Send a trajectory to the controller without blocking callbacks."""
 
         if not self._traj_action_client.wait_for_server(timeout_sec=2.0):
             return False, "FollowJointTrajectory action not available"
@@ -236,33 +237,73 @@ class TrajectoryExecutorNode(Node):
         goal_msg = FollowJointTrajectory.Goal()
         goal_msg.trajectory = trajectory
 
-        send_future = self._traj_action_client.send_goal_async(
-            goal_msg,
+        send_future = self._traj_action_client.send_goal_async(goal_msg)
+        send_future.add_done_callback(
+            partial(self._on_goal_response, trajectory_id=trajectory_id, label=label)
         )
-        rclpy.spin_until_future_complete(self, send_future)
-        goal_handle = send_future.result()
 
-        # Goal rejected or no handle returned
-        if goal_handle is None or not goal_handle.accepted:
-            return self._handle_goal_result(
-                trajectory_id=trajectory_id,
-                label=label,
-                result=None,
+        return True, f"{label} ({trajectory_id}) dispatched for execution"
+
+
+    def _on_goal_response(self,
+        future: Any,
+        *,
+        trajectory_id: str,
+        label: str,
+    ) -> None:
+        """Handle goal acceptance/rejection and chain result handling."""
+        try:
+            goal_handle = future.result()
+        except Exception as exc:
+            msg = f"{label} ({trajectory_id}) failed to send goal: {exc}"
+            self.get_logger().error(msg)
+            self._publish_current_plan(
+                trajectory_id, label, CurrentPlanMsg.STATUS_NONE
             )
+            return
 
-        # Goal accepted: mark current plan as active
+        if goal_handle is None or not goal_handle.accepted:
+            msg = f"{label} ({trajectory_id}) rejected by controller"
+            self.get_logger().error(msg)
+            self._publish_current_plan(
+                trajectory_id, label, CurrentPlanMsg.STATUS_NONE
+            )
+            return
+
         self._on_goal_accepted(trajectory_id, label)
 
-        # Wait for final result
         result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future)
-        get_result_resp = result_future.result()
+        result_future.add_done_callback(
+            partial(self._on_goal_result, trajectory_id=trajectory_id, label=label)
+        )
 
-        return self._handle_goal_result(
+
+    def _on_goal_result(self,
+        future: Any,
+        *,
+        trajectory_id: str,
+        label: str,
+    ) -> None:
+        """Handle final action result and publish CurrentPlan status."""
+        try:
+            get_result_resp = future.result()
+        except Exception as exc:
+            msg = f"{label} ({trajectory_id}) failed to get result: {exc}"
+            self.get_logger().error(msg)
+            self._publish_current_plan(
+                trajectory_id, label, CurrentPlanMsg.STATUS_NONE
+            )
+            return
+
+        ok, msg = self._handle_goal_result(
             trajectory_id=trajectory_id,
             label=label,
             result=get_result_resp,
         )
+        if ok:
+            self.get_logger().info(msg)
+        else:
+            self.get_logger().error(msg)
 
 
     def _send_cart_goal(self,
@@ -294,7 +335,7 @@ class TrajectoryExecutorNode(Node):
         """
         if result is None:
             msg = f"{label} ({trajectory_id}) failed: no result returned"
-            self._publish_current_plan(trajectory_id, label, CurrentPlan.STATUS_NONE)
+            self._publish_current_plan(trajectory_id, label, CurrentPlanMsg.STATUS_NONE)
             return False, msg
 
         status = result.status
@@ -303,28 +344,28 @@ class TrajectoryExecutorNode(Node):
             case GoalStatus.STATUS_SUCCEEDED:
                 msg = f"{label} ({trajectory_id}) succeeded"
                 self._publish_current_plan(
-                    trajectory_id, label, CurrentPlan.STATUS_SUCCEEDED
+                    trajectory_id, label, CurrentPlanMsg.STATUS_SUCCEEDED
                 )
                 ok = True
 
             case GoalStatus.STATUS_ABORTED:
                 msg = f"{label} ({trajectory_id}) aborted"
                 self._publish_current_plan(
-                    trajectory_id, label, CurrentPlan.STATUS_ABORTED
+                    trajectory_id, label, CurrentPlanMsg.STATUS_ABORTED
                 )
                 ok = False
 
             case GoalStatus.STATUS_CANCELED:
                 msg = f"{label} ({trajectory_id}) canceled"
                 self._publish_current_plan(
-                    trajectory_id, label, CurrentPlan.STATUS_CANCELED
+                    trajectory_id, label, CurrentPlanMsg.STATUS_CANCELED
                 )
                 ok = False
 
             case _:
                 msg = f"{label} ({trajectory_id}) finished with unknown status ({status})"
                 self._publish_current_plan(
-                    trajectory_id, label, CurrentPlan.STATUS_NONE
+                    trajectory_id, label, CurrentPlanMsg.STATUS_NONE
                 )
                 ok = False
 
@@ -337,7 +378,7 @@ class TrajectoryExecutorNode(Node):
     ) -> None:
         """Handle logging/state update when the controller accepts a goal."""
         self.get_logger().info(f"{label} ({trajectory_id}) accepted by controller")
-        self._publish_current_plan(trajectory_id, label, CurrentPlan.STATUS_ACTIVE)
+        self._publish_current_plan(trajectory_id, label, CurrentPlanMsg.STATUS_ACTIVE)
 
 
 def main() -> None:

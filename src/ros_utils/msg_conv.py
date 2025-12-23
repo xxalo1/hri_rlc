@@ -31,6 +31,7 @@ from.msg_types import (
     JointTrajectoryData,
     PoseArrayData,
     JointStateActionData,
+    CartesianTrajectoryData,
 )
 from . import time_util as tu
 
@@ -754,6 +755,95 @@ def from_joint_traj_msg(msg: JointTrajectory) -> JointTrajectoryData:
         positions=positions,
         velocities=velocities,
         accelerations=accelerations,
+    )
+
+
+def from_multi_dof_traj_msg(
+    msg: MultiDOFJointTrajectory,
+) -> CartesianTrajectoryData:
+    """
+    Convert a MultiDOFJointTrajectory message to NumPy arrays.
+
+    Parameters
+    ----------
+    msg : MultiDOFJointTrajectory
+        Cartesian trajectory message.
+
+    Returns
+    -------
+    CartesianTrajData
+        Dataclass with time stamp, poses, twists, accelerations,
+        and time_from_start.
+    """
+    stamp = tu.from_ros_time_or_duration(msg.header.stamp)
+    frame_id = msg.header.frame_id
+    points: list[MultiDOFJointTrajectoryPoint] = list(msg.points)
+
+    if not points:
+        raise ValueError("MultiDOFJointTrajectory has no points.")
+
+    N = len(points)
+
+    # time_from_start (N,)
+    time_from_start = npu.to_array(
+        [tu.from_ros_time_or_duration(p.time_from_start) for p in points],
+    )
+
+    # poses (N, 7)
+    pose_list = []
+    for p in points:
+        t: Transform = p.transforms[0] # type: ignore
+        pose_list.append([
+            t.translation.x,
+            t.translation.y,
+            t.translation.z,
+            t.rotation.w,
+            t.rotation.x,
+            t.rotation.y,
+            t.rotation.z,
+        ])
+    poses = npu.to_array(pose_list)
+
+    # twists (N, 6), optional
+    if any(p.velocities for p in points):
+        twist_list = []
+        for p in points:
+            tw: Twist = p.velocities[0] # type: ignore
+            twist_list.append([
+                tw.linear.x,
+                tw.linear.y,
+                tw.linear.z,
+                tw.angular.x,
+                tw.angular.y,
+                tw.angular.z,
+            ])
+        twists = npu.to_array(twist_list)
+    else:
+        twists = None
+
+    # accelerations (N, 6), optional
+    if any(p.accelerations for p in points):
+        acc_list = []
+        for p in points:
+            ac: Twist = p.accelerations[0] # type: ignore
+            acc_list.append([
+                ac.linear.x,
+                ac.linear.y,
+                ac.linear.z,
+                ac.angular.x,
+                ac.angular.y,
+                ac.angular.z,
+            ])
+        accelerations = npu.to_array(acc_list)
+    else:
+        accelerations = None
+
+    return CartesianTrajectoryData(
+        stamp=stamp,
+        time_from_start=time_from_start,
+        poses=poses,
+        twists=twists,
+        accelerations=accelerations
     )
 
 
