@@ -19,7 +19,6 @@ class CurrentPlan:
     label: str
     status: int
     stamp: Time 
-    trajectory_id: str
     STATUS_NONE: int = ...
     STATUS_PENDING: int = ...
     STATUS_ACTIVE: int = ...
@@ -33,7 +32,6 @@ class CurrentPlan:
         label: str = ...,
         status: int = ...,
         stamp: Time = ...,  # Time
-        trajectory_id: str = ...,
         *,
         check_fields: bool | None = ...,
     ) -> None: ...

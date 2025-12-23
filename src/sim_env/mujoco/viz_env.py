@@ -221,3 +221,5 @@ class VizEnv:
                 if i > 0:
                     p_prev = pts[i - 1][:3] if pts.shape[1] >= 3 else pts[i - 1]
                     L.line(p_prev, p, rgba_ln, width=0.002)
+
+

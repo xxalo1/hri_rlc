@@ -1,8 +1,7 @@
 from __future__ import annotations
+from dataclasses import dataclass
 import time
 
-import numpy as np
-import mujoco as mj
 from mujoco import viewer # type: ignore
 
 import rclpy
@@ -11,14 +10,19 @@ from sim_env.mujoco.env import Gen3Env
 from sim_env.mujoco.viz_env import VizEnv
 from ros_utils import msg_conv as rmsg
 from ros_utils.config import qos_latest
-
-from common_utils import numpy_util as npu
 from rlc_common.endpoints import (
-    TOPICS, SERVICES, ACTIONS, 
-    JointStateMsg, JointEffortCmdMsg, PlannedCartTrajMsg, CurrentPlanMsg,
-    ResetSimSrv, PauseSimSrv, FrameStatesMsg
+    TOPICS, SERVICES,
+    JointStateMsg, PlannedCartTrajMsg, CurrentPlanMsg,
+    ResetSimSrv, PauseSimSrv, FrameStatesMsg,
 )
 from rlc_planner.executor_node import TrajectoryCache, CachedTraj, TrajKind
+
+@dataclass
+class CurrentPlan:
+    traj_id: str = ""
+    active_traj_id: str | None = None
+    status: int = CurrentPlanMsg.STATUS_NONE
+    stamp: float = 0.0
 
 class Gen3MujocoVizNode(Node):
     """
@@ -32,6 +36,7 @@ class Gen3MujocoVizNode(Node):
         super().__init__("gen3_mujoco_viz")
 
         self.cache = TrajectoryCache(ttl_sec=120.0)
+        self.current_plan = CurrentPlan()
         self.env = Gen3Env.from_default_scene()
         self.viz = VizEnv(
             env=self.env,
@@ -107,8 +112,6 @@ class Gen3MujocoVizNode(Node):
         self.cache.put(msg.trajectory_id, item)
         self.cache.cleanup(now)
 
-        if self.active_trajectory_id == msg.trajectory_id:
-            self.viz.set_planned_traj(msg.trajectory)
 
     def current_plan_callback(self, msg: CurrentPlanMsg) -> None:
         """
@@ -116,14 +119,31 @@ class Gen3MujocoVizNode(Node):
 
         Assumes msg.name entries match MuJoCo joint names.
         """
-        trajectory_id = msg.trajectory_id
-        status = msg.status
-        
+        self.get_logger().info(f"Received current plan update: traj_id={msg.plan_id}, status={msg.status}")
+        self.current_plan.stamp = msg.stamp.sec + msg.stamp.nanosec * 1e-9
+        self.current_plan.traj_id = msg.plan_id
+        self.current_plan.status = msg.status
+
+        self.refresh_planned_trajectory()
+
+
+    def refresh_planned_trajectory(self) -> None:
+        traj_id = self.current_plan.traj_id
+        status = self.current_plan.status
+        active_traj_id = self.current_plan.active_traj_id
+
         if status == CurrentPlanMsg.STATUS_ACTIVE:
-            self.active_trajectory_id = trajectory_id
+            if active_traj_id == traj_id:
+                return
+            traj = self.cache.get(traj_id=traj_id, now=self._now())
+            cart_traj = rmsg.from_multi_dof_traj_msg(traj.traj) # type: ignore
+            self.viz.set_planned_traj(cart_traj.poses)
+            self.current_plan.active_traj_id = traj_id
             return
-        if trajectory_id == self.active_trajectory_id:
-            self.active_trajectory_id = None
+        else:
+            if active_traj_id == traj_id:
+                self.viz.set_planned_traj(None)
+                self.current_plan.active_traj_id = None
 
 
     def frame_state_callback(self, msg: FrameStatesMsg) -> None:
