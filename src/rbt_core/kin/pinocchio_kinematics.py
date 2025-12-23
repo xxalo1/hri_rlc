@@ -5,7 +5,6 @@ from typing import Iterable
 
 import numpy as np
 import pinocchio as pin
-
 from common_utils import FloatArray
 from common_utils import numpy_util as npu
 
@@ -16,9 +15,8 @@ class PinocchioDynamics:
     Assumes 1-DoF joints (model.nv == model.njoints - 1) for per-joint stacks.
     """
 
-    def __init__(
-        self,
-        model: pin.Model,
+    def __init__(self,
+        model: pin,
         data: pin.Data | None = None,
         *,
         ee_frame: str | int | None = None,
@@ -58,22 +56,21 @@ class PinocchioDynamics:
         )
 
     @classmethod
-    def from_urdf(
-        cls,
+    def from_urdf(cls,
         urdf_path: str | Path,
         *,
         package_dirs: Iterable[str] | None = None,
         root_joint: pin.JointModel | None = None,
         ee_frame: str | int | None = None,
         g_vec: FloatArray | None = None,
-    ) -> "PinocchioKinematics":
+    ) -> "PinocchioDynamics":
         urdf_path = Path(urdf_path)
         kwargs: dict[str, object] = {}
         if root_joint is not None:
             kwargs["root_joint"] = root_joint
         if package_dirs is not None:
             kwargs["package_dirs"] = [str(p) for p in package_dirs]
-        model = pin.buildModelFromUrdf(str(urdf_path), **kwargs)
+        model = pin.buildModelsFromUrdf(str(urdf_path), **kwargs)
         return cls(model, ee_frame=ee_frame, g_vec=g_vec)
 
 
@@ -96,6 +93,24 @@ class PinocchioDynamics:
             raise TypeError(f"{name} must be {FloatArray.__name__}")
         if a.shape != b.shape:
             raise ValueError(f"{name}.shape {a.shape} != expected {b.shape}")
+
+
+    def _validate_index_range(self, i: int, max_value: int | None = None) -> None:
+        """
+        Validate that index `i` is within the valid range.
+
+        Parameters
+        ----------
+        i : int
+            Index to validate.
+
+        max_value : int, optional
+            Maximum valid value for the index. Defaults to `self.n - 1`.
+        """
+        if max_value is None:
+            max_value = self.n - 1
+        if not (0 <= i <= max_value):
+            raise ValueError(f"i must be in [0, {max_value - 1}]")
 
 
     def _invalidate_kinematics(self) -> None:
@@ -150,8 +165,7 @@ class PinocchioDynamics:
         return self._mass
 
 
-    def step(
-        self,
+    def step(self,
         q: FloatArray | None = None,
         qd: FloatArray | None = None,
         qdd: FloatArray | None = None,
@@ -164,21 +178,36 @@ class PinocchioDynamics:
             self.qdd = qdd
 
 
-    def forward_kinematics(
-        self,
+    def forward_kinematics(self,
         q: FloatArray | None = None,
         i: int | None = None,
         use_cache: bool = True,
     ) -> FloatArray:
         if q is not None:
-            self.q = self._as_q(q)
-            self._invalidate_cache()
+            self._validate_array(q, self.q, name ="q")
             use_cache = False
+        else:
+            q = self.q
+        n = self.n
 
-        if not use_cache or not self._fk_valid or self._T_wf is None:
-            self._ensure_fk()
+        if i is not None: 
+            self._validate_index_range(i)
+        else:
+            i = n -1
 
-        T_wf = self._T_wf if self._T_wf is not None else self._stack_joint_placements()
+        k = i + 2
+        if use_cache and self._fk_valid:
+            return self._T_wf[:k]
+
+        pin.forwardKinematics(self.model, self.data, self.q)
+        pin.updateFramePlacements(self.model, self.data)
+        self._T_wf = self._stack_joint_placements()
+        self._fk_valid = True
+
+        if not use_cache: 
+            return T_wf[:k]
+
+        T_wf = self._T_wf
         if i is not None:
             self._validate_index(i)
             return T_wf[: i + 2]
@@ -186,12 +215,9 @@ class PinocchioDynamics:
 
 
     def batch_forward_kinematics(self, Q: FloatArray) -> FloatArray:
-        Q_arr = np.asarray(Q, dtype=npu.dtype)
-        if Q_arr.ndim != 2 or Q_arr.shape[1] != self.nq:
-            raise ValueError(f"Q must be (N, {self.nq}), got {Q_arr.shape}.")
-        T_wf = np.empty((Q_arr.shape[0], self.model.njoints, 4, 4), dtype=npu.dtype)
-        for i in range(Q_arr.shape[0]):
-            self.step(q=Q_arr[i])
+        T_wf = np.empty((Q.shape[0], self.model.njoints, 4, 4), dtype=npu.dtype)
+        for i in range(Q.shape[0]):
+            self.step(q=Q[i])
             T_wf[i] = self.forward_kinematics(use_cache=False)
         return T_wf
 
@@ -222,7 +248,7 @@ class PinocchioDynamics:
 
 
     def rnea(self) -> FloatArray:
-        return pin.rnea(self.model, self.data, self.q, self.qd, self.qdd)
+        return pin.(self.model, self.data, self.q, self.qd, self.qdd)
 
 
     def dyn_pinv(self, J_task: FloatArray) -> tuple[FloatArray, FloatArray]:
