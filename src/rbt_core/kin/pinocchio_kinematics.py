@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import numpy as np
 import pinocchio as pin
@@ -22,6 +22,7 @@ class PinocchioDynamics:
         ee_frame: str | int | None = None,
         g_vec: FloatArray | None = None,
     ) -> None:
+        model.nv
         self.model = model
         self.data = data if data is not None else model.createData()
         self._q = np.array(pin.neutral(model), dtype=npu.dtype)
@@ -30,15 +31,8 @@ class PinocchioDynamics:
 
         self._fk_valid = False
         self._J_valid = False
-        self._com_valid = False
-        self._Ic_valid = False
-        self._J_com_valid = False
 
-        self._T_wf: FloatArray | None = None
-        self._J_full: FloatArray | None = None
-        self._com_wl: FloatArray | None = None
-        self._Ic_wl: FloatArray | None = None
-        self._J_com: FloatArray | None = None
+        self._T_wf: FloatArray = np.eye(4, dtype=npu.dtype).reshape(4,4)
 
         self._ee_frame_id: int | None = None
         if ee_frame is not None:
@@ -46,7 +40,6 @@ class PinocchioDynamics:
 
         if g_vec is not None:
             g = np.asarray(g_vec, dtype=npu.dtype).reshape(3)
-            self.model.gravity.linear = g
         self.g_vec = np.asarray(self.model.gravity.linear, dtype=npu.dtype)
 
         self._mass = np.array(
@@ -69,7 +62,7 @@ class PinocchioDynamics:
             kwargs["root_joint"] = root_joint
         if package_dirs is not None:
             kwargs["package_dirs"] = [str(p) for p in package_dirs]
-        model = pin.buildModelsFromUrdf(str(urdf_path), **kwargs)
+        model = pin.buildModelFromUrdf(str(urdf_path), **kwargs)
         return cls(model, ee_frame=ee_frame, g_vec=g_vec)
 
 
@@ -124,8 +117,6 @@ class PinocchioDynamics:
     @q.setter
     def q(self, v: FloatArray) -> None:
         self._validate_array(v, self._q, "q")
-        if np.array_equal(v, self._q):
-            return
         self._q[:] = v
         self._invalidate_kinematics()
 
@@ -134,8 +125,6 @@ class PinocchioDynamics:
     @qd.setter
     def qd(self, v: FloatArray) -> None:
         self._validate_array(v, self._qd, "qd")
-        if np.array_equal(v, self._qd):
-            return
         self._qd[:] = v
 
     @property
@@ -143,9 +132,14 @@ class PinocchioDynamics:
     @qdd.setter
     def qdd(self, v: FloatArray) -> None:
         self._validate_array(v, self._qdd, "qdd")
-        if np.array_equal(v, self._qdd):
-            return
         self._qdd[:] = v
+
+    @property
+    def T_wj(self) -> FloatArray: return self._T_wf
+    @T_wj.setter
+    def T_wj(self, v: FloatArray) -> None:
+        self._validate_array(v, self._T_wf, "T_wf")
+        self._T_wf[:] = v
 
     @property
     def n(self) -> int:
@@ -163,54 +157,113 @@ class PinocchioDynamics:
     def mass(self) -> FloatArray:
         return self._mass
 
+    @property
+    def oMi(self) -> Sequence[pin.SE3]:
+        """Joint placements in world, list-like of SE3."""
+        return self.data.oMi
+
+    @property
+    def oMf(self) -> Iterable[pin.SE3]:
+        """Frame placements in world, list-like of SE3."""
+        return self.data.oMf
+
+    @property
+    def M(self) -> FloatArray:
+        """Mass matrix (nv x nv)."""
+        M = self.data.M
+        return 0.5 * (M + M.T)
+
+    @property
+    def nle(self) -> FloatArray:
+        """Nonlinear effects (C*qd + g)."""
+        return self.data.nle
+
+    @property
+    def g(self) -> FloatArray:
+        """Generalized gravity vector."""
+        return self.data.g
+
+    @property
+    def com(self) -> FloatArray:
+        """Center of mass vectors"""
+        return self.data.com
+
 
     def step(self,
         q: FloatArray | None = None,
         qd: FloatArray | None = None,
         qdd: FloatArray | None = None,
     ) -> None:
-        if q is not None:
-            self.q = q
-        if qd is not None:
-            self.qd = qd
-        if qdd is not None:
-            self.qdd = qdd
+        if q is not None: self.q = q
+        if qd is not None: self.qd = qd
+        if qdd is not None: self.qdd = qdd
 
 
-    def forward_kinematics(self,
-        q: FloatArray | None = None,
-        i: int | None = None,
-        use_cache: bool = True,
+    def joint_se3(self,
+        i: int
+    ) -> pin.SE3:
+        self._validate_index_range(i, self.model.njoints)
+        self._ensure_fk()
+        return self.oMi[i]
+
+
+    def frame_se3(self, 
+        frame_id: int | None = None
+    ) -> pin.SE3:
+        if frame_id is None: 
+            frame_id = self.model.nframes - 1
+        else: 
+            self._validate_index_range(frame_id, self.model.nframes - 1)
+        self._ensure_fk()
+        return self.data.oMf[frame_id]
+
+
+    def joint_T(self, 
+        i: int
     ) -> FloatArray:
-        if q is not None:
-            self._validate_array(q, self.q, name ="q")
-            use_cache = False
-        else:
-            q = self.q
-        n = self.n
+        self._validate_index_range(i, self.model.njoints)
+        self._ensure_fk()
+        return self.data.oMi[i].homogeneous
 
-        if i is not None: 
-            self._validate_index_range(i)
-        else:
-            i = n -1
 
-        k = i + 2
-        if use_cache and self._fk_valid:
-            return self._T_wf[:k]
+    def frame_T(self, 
+        i: int | None = None
+    ) -> FloatArray:
+        if i is None: 
+            i = self.model.nframes - 1
+        else: 
+            self._validate_index_range(i, self.model.nframes - 1)
+        self._ensure_fk()
+        return self.data.oMf[i].homogeneous
 
-        pin.forwardKinematics(self.model, self.data, self.q)
-        pin.updateFramePlacements(self.model, self.data)
-        self._T_wf = self._stack_joint_placements()
-        self._fk_valid = True
 
-        if not use_cache: 
-            return T_wf[:k]
+    def joint_Rp(self, 
+        i: int
+    ) -> tuple[FloatArray, FloatArray]:
+        self._validate_index_range(i, self.model.njoints)
+        self._ensure_fk()
+        oM = self.data.oMi[i]
+        return oM.rotation, oM.translation
 
-        T_wf = self._T_wf
-        if i is not None:
-            self._validate_index(i)
-            return T_wf[: i + 2]
-        return T_wf
+
+    def joint_T_stack(self
+    ) -> FloatArray:
+        self._ensure_fk()
+        self.T_wj = np.asarray(self.data.oMi)
+        return self.T_wj
+
+
+    def frame_T_stack(self
+    ) -> FloatArray:
+        self._ensure_fk()
+        self.T_wf = np.asarray(self.data.oMf)
+        return self.T_wf
+
+
+    def dof_joint_id(self, 
+        dof: int
+    ) -> int:
+        return dof + 1
 
 
     def batch_forward_kinematics(self, Q: FloatArray) -> FloatArray:
@@ -221,33 +274,61 @@ class PinocchioDynamics:
         return T_wf
 
 
-    def frame_transform(self, frame: str | int) -> FloatArray:
-        frame_id = self._resolve_frame_id(frame)
-        self._ensure_fk()
-        return self._se3_to_matrix(self.data.oMf[frame_id])
+    def inertia_matrix(self) -> FloatArray:
+        pin.crba(self.model, self.data, self.q)
+        return self.M
 
 
-    def ee_transform(self) -> FloatArray:
-        if self._ee_frame_id is None:
-            raise ValueError("ee_frame is not configured for this model.")
-        return self.frame_transform(self._ee_frame_id)
+    def batch_frame_T(self, Q: np.ndarray, frame_id: int) -> np.ndarray:
+        """
+        World -> one frame transform for each q in Q.
+
+        Returns: (B, 4, 4) float64
+        """
+        model = self.model
+        if not (0 <= frame_id < model.nframes):
+            raise ValueError(f"frame_id out of range: {frame_id}")
+
+        data = model.createData()
+        out = np.empty((Q.shape[0], 4, 4), dtype=np.float64)
+
+        for i in range(Q.shape[0]):
+            q = Q[i]
+            pin.framesForwardKinematics(model, data, q)
+            out[i] = data.oMf[frame_id].homogeneous
+        self._invalidate_kinematics()
+        return out
 
 
-    def inertia_matrix(self, q: FloatArray | None = None) -> FloatArray:
-        if q is not None:
-            self.step(q=q)
-        M = pin.crba(self.model, self.data, self.q)
-        return 0.5 * (M + M.T)
-
-
-    def gravity_vector(self, q: FloatArray | None = None) -> FloatArray:
-        if q is not None:
-            self.step(q=q)
+    def gravity_vector(self) -> FloatArray:
         return pin.computeGeneralizedGravity(self.model, self.data, self.q)
 
 
-    def rnea(self) -> FloatArray:
-        return pin.(self.model, self.data, self.q, self.qd, self.qdd)
+    def rnea(self, 
+        q: FloatArray,
+        qd: FloatArray,
+        qdd: FloatArray
+    ) -> FloatArray:
+        return pin.rnea(self.model, self.data, q, qd, qdd)
+
+
+    def _ensure_fk(self) -> None:
+        if self._fk_valid:
+            return
+        self.compute_fk()
+        self._fk_valid = True
+
+
+    def compute_fk(self) -> None:
+        pin.forwardKinematics(self.model, self.data, self.q)
+        pin.updateFramePlacements(self.model, self.data)
+
+
+    def compute_jac(self) -> None:
+        if self._J_valid:
+            return
+        pin.computeJointJacobians(self.model, self.data, self.q)
+        pin.updateFramePlacements(self.model, self.data)
 
 
     def dyn_pinv(self, J_task: FloatArray) -> tuple[FloatArray, FloatArray]:
@@ -286,48 +367,6 @@ class PinocchioDynamics:
         return qdd_main + qdd_sec
 
 
-    def _ensure_fk(self) -> None:
-        if self._fk_valid:
-            return
-        pin.forwardKinematics(self.model, self.data, self.q)
-        pin.updateFramePlacements(self.model, self.data)
-        self._T_wf = self._stack_joint_placements()
-        self._fk_valid = True
-
-
-    def _invalidate_cache(self) -> None:
-        self._fk_valid = False
-        self._J_valid = False
-        self._com_valid = False
-        self._Ic_valid = False
-        self._J_com_valid = False
-
-
-    def _stack_joint_placements(self) -> FloatArray:
-        T_wf = np.empty((self.model.njoints, 4, 4), dtype=npu.dtype)
-        for joint_id in range(self.model.njoints):
-            T_wf[joint_id] = self._se3_to_matrix(self.data.oMi[joint_id])
-        return T_wf
-
-
-    def _resolve_frame_id(self, frame: str | int) -> int:
-        if isinstance(frame, int):
-            return frame
-        if not self.model.existFrame(frame):
-            raise ValueError(f"Unknown frame '{frame}'.")
-        return self.model.getFrameId(frame)
-
-
-    def _validate_index(self, i: int) -> None:
-        if i < 0 or i >= self.n:
-            raise ValueError(f"Index {i} out of range for n={self.n}.")
-
     @staticmethod
     def _pin_to_linear_angular(J: FloatArray) -> FloatArray:
         return np.vstack((J[3:, :], J[:3, :]))
-
-    @staticmethod
-    def _se3_to_matrix(se3: pin.SE3) -> FloatArray:
-        if hasattr(se3, "homogeneous"):
-            return np.array(se3.homogeneous, dtype=npu.dtype)
-        return np.array(se3.toHomogeneousMatrix(), dtype=npu.dtype)

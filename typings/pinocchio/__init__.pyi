@@ -1,5 +1,12 @@
 import pinocchio
+import coal
 import typing
+from typing import Mapping, Sequence
+from numpy.typing import NDArray
+FloatVec3 = NDArray[numpy.floating]   # shape (3,)
+FloatVec6 = NDArray[numpy.floating]   # shape (6,)
+FloatMat6 = NDArray[numpy.floating]   # shape (6, 6)
+FloatMat4 = NDArray[numpy.floating]   # shape (4, 4)
 
 __all__ = [
     "ACCELERATION",
@@ -578,18 +585,18 @@ class AngleAxis(Boost.Python.instance):
             Constructs and returns an equivalent rotation matrix.
         """
     @property
-    def angle(self) -> None:
+    def angle(self) -> float:
         """
         The rotation angle.
 
-        :type: None
+        :type: float
         """
     @property
-    def axis(self) -> None:
+    def axis(self) -> numpy.ndarray:
         """
         The rotation axis.
 
-        :type: None
+        :type: numpy.ndarray
         """
     pass
 
@@ -623,18 +630,18 @@ class BaumgarteCorrectorParameters(Boost.Python.instance):
             Returns a cast of *this.
         """
     @property
-    def Kd(self) -> None:
+    def Kd(self) -> numpy.ndarray:
         """
         Damping corrector value.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def Kp(self) -> None:
+    def Kp(self) -> numpy.ndarray:
         """
         Proportional corrector value.
 
-        :type: None
+        :type: numpy.ndarray
         """
     pass
 
@@ -686,14 +693,14 @@ class CollisionPair(Boost.Python.instance):
             Returns a copy of *this.
         """
     @property
-    def first(self) -> None:
+    def first(self) -> int:
         """
-        :type: None
+        :type: int
         """
     @property
-    def second(self) -> None:
+    def second(self) -> int:
         """
-        :type: None
+        :type: int
         """
     pass
 
@@ -800,7 +807,9 @@ class ContactCholeskyDecomposition(Boost.Python.instance):
     def solve(self, matrix: numpy.ndarray) -> numpy.ndarray: 
         """
         solve( (ContactCholeskyDecomposition)self, (numpy.ndarray)matrix) -> numpy.ndarray :
-            Computes the solution of $ A x = b $ where self corresponds to the Cholesky decomposition of A.
+            Computes the solution of 
+$ A x = b 
+$ where self corresponds to the Cholesky decomposition of A.
         """
     @typing.overload
     def updateDamping(self, mu: float) -> None: 
@@ -811,19 +820,19 @@ class ContactCholeskyDecomposition(Boost.Python.instance):
     @typing.overload
     def updateDamping(self, mus: numpy.ndarray) -> None: ...
     @property
-    def D(self) -> None:
+    def D(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def Dinv(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def U(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def U(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
         """
     pass
 
@@ -902,11 +911,11 @@ class CoulombFrictionCone(Boost.Python.instance):
             Weighted projection of a vector f onto the cone.
         """
     @property
-    def mu(self) -> None:
+    def mu(self) -> float:
         """
         Friction coefficient.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -1015,592 +1024,592 @@ class Data(Boost.Python.instance):
             Saves *this inside a XML file.
         """
     @property
-    def Ag(self) -> None:
+    def Ag(self) -> numpy.ndarray:
         """
         Centroidal matrix which maps from joint velocity to the centroidal momentum.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def B(self) -> None:
+    def B(self) -> Sequence[FloatMat6]:
         """
         Combined variations of the inertia matrix consistent with Christoffel symbols.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def C(self) -> None:
+    def C(self) -> numpy.ndarray:
         """
         The Coriolis C(q,v) matrix such that the Coriolis effects are given by c(q,v) = C(q,v)v
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def D(self) -> None:
+    def D(self) -> numpy.ndarray:
         """
         Diagonal of UDUT inertia decomposition
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def Fcrb(self) -> None:
+    def Fcrb(self) -> Sequence[NDArray[numpy.floating]]:
         """
         Spatial forces set, used in CRBA
 
-        :type: None
+        :type: StdVec_Matrix6x
         """
     @property
-    def Ig(self) -> None:
+    def Ig(self) -> Inertia:
         """
         Centroidal Composite Rigid Body Inertia.
 
-        :type: None
+        :type: Inertia
         """
     @property
-    def Ivx(self) -> None:
+    def Ivx(self) -> Sequence[FloatMat6]:
         """
         Right variation of the inertia matrix.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def J(self) -> None:
+    def J(self) -> numpy.ndarray:
         """
         Jacobian of joint placement
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def Jcom(self) -> None:
+    def Jcom(self) -> numpy.ndarray:
         """
         Jacobian of center of mass.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def M(self) -> None:
+    def M(self) -> numpy.ndarray:
         """
         The joint space inertia matrix
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def Minv(self) -> None:
+    def Minv(self) -> numpy.ndarray:
         """
         The inverse of the joint space inertia matrix
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def U(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
         Joint Inertia square root (upper triangle)
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def Yaba(self) -> None:
+    def Yaba(self) -> Sequence[FloatMat6]:
         """
         Articulated Body Inertia of the sub-tree
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def Ycrb(self) -> None:
+    def Ycrb(self) -> Sequence[Inertia]:
         """
         Inertia of the sub-tree composit rigid body
 
-        :type: None
+        :type: StdVec_Inertia
         """
     @property
-    def a(self) -> None:
+    def a(self) -> Sequence[Motion]:
         """
         Vector of joint accelerations expressed in the local frame of the joint.
 
-        :type: None
+        :type: StdVec_Motion
         """
     @property
-    def a_gf(self) -> None:
+    def a_gf(self) -> Sequence[Motion]:
         """
         Joint spatial acceleration containing also the contribution of the gravity acceleration
 
-        :type: None
+        :type: StdVec_Motion
         """
     @property
-    def acom(self) -> None:
+    def acom(self) -> Sequence[FloatVec3]:
         """
         CoM acceleration of the subtree starting at joint index i.
 
-        :type: None
+        :type: StdVec_Vector3
         """
     @property
-    def com(self) -> None:
+    def com(self) -> Sequence[FloatVec3]:
         """
         CoM position of the subtree starting at joint index i.
 
-        :type: None
+        :type: StdVec_Vector3
         """
     @property
-    def contact_chol(self) -> None:
+    def contact_chol(self) -> ContactCholeskyDecomposition:
         """
         Contact Cholesky decomposition.
 
-        :type: None
+        :type: ContactCholeskyDecomposition
         """
     @property
-    def dAdq(self) -> None:
+    def dAdq(self) -> numpy.ndarray:
         """
         Variation of the spatial acceleration set with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dAdv(self) -> None:
+    def dAdv(self) -> numpy.ndarray:
         """
         Variation of the spatial acceleration set with respect to the joint velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dAg(self) -> None:
+    def dAg(self) -> numpy.ndarray:
         """
         Time derivative of the centroidal momentum matrix Ag.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dFda(self) -> None:
+    def dFda(self) -> numpy.ndarray:
         """
         Variation of the force set with respect to the joint acceleration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dFdq(self) -> None:
+    def dFdq(self) -> numpy.ndarray:
         """
         Variation of the force set with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dFdv(self) -> None:
+    def dFdv(self) -> numpy.ndarray:
         """
         Variation of the force set with respect to the joint velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dHdq(self) -> None:
+    def dHdq(self) -> numpy.ndarray:
         """
         Variation of the spatial momenta set with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dJ(self) -> None:
+    def dJ(self) -> numpy.ndarray:
         """
         Time variation of the Jacobian of joint placement (data.J).
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dac_da(self) -> None:
+    def dac_da(self) -> numpy.ndarray:
         """
         Partial derivative of the contact acceleration vector vector with respect to the joint acceleration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dac_dq(self) -> None:
+    def dac_dq(self) -> numpy.ndarray:
         """
         Partial derivative of the contact acceleration vector with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dac_dv(self) -> None:
+    def dac_dv(self) -> numpy.ndarray:
         """
         Partial derivative of the contact acceleration vector vector with respect to the joint velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def ddq(self) -> None:
+    def ddq(self) -> numpy.ndarray:
         """
         Joint accelerations (output of ABA)
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def ddq_dq(self) -> None:
+    def ddq_dq(self) -> numpy.ndarray:
         """
         Partial derivative of the joint acceleration vector with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def ddq_dtau(self) -> None:
+    def ddq_dtau(self) -> numpy.ndarray:
         """
         Partial derivative of the joint acceleration vector with respect to the joint torque.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def ddq_dv(self) -> None:
+    def ddq_dv(self) -> numpy.ndarray:
         """
         Partial derivative of the joint acceleration vector with respect to the joint velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dhg(self) -> None:
+    def dhg(self) -> Force:
         """
         Centroidal momentum time derivative (expressed in the frame centered at the CoM and aligned with the world frame).
 
-        :type: None
+        :type: Force
         """
     @property
-    def dlambda_dq(self) -> None:
+    def dlambda_dq(self) -> numpy.ndarray:
         """
         Partial derivative of the contact force vector with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dlambda_dtau(self) -> None:
+    def dlambda_dtau(self) -> numpy.ndarray:
         """
         Partial derivative of the contact force vector with respect to the torque.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dlambda_dv(self) -> None:
+    def dlambda_dv(self) -> numpy.ndarray:
         """
         Partial derivative of the contact force vector with respect to the joint velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dq_after(self) -> None:
+    def dq_after(self) -> numpy.ndarray:
         """
         Generalized velocity after the impact.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dtau_dq(self) -> None:
+    def dtau_dq(self) -> numpy.ndarray:
         """
         Partial derivative of the joint torque vector with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dtau_dv(self) -> None:
+    def dtau_dv(self) -> numpy.ndarray:
         """
         Partial derivative of the joint torque vector with respect to the joint velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dvc_dq(self) -> None:
+    def dvc_dq(self) -> numpy.ndarray:
         """
         Partial derivative of the constraint velocity vector with respect to the joint configuration.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def f(self) -> None:
+    def f(self) -> Sequence[Force]:
         """
         Vector of body forces expressed in the local frame of the joint.
 
-        :type: None
+        :type: StdVec_Force
         """
     @property
-    def g(self) -> None:
+    def g(self) -> numpy.ndarray:
         """
         Vector of generalized gravity (dim model.nv).
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def h(self) -> None:
+    def h(self) -> Sequence[Force]:
         """
         Vector of spatial momenta expressed in the local frame of the joint.
 
-        :type: None
+        :type: StdVec_Force
         """
     @property
-    def hg(self) -> None:
+    def hg(self) -> Force:
         """
         Centroidal momentum (expressed in the frame centered at the CoM and aligned with the world frame).
 
-        :type: None
+        :type: Force
         """
     @property
-    def iMf(self) -> None:
+    def iMf(self) -> Sequence[SE3]:
         """
         Body placement wrt to algorithm end effector.
 
-        :type: None
+        :type: StdVec_SE3
         """
     @property
-    def impulse_c(self) -> None:
+    def impulse_c(self) -> numpy.ndarray:
         """
         Lagrange Multipliers linked to contact impulses
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def jointTorqueRegressor(self) -> None:
+    def jointTorqueRegressor(self) -> numpy.ndarray:
         """
         Joint torque regressor.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joints(self) -> None:
+    def joints(self) -> Sequence[JointData]:
         """
         Vector of JointData associated to each JointModel stored in the related model.
 
-        :type: None
+        :type: StdVec_JointDataVector
         """
     @property
-    def kineticEnergyRegressor(self) -> None:
+    def kineticEnergyRegressor(self) -> numpy.ndarray:
         """
         Kinetic energy regressor.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def kinetic_energy(self) -> None:
+    def kinetic_energy(self) -> float:
         """
         Kinetic energy in [J] computed by computeKineticEnergy
 
-        :type: None
+        :type: float
         """
     @property
-    def lambda_c(self) -> None:
+    def lambda_c(self) -> numpy.ndarray:
         """
         Lagrange Multipliers linked to contact forces
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def lambda_c_prox(self) -> None:
+    def lambda_c_prox(self) -> numpy.ndarray:
         """
         Proximal Lagrange Multipliers used in the computation of the Forward Dynamics computations.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def lastChild(self) -> None:
+    def lastChild(self) -> Sequence[int]:
         """
         Index of the last child (for CRBA)
 
-        :type: None
+        :type: StdVec_int
         """
     @property
-    def liMi(self) -> None:
+    def liMi(self) -> Sequence[SE3]:
         """
         Body relative placement (wrt parent)
 
-        :type: None
+        :type: StdVec_SE3
         """
     @property
-    def mass(self) -> None:
+    def mass(self) -> Sequence[float]:
         """
         Mass of the subtree starting at joint index i.
 
-        :type: None
+        :type: StdVec_Scalar
         """
     @property
-    def mechanical_energy(self) -> None:
+    def mechanical_energy(self) -> float:
         """
         Mechanical energy in [J] of the system computed by computeMechanicalEnergy
 
-        :type: None
+        :type: float
         """
     @property
-    def nle(self) -> None:
+    def nle(self) -> numpy.ndarray:
         """
         Non Linear Effects (output of nle algorithm)
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def nvSubtree(self) -> None:
+    def nvSubtree(self) -> Sequence[int]:
         """
         Dimension of the subtree motion space (for CRBA)
 
-        :type: None
+        :type: StdVec_int
         """
     @property
-    def nvSubtree_fromRow(self) -> None:
+    def nvSubtree_fromRow(self) -> Sequence[int]:
         """
         Subtree of the current row index (used in Cholesky)
 
-        :type: None
+        :type: StdVec_int
         """
     @property
-    def oK(self) -> None:
+    def oK(self) -> Sequence[FloatMat6]:
         """
         Inverse articulated inertia.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def oL(self) -> None:
+    def oL(self) -> Sequence[FloatMat6]:
         """
         Acceleration propagator.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def oMf(self) -> None:
+    def oMf(self) -> Sequence[SE3]:
         """
         frames absolute placement (wrt world)
 
-        :type: None
+        :type: StdVec_SE3
         """
     @property
-    def oMi(self) -> None:
+    def oMi(self) -> Sequence[SE3]:
         """
         Body absolute placement (wrt world)
 
-        :type: None
+        :type: StdVec_SE3
         """
     @property
-    def oYaba(self) -> None:
+    def oYaba(self) -> Sequence[FloatMat6]:
         """
         Articulated Body Inertia of the sub-tree expressed in the WORLD coordinate system.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def oYcrb(self) -> None:
+    def oYcrb(self) -> Sequence[Inertia]:
         """
         Composite Rigid Body Inertia of the sub-tree expressed in the WORLD coordinate system.
 
-        :type: None
+        :type: StdVec_Inertia
         """
     @property
-    def oa(self) -> None:
+    def oa(self) -> Sequence[Motion]:
         """
         Joint spatial acceleration expressed at the origin of the world frame.
 
-        :type: None
+        :type: StdVec_Motion
         """
     @property
-    def oa_gf(self) -> None:
+    def oa_gf(self) -> Sequence[Motion]:
         """
         Joint spatial acceleration containing also the contribution of the gravity acceleration, but expressed at the origin of the world frame.
 
-        :type: None
+        :type: StdVec_Motion
         """
     @property
-    def of(self) -> None:
+    def of(self) -> Sequence[Force]:
         """
         Vector of body forces expressed at the origin of the world.
 
-        :type: None
+        :type: StdVec_Force
         """
     @property
-    def of_augmented(self) -> None:
+    def of_augmented(self) -> Sequence[Force]:
         """
         Vector of body forces expressed at the origin of the world, in the context of lagrangian formulation
 
-        :type: None
+        :type: StdVec_Force
         """
     @property
-    def oh(self) -> None:
+    def oh(self) -> Sequence[Force]:
         """
         Vector of spatial momenta expressed at the origin of the world.
 
-        :type: None
+        :type: StdVec_Force
         """
     @property
-    def osim(self) -> None:
+    def osim(self) -> numpy.ndarray:
         """
         Operational space inertia matrix.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def ov(self) -> None:
+    def ov(self) -> Sequence[Motion]:
         """
         Vector of joint velocities expressed at the origin of the world.
 
-        :type: None
+        :type: StdVec_Motion
         """
     @property
-    def parents_fromRow(self) -> None:
+    def parents_fromRow(self) -> Sequence[int]:
         """
         First previous non-zero row in M (used in Cholesky)
 
-        :type: None
+        :type: StdVec_int
         """
     @property
-    def potentialEnergyRegressor(self) -> None:
+    def potentialEnergyRegressor(self) -> numpy.ndarray:
         """
         Potential energy regressor.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def potential_energy(self) -> None:
+    def potential_energy(self) -> float:
         """
         Potential energy in [J] computed by computePotentialEnergy
 
-        :type: None
+        :type: float
         """
     @property
-    def primal_dual_contact_solution(self) -> None:
+    def primal_dual_contact_solution(self) -> numpy.ndarray:
         """
         Right hand side vector when solving the contact dynamics KKT problem.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def primal_rhs_contact(self) -> None:
+    def primal_rhs_contact(self) -> numpy.ndarray:
         """
         Primal RHS in contact dynamic equations.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def staticRegressor(self) -> None:
+    def staticRegressor(self) -> numpy.ndarray:
         """
         Static regressor.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def tau(self) -> None:
+    def tau(self) -> numpy.ndarray:
         """
         Joint torques (output of RNEA)
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def v(self) -> Sequence[Motion]:
         """
         Vector of joint velocities expressed in the local frame of the joint.
 
-        :type: None
+        :type: StdVec_Motion
         """
     @property
-    def vcom(self) -> None:
+    def vcom(self) -> Sequence[FloatVec3]:
         """
         CoM velocity of the subtree starting at joint index i.
 
-        :type: None
+        :type: StdVec_Vector3
         """
     @property
-    def vxI(self) -> None:
+    def vxI(self) -> Sequence[FloatMat6]:
         """
         Left variation of the inertia matrix.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     __getstate_manages_dict__ = True
     __safe_for_unpickling__ = True
@@ -1878,11 +1887,11 @@ class DualCoulombFrictionCone(Boost.Python.instance):
             Project a vector v onto the cone.
         """
     @property
-    def mu(self) -> None:
+    def mu(self) -> float:
         """
         Friction coefficient.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -1893,9 +1902,9 @@ class Exception(Boost.Python.instance):
         __init__( (object)arg1, (str)arg2) -> None
         """
     @property
-    def message(self) -> None:
+    def message(self) -> str:
         """
-        :type: None
+        :type: str
         """
     __instance_size__ = 72
     pass
@@ -2063,30 +2072,30 @@ class Force(Boost.Python.instance):
             Set the linear and angular components of *this to zero.
         """
     @property
-    def angular(self) -> None:
+    def angular(self) -> numpy.ndarray:
         """
         Angular part of a *this, corresponding to the angular velocity in case of a Spatial velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def linear(self) -> None:
+    def linear(self) -> numpy.ndarray:
         """
         Linear part of a *this, corresponding to the linear velocity in case of a Spatial velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def np(self) -> None:
+    def np(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def vector(self) -> None:
+    def vector(self) -> numpy.ndarray:
         """
         Returns the components of *this as a 6d vector.
 
-        :type: None
+        :type: numpy.ndarray
         """
     __safe_for_unpickling__ = True
     pass
@@ -2171,60 +2180,60 @@ class Frame(Boost.Python.instance):
             Returns a copy of *this.
         """
     @property
-    def inertia(self) -> None:
+    def inertia(self) -> Inertia:
         """
         Inertia information attached to the frame.
 
-        :type: None
+        :type: Inertia
         """
     @property
-    def name(self) -> None:
+    def name(self) -> str:
         """
         name of the frame
 
-        :type: None
+        :type: str
         """
     @property
-    def parent(self) -> None:
+    def parent(self) -> int:
         """
         See parentJoint property.
 
-        :type: None
+        :type: int
         """
     @property
-    def parentFrame(self) -> None:
+    def parentFrame(self) -> int:
         """
         Index of the parent frame
 
-        :type: None
+        :type: int
         """
     @property
-    def parentJoint(self) -> None:
+    def parentJoint(self) -> int:
         """
         Index of the parent joint
 
-        :type: None
+        :type: int
         """
     @property
-    def placement(self) -> None:
+    def placement(self) -> SE3:
         """
         placement in the parent joint local frame
 
-        :type: None
+        :type: SE3
         """
     @property
-    def previousFrame(self) -> None:
+    def previousFrame(self) -> int:
         """
         See parentFrame property.
 
-        :type: None
+        :type: int
         """
     @property
-    def type(self) -> None:
+    def type(self) -> FrameType:
         """
         type of the frame
 
-        :type: None
+        :type: FrameType
         """
     __getstate_manages_dict__ = True
     __safe_for_unpickling__ = True
@@ -2363,19 +2372,19 @@ class GeometryData(Boost.Python.instance):
             Enable or disable collision for the given geometry given by its geometry id with all the other geometries registered in the list of collision pairs.
         """
     @property
-    def activeCollisionPairs(self) -> None:
+    def activeCollisionPairs(self) -> Sequence[bool]:
         """
         Vector of active CollisionPairs
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def oMg(self) -> None:
+    def oMg(self) -> Sequence[SE3]:
         """
         Vector of collision objects placement relative to the world frame.
         note: These quantities have to be updated by calling updateGeometryPlacements.
 
-        :type: None
+        :type: StdVec_SE3
         """
     pass
 
@@ -2573,32 +2582,32 @@ class GeometryModel(Boost.Python.instance):
             Each entry of the input matrix defines the activation of a given collision pair(map[i,j] == True means that the pair (i,j) is active).
         """
     @property
-    def collisionPairMapping(self) -> None:
+    def collisionPairMapping(self) -> numpy.ndarray:
         """
         Matrix relating the collision pair ID to a pair of two GeometryObject indexes.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def collisionPairs(self) -> None:
+    def collisionPairs(self) -> Sequence[CollisionPair]:
         """
         Vector of collision pairs.
 
-        :type: None
+        :type: StdVec_CollisionPair
         """
     @property
-    def geometryObjects(self) -> None:
+    def geometryObjects(self) -> Sequence[GeometryObject]:
         """
         Vector of geometries objects.
 
-        :type: None
+        :type: StdVec_GeometryObject
         """
     @property
-    def ngeoms(self) -> None:
+    def ngeoms(self) -> int:
         """
         Number of geometries contained in the Geometry Model.
 
-        :type: None
+        :type: int
         """
     __getstate_manages_dict__ = True
     __safe_for_unpickling__ = True
@@ -2738,88 +2747,88 @@ class GeometryObject(Boost.Python.instance):
             Saves *this inside a XML file.
         """
     @property
-    def disableCollision(self) -> None:
+    def disableCollision(self) -> bool:
         """
         If true, no collision or distance check will be done between the Geometry and any other geometry.
 
-        :type: None
+        :type: bool
         """
     @property
-    def geometry(self) -> None:
+    def geometry(self) -> typing.Optional[coal.CollisionGeometry]:
         """
         The FCL CollisionGeometry associated to the given GeometryObject.
 
-        :type: None
+        :type: typing.Optional[coal.CollisionGeometry]
         """
     @property
-    def meshColor(self) -> None:
+    def meshColor(self) -> numpy.ndarray:
         """
         Color rgba of the mesh.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def meshMaterial(self) -> None:
+    def meshMaterial(self) -> typing.Union[GeometryNoMaterial, GeometryPhongMaterial]:
         """
         Material associated to the mesh (applied only if overrideMaterial is True)
 
-        :type: None
+        :type: typing.Union[GeometryNoMaterial, GeometryPhongMaterial]
         """
     @property
-    def meshPath(self) -> None:
+    def meshPath(self) -> str:
         """
         Path to the mesh file.
 
-        :type: None
+        :type: str
         """
     @property
-    def meshScale(self) -> None:
+    def meshScale(self) -> numpy.ndarray:
         """
         Scaling parameter of the mesh.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def meshTexturePath(self) -> None:
+    def meshTexturePath(self) -> str:
         """
         Path to the mesh texture file.
 
-        :type: None
+        :type: str
         """
     @property
-    def name(self) -> None:
+    def name(self) -> str:
         """
         Name associated to the given GeometryObject.
 
-        :type: None
+        :type: str
         """
     @property
-    def overrideMaterial(self) -> None:
+    def overrideMaterial(self) -> bool:
         """
         Boolean that tells whether material information is stored inside the given GeometryObject.
 
-        :type: None
+        :type: bool
         """
     @property
-    def parentFrame(self) -> None:
+    def parentFrame(self) -> int:
         """
         Index of the parent frame.
 
-        :type: None
+        :type: int
         """
     @property
-    def parentJoint(self) -> None:
+    def parentJoint(self) -> int:
         """
         Index of the parent joint.
 
-        :type: None
+        :type: int
         """
     @property
-    def placement(self) -> None:
+    def placement(self) -> SE3:
         """
         Position of geometry object in parent joint's frame.
 
-        :type: None
+        :type: SE3
         """
     __getstate_manages_dict__ = True
     __safe_for_unpickling__ = True
@@ -2839,25 +2848,25 @@ class GeometryPhongMaterial(Boost.Python.instance):
     @typing.overload
     def __init__(arg1: object, arg2: numpy.ndarray, arg3: numpy.ndarray, arg4: float) -> None: ...
     @property
-    def meshEmissionColor(self) -> None:
+    def meshEmissionColor(self) -> numpy.ndarray:
         """
         RGBA emission (ambient) color value of the mesh
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def meshShininess(self) -> None:
+    def meshShininess(self) -> float:
         """
         Shininess associated to the specular lighting model (between 0 and 1)
 
-        :type: None
+        :type: float
         """
     @property
-    def meshSpecularColor(self) -> None:
+    def meshSpecularColor(self) -> numpy.ndarray:
         """
         RGBA specular value of the mesh
 
-        :type: None
+        :type: numpy.ndarray
         """
     __instance_size__ = 112
     pass
@@ -3108,30 +3117,30 @@ class Inertia(Boost.Python.instance):
             Returns the result of v x Iv.
         """
     @property
-    def inertia(self) -> None:
+    def inertia(self) -> numpy.ndarray:
         """
         Rotational part of the Spatial Inertia, i.e. a symmetric matrix representing the rotational inertia around the center of mass.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def lever(self) -> None:
+    def lever(self) -> numpy.ndarray:
         """
         Center of mass location of the Spatial Inertia. It corresponds to the location of the center of mass regarding to the frame where the Spatial Inertia is expressed.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def mass(self) -> None:
+    def mass(self) -> float:
         """
         Mass of the Spatial Inertia.
 
-        :type: None
+        :type: float
         """
     @property
-    def np(self) -> None:
+    def np(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
         """
     __safe_for_unpickling__ = True
     pass
@@ -3174,49 +3183,49 @@ class JointData(Boost.Python.instance):
         shortname( (JointData)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     pass
 
@@ -3258,69 +3267,69 @@ class JointDataComposite(Boost.Python.instance):
         shortname( (JointDataComposite)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def StU(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def U(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def UDinv(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def c(self) -> None:
+    def StU(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def iMlast(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joints(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def pjMi(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def c(self) -> Motion:
         """
-        :type: None
+        :type: Motion
+        """
+    @property
+    def iMlast(self) -> Sequence[SE3]:
+        """
+        :type: StdVec_SE3
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joints(self) -> Sequence[JointData]:
+        """
+        :type: StdVec_JointDataVector
+        """
+    @property
+    def pjMi(self) -> Sequence[SE3]:
+        """
+        :type: StdVec_SE3
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 432
     pass
@@ -3359,49 +3368,49 @@ class JointDataFreeFlyer(Boost.Python.instance):
         shortname( (JointDataFreeFlyer)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 1472
     pass
@@ -3440,49 +3449,49 @@ class JointDataHX(Boost.Python.instance):
         shortname( (JointDataHX)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 240
     pass
@@ -3521,49 +3530,49 @@ class JointDataHY(Boost.Python.instance):
         shortname( (JointDataHY)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 240
     pass
@@ -3602,49 +3611,49 @@ class JointDataHZ(Boost.Python.instance):
         shortname( (JointDataHZ)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 240
     pass
@@ -3687,49 +3696,49 @@ class JointDataHelicalUnaligned(Boost.Python.instance):
         shortname( (JointDataHelicalUnaligned)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 352
     pass
@@ -3768,49 +3777,49 @@ class JointDataMimic_JointDataRX(Boost.Python.instance):
         shortname( (JointDataMimic_JointDataRX)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 272
     pass
@@ -3849,49 +3858,49 @@ class JointDataMimic_JointDataRY(Boost.Python.instance):
         shortname( (JointDataMimic_JointDataRY)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 272
     pass
@@ -3930,49 +3939,49 @@ class JointDataMimic_JointDataRZ(Boost.Python.instance):
         shortname( (JointDataMimic_JointDataRZ)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 272
     pass
@@ -4011,49 +4020,49 @@ class JointDataPX(Boost.Python.instance):
         shortname( (JointDataPX)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 208
     pass
@@ -4092,49 +4101,49 @@ class JointDataPY(Boost.Python.instance):
         shortname( (JointDataPY)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 208
     pass
@@ -4173,49 +4182,49 @@ class JointDataPZ(Boost.Python.instance):
         shortname( (JointDataPZ)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 208
     pass
@@ -4254,54 +4263,54 @@ class JointDataPlanar(Boost.Python.instance):
         shortname( (JointDataPlanar)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def StU(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def U(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def UDinv(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def c(self) -> None:
+    def StU(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_q(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_v(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 672
     pass
@@ -4344,49 +4353,49 @@ class JointDataPrismaticUnaligned(Boost.Python.instance):
         shortname( (JointDataPrismaticUnaligned)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 272
     pass
@@ -4425,49 +4434,49 @@ class JointDataRUBX(Boost.Python.instance):
         shortname( (JointDataRUBX)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 224
     pass
@@ -4506,49 +4515,49 @@ class JointDataRUBY(Boost.Python.instance):
         shortname( (JointDataRUBY)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 224
     pass
@@ -4587,49 +4596,49 @@ class JointDataRUBZ(Boost.Python.instance):
         shortname( (JointDataRUBZ)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 224
     pass
@@ -4668,49 +4677,49 @@ class JointDataRX(Boost.Python.instance):
         shortname( (JointDataRX)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 224
     pass
@@ -4749,49 +4758,49 @@ class JointDataRY(Boost.Python.instance):
         shortname( (JointDataRY)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 224
     pass
@@ -4830,49 +4839,49 @@ class JointDataRZ(Boost.Python.instance):
         shortname( (JointDataRZ)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 224
     pass
@@ -4915,49 +4924,49 @@ class JointDataRevoluteUnaligned(Boost.Python.instance):
         shortname( (JointDataRevoluteUnaligned)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 336
     pass
@@ -4996,49 +5005,49 @@ class JointDataRevoluteUnboundedUnalignedTpl(Boost.Python.instance):
         shortname( (JointDataRevoluteUnboundedUnalignedTpl)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 352
     pass
@@ -5077,49 +5086,49 @@ class JointDataSpherical(Boost.Python.instance):
         shortname( (JointDataSpherical)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 672
     pass
@@ -5158,54 +5167,54 @@ class JointDataSphericalZYX(Boost.Python.instance):
         shortname( (JointDataSphericalZYX)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def StU(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def U(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def UDinv(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def c(self) -> None:
+    def StU(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_q(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_v(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 752
     pass
@@ -5244,49 +5253,49 @@ class JointDataTranslation(Boost.Python.instance):
         shortname( (JointDataTranslation)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 592
     pass
@@ -5325,49 +5334,49 @@ class JointDataUniversal(Boost.Python.instance):
         shortname( (JointDataUniversal)self) -> str
         """
     @property
-    def Dinv(self) -> None:
+    def Dinv(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def M(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def S(self) -> None:
+    def M(self) -> SE3:
         """
-        :type: None
-        """
-    @property
-    def U(self) -> None:
-        """
-        :type: None
+        :type: SE3
         """
     @property
-    def UDinv(self) -> None:
+    def S(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def c(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def joint_q(self) -> None:
+    def U(self) -> numpy.ndarray:
         """
-        :type: None
-        """
-    @property
-    def joint_v(self) -> None:
-        """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def v(self) -> None:
+    def UDinv(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def c(self) -> Motion:
+        """
+        :type: Motion
+        """
+    @property
+    def joint_q(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def joint_v(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def v(self) -> Motion:
+        """
+        :type: Motion
         """
     __instance_size__ = 512
     pass
@@ -5451,43 +5460,43 @@ class JointModel(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -5575,58 +5584,58 @@ class JointModelComposite(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def jointPlacements(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def joints(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def njoints(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nq(self) -> None:
+    def jointPlacements(self) -> Sequence[SE3]:
         """
-        :type: None
+        :type: StdVec_SE3
         """
     @property
-    def nv(self) -> None:
+    def joints(self) -> Sequence[JointModel]:
         """
-        :type: None
+        :type: StdVec_JointModelVector
+        """
+    @property
+    def njoints(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -5700,43 +5709,43 @@ class JointModelFreeFlyer(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -5819,50 +5828,50 @@ class JointModelHX(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
         """
     @property
-    def pitch(self) -> None:
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def pitch(self) -> float:
         """
         Pitch h of the JointModelHX.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -5945,50 +5954,50 @@ class JointModelHY(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
         """
     @property
-    def pitch(self) -> None:
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def pitch(self) -> float:
         """
         Pitch h of the JointModelHY.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -6071,50 +6080,50 @@ class JointModelHZ(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
         """
     @property
-    def pitch(self) -> None:
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def pitch(self) -> float:
         """
         Pitch h of the JointModelHZ.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -6193,57 +6202,57 @@ class JointModelHelicalUnaligned(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def axis(self) -> None:
+    def axis(self) -> numpy.ndarray:
         """
         Translation axis of the JointModelHelicalUnaligned.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
         """
     @property
-    def pitch(self) -> None:
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def pitch(self) -> float:
         """
         Pitch h of the JointModelHelicalUnaligned.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -6317,43 +6326,43 @@ class JointModelMimic_JointModelRX(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -6427,43 +6436,43 @@ class JointModelMimic_JointModelRY(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -6537,43 +6546,43 @@ class JointModelMimic_JointModelRZ(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -6653,43 +6662,43 @@ class JointModelPX(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -6769,43 +6778,43 @@ class JointModelPY(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -6885,43 +6894,43 @@ class JointModelPZ(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -6995,43 +7004,43 @@ class JointModelPlanar(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7110,50 +7119,50 @@ class JointModelPrismaticUnaligned(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def axis(self) -> None:
+    def axis(self) -> numpy.ndarray:
         """
         Translation axis of the JointModelPrismaticUnaligned.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7233,43 +7242,43 @@ class JointModelRUBX(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7349,43 +7358,43 @@ class JointModelRUBY(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7465,43 +7474,43 @@ class JointModelRUBZ(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7581,43 +7590,43 @@ class JointModelRX(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7697,43 +7706,43 @@ class JointModelRY(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7813,43 +7822,43 @@ class JointModelRZ(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -7928,50 +7937,50 @@ class JointModelRevoluteUnaligned(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def axis(self) -> None:
+    def axis(self) -> numpy.ndarray:
         """
         Rotation axis of the JointModelRevoluteUnaligned.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8045,43 +8054,43 @@ class JointModelRevoluteUnboundedUnaligned(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8155,43 +8164,43 @@ class JointModelSpherical(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8265,43 +8274,43 @@ class JointModelSphericalZYX(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8375,43 +8384,43 @@ class JointModelTranslation(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8490,57 +8499,57 @@ class JointModelUniversal(Boost.Python.instance):
             	- JointModelFreeFlyer: Joint enabling 3D rotation and translations.
         """
     @property
-    def axis1(self) -> None:
+    def axis1(self) -> numpy.ndarray:
         """
         First rotation axis of the JointModelUniversal.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def axis2(self) -> None:
+    def axis2(self) -> numpy.ndarray:
         """
         Second rotation axis of the JointModelUniversal.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def hasConfigurationLimit(self) -> None:
+    def hasConfigurationLimit(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def hasConfigurationLimitInTangent(self) -> None:
+    def hasConfigurationLimitInTangent(self) -> Sequence[bool]:
         """
         Return vector of boolean if joint has configuration limits in tangent space.
 
-        :type: None
+        :type: StdVec_Bool
         """
     @property
-    def id(self) -> None:
+    def id(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def idx_q(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def idx_v(self) -> None:
+    def idx_q(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def nq(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def idx_v(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nq(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8581,7 +8590,9 @@ class LanczosDecomposition(Boost.Python.instance):
     def computeDecompositionResidual(self, mat: numpy.ndarray) -> numpy.ndarray: 
         """
         computeDecompositionResidual( (LanczosDecomposition)self, (numpy.ndarray)mat) -> numpy.ndarray :
-            Computes the residual associated with the decomposition, namely, the quantity $ A Q_s - Q_s T_s $
+            Computes the residual associated with the decomposition, namely, the quantity 
+$ A Q_s - Q_s T_s 
+$
         """
     def rank(self) -> int: 
         """
@@ -8699,24 +8710,24 @@ class LieGroup(Boost.Python.instance):
         squaredDistance( (LieGroup)arg1, (numpy.ndarray)arg2, (numpy.ndarray)arg3) -> float
         """
     @property
-    def name(self) -> None:
+    def name(self) -> str:
         """
-        :type: None
-        """
-    @property
-    def neutral(self) -> None:
-        """
-        :type: None
+        :type: str
         """
     @property
-    def nq(self) -> None:
+    def neutral(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def nv(self) -> None:
+    def nq(self) -> int:
         """
-        :type: None
+        :type: int
+        """
+    @property
+    def nv(self) -> int:
+        """
+        :type: int
         """
     pass
 
@@ -8803,11 +8814,11 @@ class LogCholeskyParameters(Boost.Python.instance):
             Returns the Pseudo Inertia representation.
         """
     @property
-    def parameters(self) -> None:
+    def parameters(self) -> numpy.ndarray:
         """
         Log Cholesky parameters.
 
-        :type: None
+        :type: numpy.ndarray
         """
     __safe_for_unpickling__ = True
     pass
@@ -9016,215 +9027,215 @@ class Model(Boost.Python.instance):
             Saves *this inside a XML file.
         """
     @property
-    def armature(self) -> None:
+    def armature(self) -> numpy.ndarray:
         """
         Armature vector.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def children(self) -> None:
+    def children(self) -> Sequence[Sequence[int]]:
         """
         Vector of children index. Chidren of the *i*th joint, denoted *mu(i)* corresponds to the set (i==parents[k] for k in mu(i)).
 
-        :type: None
+        :type: Sequence[Sequence[int]]
         """
     @property
-    def damping(self) -> None:
+    def damping(self) -> numpy.ndarray:
         """
         Vector of joint damping parameters.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def effortLimit(self) -> None:
+    def effortLimit(self) -> numpy.ndarray:
         """
         Joint max effort.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def frames(self) -> None:
+    def frames(self) -> Sequence[Frame]:
         """
         Vector of frames contained in the model.
 
-        :type: None
+        :type: Sequence[Frame]
         """
     @property
-    def friction(self) -> None:
+    def friction(self) -> numpy.ndarray:
         """
         Vector of joint friction parameters.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def gravity(self) -> None:
+    def gravity(self) -> Motion:
         """
         Motion vector corresponding to the gravity field expressed in the world Frame.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def idx_qs(self) -> None:
+    def idx_qs(self) -> numpy.ndarray:
         """
         Vector of starting index of the *i*th  joint in the configuration space.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def idx_vs(self) -> None:
+    def idx_vs(self) -> numpy.ndarray:
         """
         Starting index of the *i*th joint in the tangent configuration space.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def inertias(self) -> None:
+    def inertias(self) -> Sequence[Inertia]:
         """
         Vector of spatial inertias supported by each joint.
 
-        :type: None
+        :type: Sequence[Inertia]
         """
     @property
-    def jointPlacements(self) -> None:
+    def jointPlacements(self) -> Sequence[SE3]:
         """
         Vector of joint placements: placement of a joint *i* wrt its parent joint frame.
 
-        :type: None
+        :type: Sequence[SE3]
         """
     @property
-    def joints(self) -> None:
+    def joints(self) -> Sequence[JointModel]:
         """
         Vector of joint models.
 
-        :type: None
+        :type: Sequence[JointModel]
         """
     @property
-    def lowerPositionLimit(self) -> None:
+    def lowerPositionLimit(self) -> numpy.ndarray:
         """
         Limit for joint lower position.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def name(self) -> None:
+    def name(self) -> str:
         """
         Name of the model.
 
-        :type: None
+        :type: str
         """
     @property
-    def names(self) -> None:
+    def names(self) -> Sequence[str]:
         """
         Name of the joints.
 
-        :type: None
+        :type: Sequence[str]
         """
     @property
-    def nbodies(self) -> None:
+    def nbodies(self) -> int:
         """
         Number of bodies.
 
-        :type: None
+        :type: int
         """
     @property
-    def nframes(self) -> None:
+    def nframes(self) -> int:
         """
         Number of frames.
 
-        :type: None
+        :type: int
         """
     @property
-    def njoints(self) -> None:
+    def njoints(self) -> int:
         """
         Number of joints.
 
-        :type: None
+        :type: int
         """
     @property
-    def nq(self) -> None:
+    def nq(self) -> int:
         """
         Dimension of the configuration vector representation.
 
-        :type: None
+        :type: int
         """
     @property
-    def nqs(self) -> None:
+    def nqs(self) -> int:
         """
         Vector of dimension of the  joint configuration subspace.
 
-        :type: None
+        :type: int
         """
     @property
-    def nv(self) -> None:
+    def nv(self) -> int:
         """
         Dimension of the velocity vector space.
 
-        :type: None
+        :type: int
         """
     @property
-    def nvs(self) -> None:
+    def nvs(self) -> int:
         """
         Dimension of the *i*th joint tangent subspace.
 
-        :type: None
+        :type: int
         """
     @property
-    def parents(self) -> None:
+    def parents(self) -> numpy.ndarray:
         """
         Vector of parent joint indexes. The parent of joint *i*, denoted *li*, corresponds to li==parents[i].
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def referenceConfigurations(self) -> None:
+    def referenceConfigurations(self) -> Mapping[str, numpy.ndarray]:
         """
         Map of reference configurations, indexed by user given names.
 
-        :type: None
+        :type: Mapping[str, numpy.ndarray]
         """
     @property
-    def rotorGearRatio(self) -> None:
+    def rotorGearRatio(self) -> numpy.ndarray:
         """
         Vector of rotor gear ratio parameters.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def rotorInertia(self) -> None:
+    def rotorInertia(self) -> numpy.ndarray:
         """
         Vector of rotor inertia parameters.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def subtrees(self) -> None:
+    def subtrees(self) -> Sequence[Sequence[int]]:
         """
         Vector of subtrees. subtree[j] corresponds to the subtree supported by the joint j.
 
-        :type: None
+        :type: Sequence[Sequence[int]]
         """
     @property
-    def supports(self) -> None:
+    def supports(self) -> Sequence[Sequence[int]]:
         """
         Vector of supports. supports[j] corresponds to the list of joints on the path between
         the current *j* to the root of the kinematic tree.
 
-        :type: None
+        :type: Sequence[Sequence[int]]
         """
     @property
-    def upperPositionLimit(self) -> None:
+    def upperPositionLimit(self) -> numpy.ndarray:
         """
         Limit for joint upper position.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def velocityLimit(self) -> None:
+    def velocityLimit(self) -> numpy.ndarray:
         """
         Joint max velocity.
 
-        :type: None
+        :type: numpy.ndarray
         """
     __getstate_manages_dict__ = True
     __safe_for_unpickling__ = True
@@ -9411,51 +9422,51 @@ class Motion(Boost.Python.instance):
             Set the linear and angular components of *this to zero.
         """
     @property
-    def action(self) -> None:
+    def action(self) -> FloatMat6:
         """
         Returns the action matrix of *this (acting on Motion).
 
-        :type: None
+        :type: FloatMat6
         """
     @property
-    def angular(self) -> None:
+    def angular(self) -> FloatVec3:
         """
         Angular part of a *this, corresponding to the angular velocity in case of a Spatial velocity.
 
-        :type: None
+        :type: FloatVec3
         """
     @property
-    def dualAction(self) -> None:
+    def dualAction(self) -> FloatMat6:
         """
         Returns the dual action matrix of *this (acting on Force).
 
-        :type: None
+        :type: FloatMat6
         """
     @property
-    def homogeneous(self) -> None:
+    def homogeneous(self) -> FloatMat4:
         """
         Equivalent homogeneous representation of the Motion vector
 
-        :type: None
+        :type: FloatMat4
         """
     @property
-    def linear(self) -> None:
+    def linear(self) -> FloatVec3:
         """
         Linear part of a *this, corresponding to the linear velocity in case of a Spatial velocity.
 
-        :type: None
+        :type: FloatVec3
         """
     @property
-    def np(self) -> None:
+    def np(self) -> FloatVec6:
         """
-        :type: None
+        :type: FloatVec6
         """
     @property
-    def vector(self) -> None:
+    def vector(self) -> FloatVec6:
         """
         Returns the components of *this as a 6d vector.
 
-        :type: None
+        :type: FloatVec6
         """
     __safe_for_unpickling__ = True
     pass
@@ -9546,44 +9557,44 @@ class PowerIterationAlgo(Boost.Python.instance):
         run( (PowerIterationAlgo)arg1, (numpy.ndarray)self) -> None
         """
     @property
-    def convergence_criteria(self) -> None:
+    def convergence_criteria(self) -> float:
         """
-        :type: None
-        """
-    @property
-    def it(self) -> None:
-        """
-        :type: None
+        :type: float
         """
     @property
-    def largest_eigen_value(self) -> None:
+    def it(self) -> int:
         """
-        :type: None
-        """
-    @property
-    def lowest_eigen_value(self) -> None:
-        """
-        :type: None
+        :type: int
         """
     @property
-    def lowest_eigen_vector(self) -> None:
+    def largest_eigen_value(self) -> float:
         """
-        :type: None
-        """
-    @property
-    def max_it(self) -> None:
-        """
-        :type: None
+        :type: float
         """
     @property
-    def principal_eigen_vector(self) -> None:
+    def lowest_eigen_value(self) -> float:
         """
-        :type: None
+        :type: float
         """
     @property
-    def rel_tol(self) -> None:
+    def lowest_eigen_vector(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
+        """
+    @property
+    def max_it(self) -> int:
+        """
+        :type: int
+        """
+    @property
+    def principal_eigen_vector(self) -> numpy.ndarray:
+        """
+        :type: numpy.ndarray
+        """
+    @property
+    def rel_tol(self) -> float:
+        """
+        :type: float
         """
     __instance_size__ = 120
     pass
@@ -9608,53 +9619,53 @@ class ProximalSettings(Boost.Python.instance):
         __repr__( (ProximalSettings)arg1) -> str
         """
     @property
-    def absolute_accuracy(self) -> None:
+    def absolute_accuracy(self) -> float:
         """
         Absolute proximal accuracy.
 
-        :type: None
+        :type: float
         """
     @property
-    def absolute_residual(self) -> None:
+    def absolute_residual(self) -> float:
         """
         Absolute residual.
 
-        :type: None
+        :type: float
         """
     @property
-    def iter(self) -> None:
+    def iter(self) -> int:
         """
         Final number of iteration of the algorithm when it has converged or reached the maximal number of allowed iterations.
 
-        :type: None
+        :type: int
         """
     @property
-    def max_iter(self) -> None:
+    def max_iter(self) -> int:
         """
         Maximal number of iterations.
 
-        :type: None
+        :type: int
         """
     @property
-    def mu(self) -> None:
+    def mu(self) -> float:
         """
         Regularization parameter of the Proximal algorithms.
 
-        :type: None
+        :type: float
         """
     @property
-    def relative_accuracy(self) -> None:
+    def relative_accuracy(self) -> float:
         """
         Relative proximal accuracy between two iterates.
 
-        :type: None
+        :type: float
         """
     @property
-    def relative_residual(self) -> None:
+    def relative_residual(self) -> float:
         """
         Relatice residual between two iterates.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -9754,25 +9765,25 @@ class PseudoInertia(Boost.Python.instance):
             Returns the pseudo inertia as a 4x4 matrix.
         """
     @property
-    def h(self) -> None:
+    def h(self) -> numpy.ndarray:
         """
         Vector part of the Pseudo Inertia.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def mass(self) -> None:
+    def mass(self) -> float:
         """
         Mass of the Pseudo Inertia.
 
-        :type: None
+        :type: float
         """
     @property
-    def sigma(self) -> None:
+    def sigma(self) -> numpy.ndarray:
         """
         Matrix part of the Pseudo Inertia.
 
-        :type: None
+        :type: numpy.ndarray
         """
     __safe_for_unpickling__ = True
     pass
@@ -9979,32 +9990,32 @@ class Quaternion(Boost.Python.instance):
             Returns a vector expression of the imaginary part (x,y,z).
         """
     @property
-    def w(self) -> None:
+    def w(self) -> float:
         """
         The w coefficient.
 
-        :type: None
+        :type: float
         """
     @property
-    def x(self) -> None:
+    def x(self) -> float:
         """
         The x coefficient.
 
-        :type: None
+        :type: float
         """
     @property
-    def y(self) -> None:
+    def y(self) -> float:
         """
         The y coefficient.
 
-        :type: None
+        :type: float
         """
     @property
-    def z(self) -> None:
+    def z(self) -> float:
         """
         The z coefficient.
 
-        :type: None
+        :type: float
         """
     pass
 
@@ -10028,125 +10039,125 @@ class RigidConstraintData(Boost.Python.instance):
         __ne__( (RigidConstraintData)arg1, (RigidConstraintData)arg2) -> object
         """
     @property
-    def c1Mc2(self) -> None:
+    def c1Mc2(self) -> SE3:
         """
         Relative displacement between the two frames.
 
-        :type: None
+        :type: SE3
         """
     @property
-    def contact1_acceleration_drift(self) -> None:
+    def contact1_acceleration_drift(self) -> Motion:
         """
         Current contact drift acceleration (acceleration only due to the Coriolis and centrifugal effects) of the contact frame 1.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact1_velocity(self) -> None:
+    def contact1_velocity(self) -> Motion:
         """
         Current contact Spatial velocity of the constraint 1.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact2_acceleration_drift(self) -> None:
+    def contact2_acceleration_drift(self) -> Motion:
         """
         Current contact drift acceleration (acceleration only due to the Coriolis and centrifugal effects) of the contact frame 2.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact2_velocity(self) -> None:
+    def contact2_velocity(self) -> Motion:
         """
         Current contact Spatial velocity of the constraint 2.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact_acceleration(self) -> None:
+    def contact_acceleration(self) -> Motion:
         """
         Current contact Spatial acceleration.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact_acceleration_desired(self) -> None:
+    def contact_acceleration_desired(self) -> Motion:
         """
         Desired contact acceleration.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact_acceleration_deviation(self) -> None:
+    def contact_acceleration_deviation(self) -> Motion:
         """
         Contact deviation from the reference acceleration (a.k.a the error).
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact_acceleration_error(self) -> None:
+    def contact_acceleration_error(self) -> Motion:
         """
         Current contact spatial error (due to the integration step).
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact_force(self) -> None:
+    def contact_force(self) -> Force:
         """
         Constraint force.
 
-        :type: None
+        :type: Force
         """
     @property
-    def contact_placement_error(self) -> None:
+    def contact_placement_error(self) -> Motion:
         """
         Current contact placement error between the two contact Frames.
         This corresponds to the relative placement between the two contact Frames seen as a Motion error.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def contact_velocity_error(self) -> None:
+    def contact_velocity_error(self) -> Motion:
         """
         Current contact Spatial velocity error between the two contact Frames.
         This corresponds to the relative velocity between the two contact Frames.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def extended_motion_propagators_joint1(self) -> None:
+    def extended_motion_propagators_joint1(self) -> Sequence[FloatMat6]:
         """
         Extended force/motion propagators for joint 1.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def extended_motion_propagators_joint2(self) -> None:
+    def extended_motion_propagators_joint2(self) -> Sequence[FloatMat6]:
         """
         Extended force/motion propagators for joint 2.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def lambdas_joint1(self) -> None:
+    def lambdas_joint1(self) -> Sequence[FloatMat6]:
         """
         Extended force/motion propagators for joint 1.
 
-        :type: None
+        :type: StdVec_Matrix6
         """
     @property
-    def oMc1(self) -> None:
+    def oMc1(self) -> SE3:
         """
         Placement of the constraint frame 1 with respect to the WORLD frame.
 
-        :type: None
+        :type: SE3
         """
     @property
-    def oMc2(self) -> None:
+    def oMc2(self) -> SE3:
         """
         Placement of the constraint frame 2 with respect to the WORLD frame.
 
-        :type: None
+        :type: SE3
         """
     pass
 
@@ -10196,102 +10207,102 @@ class RigidConstraintModel(Boost.Python.instance):
             Size of the constraint
         """
     @property
-    def colwise_joint1_sparsity(self) -> None:
+    def colwise_joint1_sparsity(self) -> numpy.ndarray:
         """
         Sparsity pattern associated to joint 1.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def colwise_joint2_sparsity(self) -> None:
+    def colwise_joint2_sparsity(self) -> numpy.ndarray:
         """
         Sparsity pattern associated to joint 2.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def colwise_span_indexes(self) -> None:
+    def colwise_span_indexes(self) -> Sequence[int]:
         """
         Indexes of the columns spanned by the constraints.
 
-        :type: None
+        :type: StdVec_Index
         """
     @property
-    def corrector(self) -> None:
+    def corrector(self) -> BaumgarteCorrectorParameters:
         """
         Corrector parameters.
 
-        :type: None
+        :type: BaumgarteCorrectorParameters
         """
     @property
-    def desired_contact_acceleration(self) -> None:
+    def desired_contact_acceleration(self) -> Motion:
         """
         Desired contact spatial acceleration.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def desired_contact_placement(self) -> None:
+    def desired_contact_placement(self) -> SE3:
         """
         Desired contact placement.
 
-        :type: None
+        :type: SE3
         """
     @property
-    def desired_contact_velocity(self) -> None:
+    def desired_contact_velocity(self) -> Motion:
         """
         Desired contact spatial velocity.
 
-        :type: None
+        :type: Motion
         """
     @property
-    def joint1_id(self) -> None:
+    def joint1_id(self) -> int:
         """
         Index of first parent joint in the model tree.
 
-        :type: None
+        :type: int
         """
     @property
-    def joint1_placement(self) -> None:
+    def joint1_placement(self) -> SE3:
         """
         Relative placement with respect to the frame of joint1.
 
-        :type: None
+        :type: SE3
         """
     @property
-    def joint2_id(self) -> None:
+    def joint2_id(self) -> int:
         """
         Index of second parent joint in the model tree.
 
-        :type: None
+        :type: int
         """
     @property
-    def joint2_placement(self) -> None:
+    def joint2_placement(self) -> SE3:
         """
         Relative placement with respect to the frame of joint2.
 
-        :type: None
+        :type: SE3
         """
     @property
-    def name(self) -> None:
+    def name(self) -> str:
         """
         Name of the contact.
 
-        :type: None
+        :type: str
         """
     @property
-    def reference_frame(self) -> None:
+    def reference_frame(self) -> ReferenceFrame:
         """
         Reference frame where the constraint is expressed (WORLD, LOCAL_WORLD_ALIGNED or LOCAL).
 
-        :type: None
+        :type: ReferenceFrame
         """
     @property
-    def type(self) -> None:
+    def type(self) -> ContactType:
         """
         Type of the contact.
 
-        :type: None
+        :type: ContactType
         """
     pass
 
@@ -10491,52 +10502,52 @@ class SE3(Boost.Python.instance):
             Returns the related dual action matrix (acting on Force).
         """
     @property
-    def action(self) -> None:
+    def action(self) -> numpy.ndarray:
         """
         Returns the related action matrix (acting on Motion).
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def actionInverse(self) -> None:
+    def actionInverse(self) -> numpy.ndarray:
         """
         Returns the inverse of the action matrix (acting on Motion).
         This is equivalent to do m.inverse().action
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def dualAction(self) -> None:
+    def dualAction(self) -> numpy.ndarray:
         """
         Returns the related dual action matrix (acting on Force).
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def homogeneous(self) -> None:
+    def homogeneous(self) -> numpy.ndarray:
         """
         Returns the equivalent homegeneous matrix (acting on SE3).
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def np(self) -> None:
+    def np(self) -> numpy.ndarray:
         """
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def rotation(self) -> None:
+    def rotation(self) -> numpy.ndarray:
         """
         The rotation part of the transformation.
 
-        :type: None
+        :type: numpy.ndarray
         """
     @property
-    def translation(self) -> None:
+    def translation(self) -> numpy.ndarray:
         """
         The translation part of the transformation.
 
-        :type: None
+        :type: numpy.ndarray
         """
     __instance_size__ = 120
     __safe_for_unpickling__ = True
@@ -10559,43 +10570,43 @@ class SolverStats(Boost.Python.instance):
             Size of the vectors stored in the structure.
         """
     @property
-    def cholesky_update_count(self) -> None:
+    def cholesky_update_count(self) -> int:
         """
         Number of Cholesky updates performed by the algorithm.
 
-        :type: None
+        :type: int
         """
     @property
-    def complementarity(self) -> None:
+    def complementarity(self) -> Sequence[float]:
         """
-        :type: None
-        """
-    @property
-    def dual_feasibility(self) -> None:
-        """
-        :type: None
+        :type: StdVec_Scalar
         """
     @property
-    def dual_feasibility_ncp(self) -> None:
+    def dual_feasibility(self) -> Sequence[float]:
         """
-        :type: None
+        :type: StdVec_Scalar
         """
     @property
-    def it(self) -> None:
+    def dual_feasibility_ncp(self) -> Sequence[float]:
+        """
+        :type: StdVec_Scalar
+        """
+    @property
+    def it(self) -> int:
         """
         Number of iterations performed by the algorithm.
 
-        :type: None
+        :type: int
         """
     @property
-    def primal_feasibility(self) -> None:
+    def primal_feasibility(self) -> Sequence[float]:
         """
-        :type: None
+        :type: StdVec_Scalar
         """
     @property
-    def rho(self) -> None:
+    def rho(self) -> Sequence[float]:
         """
-        :type: None
+        :type: StdVec_Scalar
         """
     __instance_size__ = 152
     pass
@@ -13377,7 +13388,9 @@ class Symmetric3(Boost.Python.instance):
     def svx(v: Symmetric3, S3: numpy.ndarray) -> numpy.ndarray: 
         """
         svx( (Symmetric3)v, (numpy.ndarray)S3) -> numpy.ndarray :
-            Performs the operation $ M = S_{3} [v]_{	imes} $.
+            Performs the operation 
+$ M = S_{3} [v]_{	imes} 
+$.
         """
     def vtiv(self, v: numpy.ndarray) -> float: 
         """
@@ -13387,14 +13400,16 @@ class Symmetric3(Boost.Python.instance):
     def vxs(v: Symmetric3, S3: numpy.ndarray) -> numpy.ndarray: 
         """
         vxs( (Symmetric3)v, (numpy.ndarray)S3) -> numpy.ndarray :
-            Performs the operation $ M = [v]_{	imes} S_{3} $., Apply the cross product of v on each column of S and return result matrix M.
+            Performs the operation 
+$ M = [v]_{	imes} S_{3} 
+$., Apply the cross product of v on each column of S and return result matrix M.
         """
     @property
-    def data(self) -> None:
+    def data(self) -> numpy.ndarray:
         """
         6D vector containing the data of the symmetric 3x3 matrix.
 
-        :type: None
+        :type: numpy.ndarray
         """
     __safe_for_unpickling__ = True
     pass
@@ -15300,4 +15315,3 @@ import pinocchio_pywrap_default.Convention
 import pinocchio_pywrap_default.ReferenceFrame
 import sys
 _Shape = typing.Tuple[int, ...]
-
