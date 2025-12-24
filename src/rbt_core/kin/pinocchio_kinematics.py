@@ -16,7 +16,7 @@ class PinocchioDynamics:
     """
 
     def __init__(self,
-        model: pin,
+        model: pin.Model,
         data: pin.Data | None = None,
         *,
         ee_frame: str | int | None = None,
@@ -24,7 +24,6 @@ class PinocchioDynamics:
     ) -> None:
         self.model = model
         self.data = data if data is not None else model.createData()
-
         self._q = np.array(pin.neutral(model), dtype=npu.dtype)
         self._qd = np.zeros(model.nv, dtype=npu.dtype)
         self._qdd = np.zeros(model.nv, dtype=npu.dtype)
