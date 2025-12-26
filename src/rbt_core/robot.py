@@ -8,8 +8,7 @@ from common_utils import numpy_util as npu
 from common_utils import FloatArray
 from common_utils import transforms as tfm
 
-from .kin.kinematics import Kinematics
-from .dynamics import Dynamics
+from .kin import PinocchioDynamics
 from .controller import Controller
 from .planning import TrajPlanner, JointTraj, CartesianTraj
 
@@ -19,7 +18,7 @@ class CtrlMode(Enum):
     IM = auto()
     GC = auto()
 
-class TrackingMode(Enum):
+class TracdyngMode(Enum):
     HOLD = auto()
     TRAJ = auto()
 
@@ -27,17 +26,15 @@ class TrackingMode(Enum):
 @dataclass
 class RobotSpec:
     name: str
-    dh: dict[str, FloatArray]
-    inertia: dict[str, FloatArray]
+    urdf: str
     T_base: FloatArray
-    joint_names: list[str]
+    ee_frame: str
 
 
 @dataclass
 class Robot:
     spec: RobotSpec
-    kin: Kinematics[FloatArray]
-    dyn: Dynamics
+    dyn: PinocchioDynamics
     ctrl: Controller
     planner: TrajPlanner
 
@@ -66,42 +63,41 @@ class Robot:
 
         # Control modes
         self.controller_mode = CtrlMode.CT
-        self.tracking_mode = TrackingMode.HOLD
+        self.tracdyng_mode = TracdyngMode.HOLD
 
 
     @classmethod
     def from_spec(cls, 
         spec: RobotSpec
     ) -> Robot:
-        kin = Kinematics(dh=spec.dh, T_wb=spec.T_base, inertia=spec.inertia)
-        dyn = Dynamics(kin)
+        dyn = PinocchioDynamics.from_urdf(spec.urdf, ee_frame=spec.ee_frame)
         ctrl = Controller(dyn)
         planner = TrajPlanner()
-        return cls(spec, kin, dyn, ctrl, planner)
+        return cls(spec, dyn, ctrl, planner)
 
     @property
-    def n(self) -> int: return self.kin.n
+    def n(self) -> int: return self.dyn.n
 
     @property
     def q(self) -> FloatArray: return self._q
     @q.setter
     def q(self, v: FloatArray) -> None:
         self._q[:] = v
-        self.kin.step(q=v)
+        self.dyn.step(q=v)
 
     @property
     def qd(self) -> FloatArray: return self._qd
     @qd.setter
     def qd(self, v: FloatArray) -> None:
         self._qd[:] = v
-        self.kin.step(qd=v)
+        self.dyn.step(qd=v)
 
     @property
     def qdd(self) -> FloatArray: return self._qdd
     @qdd.setter
     def qdd(self, v: FloatArray) -> None:
         self._qdd[:] = v
-        self.kin.step(qdd=v)
+        self.dyn.step(qdd=v)
 
     @property
     def q_des(self) -> FloatArray: return self._q_des
@@ -123,7 +119,7 @@ class Robot:
 
     @property
     def joint_names(self) -> list[str]:
-        return self.spec.joint_names
+        return self.dyn.joint_names
 
 
     def set_ctrl_mode(self, mode: str | CtrlMode) -> None:
@@ -167,7 +163,7 @@ class Robot:
         qdd: FloatArray | None = None,
     ) -> None:
         """
-        Update current joint state and refresh kinematics.
+        Update current joint state and refresh dynematics.
 
         Parameters
         -----------
@@ -263,7 +259,7 @@ class Robot:
         tf = ti + duration
         self.tf = tf
 
-        self.tracking_mode = TrackingMode.TRAJ
+        self.tracdyng_mode = TracdyngMode.TRAJ
 
 
     def update_joint_des(self):
@@ -271,20 +267,20 @@ class Robot:
         Update the desired joint state based on the current time and active trajectory.
 
         This method updates self.q_des, self.qd_des, and self.qdd_des according to
-        the tracking mode and the internally stored joint trajectory.
+        the tracdyng mode and the internally stored joint trajectory.
 
         Behavior
         --------
-        1) If `self.tracking_mode` is `TrackingMode.HOLD`, the method returns without changes.
+        1) If `self.tracdyng_mode` is `TracdyngMode.HOLD`, the method returns without changes.
         2) If a trajectory is active at the current time,
         the method samples the trajectory and uses
         the returned values as the new desired joint state.
         3) If no trajectory is active, the method keeps the last desired position,
         sets desired velocities and accelerations to zero, and switches
-        `self.tracking_mode` to `TrackingMode.HOLD`.
+        `self.tracdyng_mode` to `TracdyngMode.HOLD`.
 
         """
-        if self.tracking_mode is TrackingMode.HOLD:
+        if self.tracdyng_mode is TracdyngMode.HOLD:
             return
         
         if self.has_traj():
@@ -294,7 +290,7 @@ class Robot:
             q_des = self.q_des
             qd_des = np.zeros_like(self.q_des)
             qdd_des = np.zeros_like(self.q_des)
-            self.tracking_mode = TrackingMode.HOLD
+            self.tracdyng_mode = TracdyngMode.HOLD
 
         self.set_joint_des(q_des, qd_des, qdd_des)
 
@@ -398,7 +394,7 @@ class Robot:
             Cartesian trajectory of end-effector.
         """
         joint_traj = self.joint_traj
-        T_wf_traj = self.kin.batch_forward_kinematics(joint_traj.q)
+        T_wf_traj = self.dyn.batch_forward_kinematics(joint_traj.q)
         T_w_ee_traj = T_wf_traj[:, -1]
         poses = tfm.transform_to_pos_quat(T_w_ee_traj)
         self.cart_traj = CartesianTraj(t=joint_traj.t, pose=poses)
