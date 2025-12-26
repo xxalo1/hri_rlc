@@ -7,9 +7,12 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(ament_index_python REQUIRED)
+
+ament_python_install_package(rlc_robot_models)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
