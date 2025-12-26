@@ -19,6 +19,7 @@ from rclpy.action.server import ServerGoalHandle
 
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
+from sim_env.mujoco.kinova_gen3_env import GEN3_BASE_POSE
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
 from ros_utils.config import qos_latest
@@ -70,6 +71,7 @@ class Gen3ControllerNode(Node):
         self.robot = kinova_gen3.make_gen3_robot(
             variant=kinova_gen3.Gen3Variant.DOF7_BASE,
         )
+        self.robot.set_base_pose(GEN3_BASE_POSE)
         self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
         self.robot.set_ctrl_mode(CtrlMode.CT)
         self.robot.set_joint_des()

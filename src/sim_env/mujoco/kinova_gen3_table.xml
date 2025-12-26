@@ -76,7 +76,7 @@
     <body name="robot_mount" pos="1 0 0.75">
       <attach model="gen3" body="base_link" prefix="gen3_"/>
     </body>
-    
+
   </worldbody>
 
 </mujoco>

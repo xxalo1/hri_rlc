@@ -5,6 +5,11 @@ from pathlib import Path
 from sim_backend.mujoco.mujoco_base import BaseMujocoEnv
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
+from common_utils import transforms as tfm
+
+GEN3_T_WB =  np.eye(4, dtype=npu.dtype)
+GEN3_T_WB[:3, 3] = [1.0, 0.0, 0.75]
+GEN3_BASE_POSE = tfm.transform_to_pos_quat(GEN3_T_WB)
 
 class Gen3Env(BaseMujocoEnv):
     def __init__(self, xml_path, nsubsteps=1, seed: int | None = 0):

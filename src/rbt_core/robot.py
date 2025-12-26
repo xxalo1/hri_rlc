@@ -42,7 +42,7 @@ class Robot:
 
         n = self.n
         self.g_w = np.array([0.0, 0.0, -9.807], dtype=npu.dtype)
-        self._pose_wb = np.eye(4, dtype=npu.dtype)
+        self._pose_wb = np.zeros(7, dtype=npu.dtype)
 
         # Current state
         self._q = np.zeros(n, dtype=npu.dtype)

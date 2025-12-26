@@ -1,19 +1,21 @@
 from __future__ import annotations
 
+from numpy import var
+
 import rclpy
 from rclpy.node import Node
 
-from robots.kinova_gen3 import init_kinova_robot
 from ros_utils import msg_conv as rmsg
 from ros_utils.config import qos_latest
 from common_utils import transforms as tfm
 from common_utils.buffers import RingBuffer, BufferSet
-
+from rlc_robot_models import kinova_gen3
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
     JointStateMsg,
     ControllerStateMsg,
     )
+from sim_env.mujoco.kinova_gen3_env import GEN3_BASE_POSE
 
 class RLCMonitorNode(Node):
     """RLC Monitor Node for monitoring robot state and publishing diagnostics."""
@@ -30,8 +32,10 @@ class RLCMonitorNode(Node):
             'capacity'
             ).get_parameter_value().integer_value
         
-        self.robot = init_kinova_robot()
-
+        self.robot = kinova_gen3.make_gen3_robot(
+            variant= kinova_gen3.Gen3Variant.DOF7_BASE,
+        )
+        self.robot.set_base_pose(GEN3_BASE_POSE)
         self.state_buffer = BufferSet(capacity=self.capacity)
 
         self.joint_state_sub = self.create_subscription(
@@ -104,8 +108,13 @@ class RLCMonitorNode(Node):
 
     def publish_frame_states(self) -> None:
         """Publish the current frame states of the robot."""
-        T_wf = self.robot.kin.forward_kinematics()
-        poses = tfm.transform_to_pos_quat(T_wf)
+        T_bj = self.robot.dyn.get_joint_T_stack()
+        pose_wb = self.robot.pose_wb
+        T_wb = tfm.pos_quat_to_transform(
+            pose_wb[:3], pose_wb[3:]
+            )
+        T_wj = T_wb @ T_bj
+        poses = tfm.transform_to_pos_quat(T_wj)
         msg = rmsg.to_pose_array_msg(
             self.robot.t,
             poses,

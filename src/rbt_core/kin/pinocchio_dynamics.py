@@ -21,17 +21,14 @@ class PinocchioDynamics:
         *,
         tcp_frame: str | None = None,
     ) -> None:
-        model.nv
         self._model = model
         self._data = data if data is not None else model.createData()
-        self._q = np.array(pin.neutral(model), dtype=npu.dtype)
+        self._q = np.zeros(model.nv, dtype=npu.dtype)
         self._qd = np.zeros(model.nv, dtype=npu.dtype)
         self._qdd = np.zeros(model.nv, dtype=npu.dtype)
 
         self._fk_valid = False
         self._J_valid = False
-
-        self._T_wf: FloatArray = np.eye(4, dtype=npu.dtype).reshape(4,4)
 
         if tcp_frame is None: 
             self._tcp_frame_id = self.nq
@@ -42,6 +39,8 @@ class PinocchioDynamics:
             [self._model.inertias[i].mass for i in range(1, self._model.njoints)],
             dtype=npu.dtype,
         )
+
+
 
     @classmethod
     def from_urdf(cls,
@@ -132,13 +131,6 @@ class PinocchioDynamics:
     def qdd(self, v: FloatArray) -> None:
         self._validate_array(v, self._qdd, "qdd")
         self._qdd[:] = v
-
-    @property
-    def T_wj(self) -> FloatArray: return self._T_wf
-    @T_wj.setter
-    def T_wj(self, v: FloatArray) -> None:
-        self._validate_array(v, self._T_wf, "T_wf")
-        self._T_wf[:] = v
 
     @property
     def n(self) -> int:
@@ -265,15 +257,13 @@ class PinocchioDynamics:
     def get_joint_T_stack(self
     ) -> FloatArray:
         self._ensure_fk()
-        self.T_wj = np.asarray(self._data.oMi)
-        return self.T_wj
+        return np.asarray(self._data.oMi)
 
 
     def get_frame_T_stack(self
     ) -> FloatArray:
         self._ensure_fk()
-        self.T_wf = np.asarray(self._data.oMf)
-        return self.T_wf
+        return np.asarray(self._data.oMf)
 
 
     def dof_joint_id(self, 

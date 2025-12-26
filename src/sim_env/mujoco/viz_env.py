@@ -5,7 +5,7 @@ from typing import Callable
 import numpy as np
 from mujoco import viewer  # type: ignore
 
-from sim_env.mujoco.env import Gen3Env
+from sim_backend.mujoco.mujoco_base import BaseMujocoEnv
 from common_utils import FloatArray
 from common_utils import numpy_util as npu
 import common_utils.transforms as tfm
@@ -29,7 +29,7 @@ class VizEnv:
 
 
     def __init__(self,
-        env: Gen3Env,
+        env: BaseMujocoEnv,
         on_pause: Callable[[bool], None] | None = None,
         on_reset: Callable[[], None] | None = None,
     ) -> None:
