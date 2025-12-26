@@ -18,7 +18,7 @@ class CtrlMode(Enum):
     IM = auto()
     GC = auto()
 
-class TracdyngMode(Enum):
+class TraceMode(Enum):
     HOLD = auto()
     TRAJ = auto()
 
@@ -27,8 +27,7 @@ class TracdyngMode(Enum):
 class RobotSpec:
     name: str
     urdf: str
-    T_base: FloatArray
-    ee_frame: str
+    tcp_frame: str
 
 
 @dataclass
@@ -42,6 +41,8 @@ class Robot:
     def __post_init__(self) -> None:
 
         n = self.n
+        self.g_w = np.array([0.0, 0.0, -9.807], dtype=npu.dtype)
+        self._pose_wb = np.eye(4, dtype=npu.dtype)
 
         # Current state
         self._q = np.zeros(n, dtype=npu.dtype)
@@ -63,20 +64,24 @@ class Robot:
 
         # Control modes
         self.controller_mode = CtrlMode.CT
-        self.tracdyng_mode = TracdyngMode.HOLD
+        self.TraceMode = TraceMode.HOLD
 
 
     @classmethod
     def from_spec(cls, 
         spec: RobotSpec
     ) -> Robot:
-        dyn = PinocchioDynamics.from_urdf(spec.urdf, ee_frame=spec.ee_frame)
+        dyn = PinocchioDynamics.from_urdf(spec.urdf, tcp_frame=spec.tcp_frame)
         ctrl = Controller(dyn)
         planner = TrajPlanner()
         return cls(spec, dyn, ctrl, planner)
 
+
     @property
     def n(self) -> int: return self.dyn.n
+
+    @property
+    def pose_wb(self) -> FloatArray: return self._pose_wb
 
     @property
     def q(self) -> FloatArray: return self._q
@@ -122,6 +127,27 @@ class Robot:
         return self.dyn.joint_names
 
 
+    def set_base_pose(self, pose_wb: FloatArray) -> None:
+        """
+        Set the base pose of the robot expressed in the world frame (world_from_base),
+        and update the gravity vector for the dynamics model (expressed in base/model frame).
+
+        Parameters
+        -----------
+        pose_wb : ndarray, shape (7,)
+            The base pose as [x, y, z, qw, qx, qy, qz].
+        """
+        if pose_wb.shape != (7,):
+            raise ValueError(f"pose_wb must have shape (7,), got {pose_wb.shape}")
+
+        self._pose_wb[:] = pose_wb
+        R_wb = tfm.quat_to_rotation_matrix(
+            self.pose_wb[3:]
+        )
+        g_b = R_wb.T @ self.g_w
+        self.dyn.set_gravity(g_b)
+
+
     def set_ctrl_mode(self, mode: str | CtrlMode) -> None:
         """
         Set the current controller mode.
@@ -155,8 +181,7 @@ class Robot:
         self.controller_mode = ctrl_mode
 
 
-    def set_joint_state(
-        self,
+    def set_joint_state(self,
         q: FloatArray | None = None,
         qd: FloatArray | None = None,
         t: float | None = None,
@@ -259,7 +284,7 @@ class Robot:
         tf = ti + duration
         self.tf = tf
 
-        self.tracdyng_mode = TracdyngMode.TRAJ
+        self.TraceMode = TraceMode.TRAJ
 
 
     def update_joint_des(self):
@@ -280,7 +305,7 @@ class Robot:
         `self.tracdyng_mode` to `TracdyngMode.HOLD`.
 
         """
-        if self.tracdyng_mode is TracdyngMode.HOLD:
+        if self.TraceMode is TraceMode.HOLD:
             return
         
         if self.has_traj():
@@ -290,7 +315,7 @@ class Robot:
             q_des = self.q_des
             qd_des = np.zeros_like(self.q_des)
             qdd_des = np.zeros_like(self.q_des)
-            self.tracdyng_mode = TracdyngMode.HOLD
+            self.TraceMode = TraceMode.HOLD
 
         self.set_joint_des(q_des, qd_des, qdd_des)
 
@@ -394,8 +419,7 @@ class Robot:
             Cartesian trajectory of end-effector.
         """
         joint_traj = self.joint_traj
-        T_wf_traj = self.dyn.batch_forward_kinematics(joint_traj.q)
-        T_w_ee_traj = T_wf_traj[:, -1]
+        T_w_ee_traj = self.dyn.batch_frame_T(joint_traj.q)
         poses = tfm.transform_to_pos_quat(T_w_ee_traj)
         self.cart_traj = CartesianTraj(t=joint_traj.t, pose=poses)
         return self.cart_traj
