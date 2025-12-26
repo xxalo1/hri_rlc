@@ -11,14 +11,14 @@ from rosgraph_msgs.msg import Clock
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 from sim_backend.mujoco.mujoco_base import Observation, StateAction
-from sim_env.mujoco.env import Gen3Env
-from robots.kinova_gen3 import init_kinova_robot
+from sim_env.mujoco.kinova_gen3_env import Gen3Env, GEN3_BASE_POSE
 from common_utils import numpy_util as npu, FloatArray
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
 from ros_utils.config import qos_latest
 from rbt_core.robot import CtrlMode
 
+from rlc_robot_models import kinova_gen3
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
     JointEffortCmdMsg,
@@ -30,7 +30,10 @@ class Gen3MujocoSimNode(Node):
         joint_names: list[str]
     ) -> None:
         super().__init__("gen3_mujoco_sim")
-        self.robot = init_kinova_robot()
+        self.robot = kinova_gen3.make_gen3_robot(
+            variant=kinova_gen3.Gen3Variant.DOF7_BASE,
+        )
+        self.robot.set_base_pose(GEN3_BASE_POSE)
         self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
         self.robot.set_ctrl_mode(CtrlMode.CT)
 

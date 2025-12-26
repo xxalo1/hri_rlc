@@ -16,6 +16,7 @@ from rlc_common.endpoints import (
     JointStateMsg, 
     PlanQuinticSrv
 )
+from sim_env.mujoco.kinova_gen3_env import GEN3_BASE_POSE
 
 class TrajectoryPlannerNode(Node):
     """ROS 2 node that builds joint trajectories and publishes them for execution."""
@@ -26,7 +27,7 @@ class TrajectoryPlannerNode(Node):
         self.robot = kinova_gen3.make_gen3_robot(
             variant=kinova_gen3.Gen3Variant.DOF7_BASE,
         )
-
+        self.robot.set_base_pose(GEN3_BASE_POSE)
 
         # ---------- Parameters ----------
         self.declare_parameter("default_plan_frequency", 100.0)
