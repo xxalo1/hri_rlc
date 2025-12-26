@@ -35,8 +35,10 @@ class PinocchioDynamics:
         self._T_wf: FloatArray = np.eye(4, dtype=npu.dtype).reshape(4,4)
 
         self._ee_frame_id: int | None = None
-        if ee_frame is not None:
-            self._ee_frame_id = self._resolve_frame_id(ee_frame)
+        if ee_frame is None: 
+            self._ee_frame_id = self.nq
+        else: 
+            self._ee_frame_id = self._get_frame_id(ee_frame)
 
         if g_vec is not None:
             g = np.asarray(g_vec, dtype=npu.dtype).reshape(3)
@@ -65,6 +67,15 @@ class PinocchioDynamics:
         model = pin.buildModelFromUrdf(str(urdf_path), **kwargs)
         return cls(model, ee_frame=ee_frame, g_vec=g_vec)
 
+
+    def _get_frame_id(self, ee_frame: str | int) -> int:
+        """Convert frame name to frame ID, or return frame ID if already int."""
+        if isinstance(ee_frame, int):
+            return ee_frame
+        elif isinstance(ee_frame, str):
+            return self.model.getFrameId(ee_frame)
+        else:
+            raise TypeError(f"ee_frame must be str or int, got {type(ee_frame)}")
 
     @staticmethod
     def _validate_array(a, b, name: str | None = None) -> None:
@@ -266,20 +277,15 @@ class PinocchioDynamics:
         return dof + 1
 
 
-    def batch_forward_kinematics(self, Q: FloatArray) -> FloatArray:
-        T_wf = np.empty((Q.shape[0], self.model.njoints, 4, 4), dtype=npu.dtype)
-        for i in range(Q.shape[0]):
-            self.step(q=Q[i])
-            T_wf[i] = self.forward_kinematics(use_cache=False)
-        return T_wf
-
-
     def inertia_matrix(self) -> FloatArray:
         pin.crba(self.model, self.data, self.q)
         return self.M
 
 
-    def batch_frame_T(self, Q: np.ndarray, frame_id: int) -> np.ndarray:
+    def batch_frame_T(self, 
+        Q: FloatArray, 
+        frame_id: int
+    ) -> FloatArray:
         """
         World -> one frame transform for each q in Q.
 

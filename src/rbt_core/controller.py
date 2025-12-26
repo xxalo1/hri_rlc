@@ -1,39 +1,30 @@
 import numpy as np
 
 from .dynamics import Dynamics
-from .kin import Kinematics
+from .kin import Kinematics, PinocchioDynamics
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
 
 class Controller:
     """Robot controller base class."""
     def __init__(self, 
-        dynamics: Dynamics, 
-        Kv: float | None = None, 
-        Kp: float | None = None,
-        Ki: float | None = None,
-        Kx: float | None = None,
-        Dx: float | None = None,
-        Kix: float | None = None,
+        dynamics: PinocchioDynamics, 
     ) -> None:
         
         self.dyn = dynamics
 
         # joint-space PID gains
-        if Kv is None: Kv = 2.0
-        if Kp is None: Kp = 5.0
-        if Ki is None: Ki = 0.0
+        Kv = 2.0
+        Kp = 5.0
+        Ki = 0.0
         self.set_joint_gains(Kp, Kv, Ki)
 
         # task-space gains [pos; ori] (6x6)
-        if Kx is None: Kx = 1.0
-        if Dx is None: Dx = 2.0
-        if Kix is None: Kix = 0.0
+        Kx = 1.0
+        Dx = 2.0
+        Kix = 0.0
         self.set_task_gains(Kx, Dx, Kix)
 
-    @property
-    def kin(self) -> Kinematics[FloatArray]:
-        return self.dyn.kin
 
     @staticmethod
     def _orientation_error(R: FloatArray, R_des: FloatArray) -> FloatArray:
@@ -90,7 +81,7 @@ class Controller:
         1- If a float is provided, it is multiplied by identity.
         2- otherwise, the provided Tensor is used directly.
         """
-        n = self.kin.n
+        n = self.dyn.n
         I = np.eye(n, dtype=npu.dtype)
 
         if isinstance(Kp, int): Kp = float(Kp)
@@ -240,8 +231,8 @@ class Controller:
         if xd_des is None: xd_des = np.zeros(6, dtype=npu.dtype)
         if xdd_des is None: xdd_des = np.zeros(6, dtype=npu.dtype)
 
-        self.kin.step(q=q, qd=qd)
-        T_wf = self.kin.forward_kinematics()   # (n+1, 4, 4)
+        self.dyn.step(q=q, qd=qd)
+        T_wf = self.dyn.forward_kinematics()   # (n+1, 4, 4)
         T_ee = T_wf[-1]                        # last frame is EE
 
         R = T_ee[:3, :3]
