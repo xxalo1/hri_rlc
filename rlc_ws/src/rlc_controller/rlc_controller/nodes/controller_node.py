@@ -17,12 +17,12 @@ from trajectory_msgs.msg import JointTrajectory, MultiDOFJointTrajectory
 from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.action.server import ServerGoalHandle
 
-from robots import kinova_gen3
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
 from ros_utils.config import qos_latest
+from rlc_robot_models import kinova_gen3
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES
 from rlc_common.endpoints import (
@@ -67,7 +67,9 @@ class Gen3ControllerNode(Node):
         super().__init__("gen3_controller")
 
         # ---------- Robot Model ----------
-        self.robot = kinova_gen3.init_kinova_robot()
+        self.robot = kinova_gen3.make_gen3_robot(
+            variant=kinova_gen3.Gen3Variant.DOF7_BASE,
+        )
         self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
         self.robot.set_ctrl_mode(CtrlMode.CT)
         self.robot.set_joint_des()
