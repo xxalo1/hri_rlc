@@ -1,5 +1,5 @@
 from __future__ import annotations
-import math
+from pathlib import Path
 import numpy as np
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -26,7 +26,7 @@ class TraceMode(Enum):
 @dataclass
 class RobotSpec:
     name: str
-    urdf: str
+    urdf: Path
     tcp_frame: str
 
 

@@ -45,13 +45,12 @@ class PinocchioDynamics:
 
     @classmethod
     def from_urdf(cls,
-        urdf_path: str | Path,
+        urdf_path: Path,
         *,
         package_dirs: Iterable[str] | None = None,
         root_joint: pin.JointModel | None = None,
         tcp_frame: str | None = None,
     ) -> "PinocchioDynamics":
-        urdf_path = Path(urdf_path)
         kwargs: dict[str, object] = {}
         if root_joint is not None:
             kwargs["root_joint"] = root_joint
@@ -184,7 +183,7 @@ class PinocchioDynamics:
         return self._data.g
 
     @property
-    def com(self) -> FloatArray:
+    def com(self) -> Sequence[FloatArray]:
         """Center of mass vectors"""
         return self._data.com
 
@@ -203,7 +202,7 @@ class PinocchioDynamics:
         if qdd is not None: self.qdd = qdd
 
 
-    def joint_se3(self,
+    def get_joint_se3(self,
         i: int
     ) -> pin.SE3:
         self._validate_index_range(i, self._model.njoints)
@@ -211,7 +210,7 @@ class PinocchioDynamics:
         return self.oMi[i]
 
 
-    def frame_se3(self, 
+    def get_frame_se3(self, 
         frame_id: int | None = None
     ) -> pin.SE3:
         if frame_id is None: 
@@ -222,7 +221,7 @@ class PinocchioDynamics:
         return self._data.oMf[frame_id]
 
 
-    def joint_T(self, 
+    def get_joint_T(self, 
         i: int
     ) -> FloatArray:
         self._validate_index_range(i, self._model.njoints)
@@ -230,7 +229,7 @@ class PinocchioDynamics:
         return self._data.oMi[i].homogeneous
 
 
-    def frame_T(self, 
+    def get_frame_T(self, 
         i: int | None = None
     ) -> FloatArray:
         if i is None: 
@@ -241,19 +240,20 @@ class PinocchioDynamics:
         return self._data.oMf[i].homogeneous
 
 
-    def frame_jac(self, 
-        frame_id: int | None = None
+    def get_frame_jac(self, 
+        i: int | None = None
     ) -> FloatArray:
-        if frame_id is None: 
-            frame_id = self._tcp_frame_id
-        else: 
-            self._validate_index_range(frame_id, self._model.nframes - 1)
+        if i is None: 
+            i = self._tcp_frame_id
+        else:
+            self._validate_index_range(i, self._model.nframes - 1)
         self._ensure_jac()
-        self._data.
+        J = pin.getFrameJacobian(self._model, self._data,frame_id=i,      
+            reference_frame=pin.WORLD)
         return J
     
 
-    def joint_Rp(self, 
+    def get_joint_R(self, 
         i: int
     ) -> tuple[FloatArray, FloatArray]:
         self._validate_index_range(i, self._model.njoints)
@@ -262,14 +262,14 @@ class PinocchioDynamics:
         return oM.rotation, oM.translation
 
 
-    def joint_T_stack(self
+    def get_joint_T_stack(self
     ) -> FloatArray:
         self._ensure_fk()
         self.T_wj = np.asarray(self._data.oMi)
         return self.T_wj
 
 
-    def frame_T_stack(self
+    def get_frame_T_stack(self
     ) -> FloatArray:
         self._ensure_fk()
         self.T_wf = np.asarray(self._data.oMf)
@@ -345,7 +345,6 @@ class PinocchioDynamics:
 
     def compute_jac(self) -> None:
         pin.computeJointJacobians(self._model, self._data, self.q)
-        pin.updateFramePlacements(self._model, self._data)
 
 
     def dyn_pinv(self, J_task: FloatArray) -> tuple[FloatArray, FloatArray]:

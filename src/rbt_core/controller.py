@@ -231,7 +231,7 @@ class Controller:
         if xdd_des is None: xdd_des = np.zeros(6, dtype=npu.dtype)
 
         self.dyn.step(q=q, qd=qd)
-        T_tcp = self.dyn.frame_T()   # (n+1, 4, 4)
+        T_tcp = self.dyn.get_frame_T()   # (n+1, 4, 4)
 
         R = T_tcp[:3, :3]
         p = T_tcp[:3, 3]
@@ -245,9 +245,8 @@ class Controller:
         e = np.concatenate((e_pos, e_ori))    # (6,)
 
         # EE spatial velocity
-        J = self.dyn.full_jac()              # (n, 6, n), world-frame geometric Jacobian
-        J_ee = J[-1, :, :]                   # (6, n), EE Jacobian
-        xd = J_ee @ qd                     # (6,)
+        J_tcp = self.dyn.get_frame_jac()              # (n, 6, n), world-frame geometric Jacobian
+        xd = J_tcp @ qd                     # (6,)
 
         de = xd_des - xd
         self.e_task_int += e * dt
@@ -262,7 +261,7 @@ class Controller:
 
         qdd_star = self.dyn.task_to_joint(
             xdd_main,
-            J_ee,
+            J_tcp,
             xdd_sec=xdd_sec,
             J_sec=J_sec,
         )

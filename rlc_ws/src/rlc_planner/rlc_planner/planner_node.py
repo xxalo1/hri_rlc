@@ -5,11 +5,11 @@ from __future__ import annotations
 import rclpy
 from rclpy.node import Node
 
-from robots.kinova_gen3 import init_kinova_robot
 from common_utils import numpy_util as npu
 from ros_utils import msg_conv as rmsg
 from ros_utils import time_util as rtime
 from ros_utils.config import qos_latest
+from rlc_robot_models import kinova_gen3
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
@@ -23,7 +23,10 @@ class TrajectoryPlannerNode(Node):
     def __init__(self) -> None:
         super().__init__("trajectory_planner")
 
-        self.robot = init_kinova_robot()
+        self.robot = kinova_gen3.make_gen3_robot(
+            variant=kinova_gen3.Gen3Variant.DOF7_BASE,
+        )
+
 
         # ---------- Parameters ----------
         self.declare_parameter("default_plan_frequency", 100.0)
