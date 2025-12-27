@@ -40,8 +40,6 @@ class PinocchioDynamics:
             dtype=npu.dtype,
         )
 
-
-
     @classmethod
     def from_urdf(cls,
         urdf_path: Path,
@@ -110,12 +108,30 @@ class PinocchioDynamics:
         self._Ic_valid  = False
 
 
+    def _pack_q(self,
+        q: FloatArray,
+    ) -> None:
+        """
+        Pack 7-DoF hardware joint state into Pinocchio buffers:
+          q  : shape (model.nv,)
+
+        This does NOT allocate new arrays; it updates self._q in-place.
+        """
+        if np.any(self._is_cont):
+            idx = self._iq[self._is_cont]
+            th = q[self._is_cont]
+            self._q[idx] = np.cos(th)
+            self._q[idx + 1] = np.sin(th)
+
+        if np.any(~self._is_cont):
+            self._q[self._iq[~self._is_cont]] = q[~self._is_cont]
+
+
     @property
     def q(self) -> FloatArray: return self._q
     @q.setter
     def q(self, v: FloatArray) -> None:
-        self._validate_array(v, self._q, "q")
-        self._q[:] = v
+        self._pack_q(v)
         self._invalidate_kinematics()
 
     @property
