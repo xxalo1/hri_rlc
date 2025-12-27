@@ -1,0 +1,28 @@
+{
+  "python.languageServer": "Pylance",
+  "python.analysis.stubPath": "typings",
+  "python.analysis.extraPaths": [
+    // your core project source (robots, sim_env, common_utils, rbt_core, ...)
+    "/home/rwolv/projects/hri_rlc/src",
+
+    // build dirs (like you already had for rlc_common)
+    "/home/rwolv/projects/hri_rlc/rlc_ws/build/rlc_common",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/build/rlc_interfaces",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/build/rlc_controller",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/build/rlc_planner",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/build/rlc_sim",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/build/rlc_bringup",
+
+    // install site-packages for each ROS2 Python package in your workspace
+    "/home/rwolv/projects/hri_rlc/rlc_ws/install/rlc_common/lib/python3.12/site-packages",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/install/rlc_interfaces/lib/python3.12/site-packages",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/install/rlc_controller/lib/python3.12/site-packages",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/install/rlc_planner/lib/python3.12/site-packages",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/install/rlc_sim/lib/python3.12/site-packages",
+    "/home/rwolv/projects/hri_rlc/rlc_ws/install/rlc_bringup/lib/python3.12/site-packages",
+
+    // (optional but useful) global ROS Jazzy Python packages
+    "/opt/ros/jazzy/lib/python3.12/site-packages"
+  ],
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true
+}
