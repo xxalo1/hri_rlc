@@ -171,7 +171,7 @@ class Controller:
         de = qd_des - qd
         v = qdd_des + self.Kv @ de + self.Kp @ e
 
-        tau = self.dyn.rnea(q, qd, v)
+        tau = self.dyn.rnea(self.dyn.q, self.dyn.qd, v)
 
         return tau
 
@@ -266,6 +266,6 @@ class Controller:
             J_sec=J_sec,
         )
 
-        tau = self.dyn.rnea(q, qd, qdd_star)
+        tau = self.dyn.rnea(self.dyn.q, self.dyn.qd, qdd_star)
 
         return tau

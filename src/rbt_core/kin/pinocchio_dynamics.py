@@ -23,17 +23,16 @@ class PinocchioDynamics:
     ) -> None:
         self._model = model
         self._data = data if data is not None else model.createData()
-        self._q = np.zeros(model.nv, dtype=npu.dtype)
+        self._q = np.zeros(model.nq, dtype=npu.dtype)
         self._qd = np.zeros(model.nv, dtype=npu.dtype)
         self._qdd = np.zeros(model.nv, dtype=npu.dtype)
+        self._init_joint_packing()
 
         self._fk_valid = False
         self._J_valid = False
 
-        if tcp_frame is None: 
-            self._tcp_frame_id = self.nq
-        else: 
-            self._tcp_frame_id = self.get_frame_id(tcp_frame)
+        if tcp_frame is None: self._tcp_frame_id = model.nframes - 1
+        else: self._tcp_frame_id = self.get_frame_id(tcp_frame)
 
         self._mass = np.array(
             [self._model.inertias[i].mass for i in range(1, self._model.njoints)],
@@ -60,6 +59,22 @@ class PinocchioDynamics:
     def get_frame_id(self, frame: str) -> int:
         """Convert frame name to frame ID, or return frame ID if already int."""
         return self._model.getFrameId(frame)
+
+
+    def _init_joint_packing(self) -> None:
+        model = self._model
+        joints = model.joints
+
+        jids = [
+            jid for jid in range(1, model.njoints)
+            if joints[jid].nv == 1 and joints[jid].nq in (1, 2)
+        ]
+        jids.sort(key=lambda jid: joints[jid].idx_v)
+
+        self._canonical_joint_names = tuple(model.names[jid] for jid in jids)
+        self._jids = np.array(jids, dtype=int)
+        self._iq = np.array([joints[jid].idx_q for jid in jids], dtype=int)
+        self._is_cont = np.array([joints[jid].nq == 2 for jid in jids], dtype=bool)
 
 
     @staticmethod
@@ -117,20 +132,28 @@ class PinocchioDynamics:
 
         This does NOT allocate new arrays; it updates self._q in-place.
         """
-        if np.any(self._is_cont):
-            idx = self._iq[self._is_cont]
-            th = q[self._is_cont]
+        is_cont = self._is_cont
+        iq = self._iq
+        if np.any(is_cont):
+            idx = iq[is_cont]
+            th = q[is_cont]
             self._q[idx] = np.cos(th)
             self._q[idx + 1] = np.sin(th)
 
-        if np.any(~self._is_cont):
-            self._q[self._iq[~self._is_cont]] = q[~self._is_cont]
+        if np.any(~is_cont):
+            self._q[iq[~is_cont]] = q[~is_cont]
 
+
+    @property
+    def canonical_joint_names(self) -> tuple[str, ...]:
+        return self._canonical_joint_names
 
     @property
     def q(self) -> FloatArray: return self._q
     @q.setter
     def q(self, v: FloatArray) -> None:
+        if v.shape != (self.n,):
+            raise ValueError(f"q.shape {v.shape} != expected {(self.n,)}")
         self._pack_q(v)
         self._invalidate_kinematics()
 
@@ -147,14 +170,6 @@ class PinocchioDynamics:
     def qdd(self, v: FloatArray) -> None:
         self._validate_array(v, self._qdd, "qdd")
         self._qdd[:] = v
-
-    @property
-    def n(self) -> int:
-        return self._model.nv
-
-    @property
-    def nq(self) -> int:
-        return self._model.nq
 
     @property
     def joint_names(self) -> list[str]:
@@ -195,7 +210,16 @@ class PinocchioDynamics:
         """Center of mass vectors"""
         return self._data.com
 
+    @property
+    def nv(self) -> int: return self._model.nv
 
+    @property
+    def nq(self) -> int: return self._model.nq
+
+    @property
+    def n(self) -> int: return self._model.nv
+
+    
     def set_gravity(self, g_vec: FloatArray) -> None:
         self._model.gravity.linear[:] = g_vec
 
