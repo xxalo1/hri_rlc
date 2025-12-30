@@ -11,14 +11,11 @@ from rosgraph_msgs.msg import Clock
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
 from sim_backend.mujoco.mujoco_base import Observation, StateAction
-from sim_env.mujoco.kinova_gen3_env import Gen3Env, GEN3_BASE_POSE
+from sim_env.mujoco.kinova_gen3_env import Gen3Env
 from common_utils import numpy_util as npu, FloatArray
 from ros_utils import msg_conv as rmsg
-from ros_utils import time_util as rtime
 from ros_utils.config import qos_latest
-from rbt_core.robot import CtrlMode
 
-from rlc_robot_models import kinova_gen3
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 
     JointEffortCmdMsg,
@@ -68,6 +65,7 @@ class Gen3MujocoSimNode(Node):
             qd = np.zeros(self.n, dtype=npu.dtype),
             qdd = np.zeros(self.n, dtype=npu.dtype),
             effort_applied = np.zeros(self.n, dtype=npu.dtype),
+            effort_bl = np.zeros(self.n, dtype=npu.dtype),
         )
 
         # ---------- Control flags ----------
@@ -257,12 +255,11 @@ def physics_loop(
     t0_wall = time.perf_counter()
     k = 0
 
-    obs = env.observe()
     while rclpy.ok() and not stop_evt.is_set():
         if node._reset_req.is_set():
             env.reset()
             cmd = node.reset_cmd()
-            obs = env.observe_into(node._state_back)
+            env.observe_into(node._state_back)
             node.step_state()
             k = 0
             t0_wall = time.perf_counter()
@@ -271,18 +268,15 @@ def physics_loop(
         if node._pause_req.is_set():
             time.sleep(0.00001)
             continue
-        
-        node._cmd_fresh.wait()
+
         cmd = node.step_cmd()
-        effort_bl = node.compute_tau(obs)
-        obs = env.step(cmd, mode="torque", nsub=1)
+        env.step(cmd, mode="torque", nsub=1)
 
         env.observe_into(node._state_back)
         env.state_action_into(node._state_action_back)
         node.step_state()
 
         k += 1
-        continue  # TEMP DISABLE REALTIME SLEEP
         target_wall = t0_wall + (k * dt_phy) / rt
         now = time.perf_counter()
         sleep_s = target_wall - now
