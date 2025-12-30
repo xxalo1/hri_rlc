@@ -30,12 +30,6 @@ class Gen3MujocoSimNode(Node):
         joint_names: list[str]
     ) -> None:
         super().__init__("gen3_mujoco_sim")
-        self.robot = kinova_gen3.make_gen3_robot(
-            variant=kinova_gen3.Gen3Variant.DOF7_BASE,
-        )
-        self.robot.set_base_pose(GEN3_BASE_POSE)
-        self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
-        self.robot.set_ctrl_mode(CtrlMode.CT)
 
         self.joint_names = joint_names
         self.n = len(joint_names)
@@ -74,7 +68,6 @@ class Gen3MujocoSimNode(Node):
             qd = np.zeros(self.n, dtype=npu.dtype),
             qdd = np.zeros(self.n, dtype=npu.dtype),
             effort_applied = np.zeros(self.n, dtype=npu.dtype),
-            effort_bl = np.zeros(self.n, dtype=npu.dtype),
         )
 
         # ---------- Control flags ----------
@@ -193,18 +186,6 @@ class Gen3MujocoSimNode(Node):
             self._cmd_fresh.set()
 
 
-    def compute_tau(self, obs: Observation) -> FloatArray:
-        robot = self.robot
-        t = obs.t
-        q = obs.q
-        qd = obs.qd
-
-        self.robot.set_joint_state(q=q, qd=qd, t=t)
-        self.robot.update_joint_des()
-        tau = robot.compute_ctrl_effort()
-        return tau
-
-
     def publish_joint_state(self) -> None:
         with self._state_lock:
             t_state = self.state.t
@@ -288,7 +269,7 @@ def physics_loop(
             node._reset_req.clear()
 
         if node._pause_req.is_set():
-            time.sleep(0.01)
+            time.sleep(0.00001)
             continue
         
         node._cmd_fresh.wait()
@@ -297,7 +278,7 @@ def physics_loop(
         obs = env.step(cmd, mode="torque", nsub=1)
 
         env.observe_into(node._state_back)
-        env.state_action_into(node._state_action_back, effort_bl=effort_bl)
+        env.state_action_into(node._state_action_back)
         node.step_state()
 
         k += 1

@@ -1,5 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
+import stat
+from typing import Sequence
 import numpy as np
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -41,6 +43,7 @@ class Robot:
     def __post_init__(self) -> None:
 
         n = self.n
+        self._joints_prefix = ""
         self.g_w = np.array([0.0, 0.0, -9.807], dtype=npu.dtype)
         self._pose_wb = np.zeros(7, dtype=npu.dtype)
 
@@ -56,6 +59,10 @@ class Robot:
         self._qd_des = np.zeros(n, dtype=npu.dtype)
         self._qdd_des = np.zeros(n, dtype=npu.dtype)
 
+        # Control efforts
+        self._tau_model = np.zeros(n, dtype=npu.dtype)
+        self._tau_src = np.zeros(n, dtype=npu.dtype)
+
         # Trajectory storage
         self.ti = 0.0
         self.tf = 0.0
@@ -64,7 +71,63 @@ class Robot:
 
         # Control modes
         self.controller_mode = CtrlMode.CT
-        self.TraceMode = TraceMode.HOLD
+        self.trace_mode = TraceMode.HOLD
+
+        self.configure_io(self.dyn.canonical_joint_names)
+        self.io_configured = False
+
+
+    def set_joint_prefix(self, prefix: str) -> None:
+        self._joints_prefix = prefix
+
+
+    def configure_io(self, 
+        src_names: Sequence[str], 
+        *, 
+        prefix: str | None = None
+    ) -> None:
+        if prefix is not None: self._joints_prefix = prefix
+        p = self._joints_prefix
+
+        def canon(n: str) -> str:
+            return n[len(p):] if p and n.startswith(p) else n
+
+        src_names_raw = tuple(src_names)
+        src_names_canon = [canon(n) for n in src_names_raw]
+
+        src_index: dict[str, int] = {}
+        for i, n in enumerate(src_names_canon):
+            if n in src_index:
+                raise ValueError(f"Duplicate joint name after normalization: {n}")
+            src_index[n] = i
+
+        model_names = self.dyn.canonical_joint_names
+        missing = [n for n in model_names if n not in src_index]
+        if missing:
+            raise ValueError(f"Missing joints in source: {missing}")
+
+        self._src_to_model_idx = np.array([src_index[n] for n in model_names], dtype=np.intp)
+
+        inv = np.empty_like(self._src_to_model_idx)
+        inv[self._src_to_model_idx] = np.arange(self._src_to_model_idx.size, dtype=np.intp)
+        self._model_to_src_idx = inv
+
+        self._src_joint_names = src_names_raw
+        self.io_configured = True
+
+
+    def _to_model_inplace(self, 
+        src_vec: FloatArray, 
+        out: FloatArray
+    ) -> None:
+        np.take(src_vec, self._src_to_model_idx, out=out)
+
+
+    def _to_src_inplace(self, 
+        model_vec: FloatArray, 
+        out: FloatArray
+    ) -> None:
+        np.take(model_vec, self._model_to_src_idx, out=out)
 
 
     @classmethod
@@ -78,7 +141,7 @@ class Robot:
 
 
     @property
-    def n(self) -> int: return self.dyn.n
+    def n(self) -> int: return self.dyn.nv
 
     @property
     def pose_wb(self) -> FloatArray: return self._pose_wb
@@ -87,45 +150,48 @@ class Robot:
     def q(self) -> FloatArray: return self._q
     @q.setter
     def q(self, v: FloatArray) -> None:
-        self._q[:] = v
-        self.dyn.step(q=v)
+        self._to_model_inplace(v, self._q)
+        self.dyn.step(q=self._q)
 
     @property
     def qd(self) -> FloatArray: return self._qd
     @qd.setter
     def qd(self, v: FloatArray) -> None:
-        self._qd[:] = v
-        self.dyn.step(qd=v)
+        self._to_model_inplace(v, self._qd)
+        self.dyn.step(qd=self._qd)
 
     @property
     def qdd(self) -> FloatArray: return self._qdd
     @qdd.setter
     def qdd(self, v: FloatArray) -> None:
-        self._qdd[:] = v
-        self.dyn.step(qdd=v)
+        self._to_model_inplace(v, self._qdd)
+        self.dyn.step(qdd=self._qdd)
 
     @property
     def q_des(self) -> FloatArray: return self._q_des
     @q_des.setter
     def q_des(self, v: FloatArray) -> None:
-        self._q_des[:] = v
+        self._to_model_inplace(v, self._q_des)
 
     @property
     def qd_des(self) -> FloatArray: return self._qd_des
     @qd_des.setter
     def qd_des(self, v: FloatArray) -> None:
-        self._qd_des[:] = v
+        self._to_model_inplace(v, self._qd_des)
 
     @property
     def qdd_des(self) -> FloatArray: return self._qdd_des
     @qdd_des.setter
     def qdd_des(self, v: FloatArray) -> None:
-        self._qdd_des[:] = v
+        self._to_model_inplace(v, self._qdd_des)
+    
+    @property
+    def joint_names(self) -> Sequence[str]:
+        return self._src_joint_names
 
     @property
-    def joint_names(self) -> list[str]:
-        return self.dyn.joint_names
-
+    def joint_prefix(self) -> str:
+        return self._joints_prefix
 
     def set_base_pose(self, pose_wb: FloatArray) -> None:
         """
@@ -284,7 +350,7 @@ class Robot:
         tf = ti + duration
         self.tf = tf
 
-        self.TraceMode = TraceMode.TRAJ
+        self.trace_mode = TraceMode.TRAJ
 
 
     def update_joint_des(self):
@@ -305,7 +371,7 @@ class Robot:
         `self.tracdyng_mode` to `TracdyngMode.HOLD`.
 
         """
-        if self.TraceMode is TraceMode.HOLD:
+        if self.trace_mode is TraceMode.HOLD:
             return
         
         if self.has_traj():
@@ -315,7 +381,7 @@ class Robot:
             q_des = self.q_des
             qd_des = np.zeros_like(self.q_des)
             qdd_des = np.zeros_like(self.q_des)
-            self.TraceMode = TraceMode.HOLD
+            self.trace_mode = TraceMode.HOLD
 
         self.set_joint_des(q_des, qd_des, qdd_des)
 
@@ -380,17 +446,18 @@ class Robot:
 
         match self.controller_mode:
             case CtrlMode.CT:
-                tau = self.ctrl.computed_torque(q, qd, q_des, qd_des, qdd_des)
+                self._tau_model[:] = self.ctrl.computed_torque(q, qd, q_des, qd_des, qdd_des)
             case CtrlMode.PID:
                 dt = self.t - self.t_prev
-                tau = self.ctrl.pid(q, qd, q_des, qd_des, dt)
+                self._tau_model[:] = self.ctrl.pid(q, qd, q_des, qd_des, dt)
             case CtrlMode.GC:
-                tau = self.dyn.gravity_vector()
+                self._tau_model[:] = self.dyn.gravity_vector()
             case _:
-                tau = np.zeros(self.n, dtype=npu.dtype)
+                self._tau_model[:] = np.zeros(self.n, dtype=npu.dtype)
 
-        return tau
-    
+        self._to_src_inplace(self._tau_model, self._tau_src)
+        return self._tau_src
+
 
     def setup_quintic_traj(self,
         q_des: FloatArray,

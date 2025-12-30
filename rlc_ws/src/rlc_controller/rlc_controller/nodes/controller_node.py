@@ -69,21 +69,24 @@ class Gen3ControllerNode(Node):
 
         # ---------- Robot Model ----------
         self.robot = kinova_gen3.make_gen3_robot(
-            variant=kinova_gen3.Gen3Variant.DOF7_BASE,
+            variant=kinova_gen3.Gen3Variant.DOF7_VISION,
         )
         self.robot.set_base_pose(GEN3_BASE_POSE)
         self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
         self.robot.set_ctrl_mode(CtrlMode.CT)
         self.robot.set_joint_des()
+        self.robot.set_joint_prefix("gen3_")
+        self.io_configured = False
 
         # ---------- State ----------
+        self.first_state_evt = threading.Event()
         self._state_lock = threading.Lock()
         self.state = rmsg.JointStateData(
             positions=np.zeros(self.robot.n, dtype=npu.dtype),
             velocities=np.zeros(self.robot.n, dtype=npu.dtype),
             efforts=None,
             stamp=0.0,
-            joint_names=self.robot.joint_names,
+            joint_names=list(self.robot.joint_names),
         )
         self.q = np.zeros(self.robot.n, dtype=npu.dtype)
         self.qd = np.zeros(self.robot.n, dtype=npu.dtype)
@@ -264,6 +267,9 @@ class Gen3ControllerNode(Node):
             self.state.velocities[:] = s.velocities
             self.state.stamp = s.stamp
 
+        if not self.first_state_evt.is_set():
+            self.first_state_evt.set()
+
         self.control_step()
 
 
@@ -370,7 +376,14 @@ class Gen3ControllerNode(Node):
     def control_step(self) -> None:
         robot = self.robot
 
-        # Update state from latest joint state message
+        if not self.robot.io_configured:
+            if not self.first_state_evt.is_set():
+                return
+            with self._state_lock:
+                names = list(self.state.joint_names)
+            robot.configure_io(names)
+            self.get_logger().info("Robot I/O configured.")
+
         with self._state_lock:
             self.q[:] = self.state.positions
             self.qd[:] = self.state.velocities

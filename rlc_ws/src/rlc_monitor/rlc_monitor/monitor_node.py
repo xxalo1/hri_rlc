@@ -33,9 +33,10 @@ class RLCMonitorNode(Node):
             ).get_parameter_value().integer_value
         
         self.robot = kinova_gen3.make_gen3_robot(
-            variant= kinova_gen3.Gen3Variant.DOF7_BASE,
+            variant= kinova_gen3.Gen3Variant.DOF7_VISION,
         )
         self.robot.set_base_pose(GEN3_BASE_POSE)
+        self.robot.set_joint_prefix('gen3_')
         self.state_buffer = BufferSet(capacity=self.capacity)
 
         self.joint_state_sub = self.create_subscription(
@@ -73,6 +74,11 @@ class RLCMonitorNode(Node):
         qd = joint_state.velocities
         tau_sim = joint_state.efforts
 
+        if not self.robot.io_configured:
+            self.robot.configure_io(
+                src_names=joint_state.joint_names,
+            )
+
         # update current states
         self.robot.set_joint_state(q=q, qd=qd, t=t)
 
@@ -108,6 +114,8 @@ class RLCMonitorNode(Node):
 
     def publish_frame_states(self) -> None:
         """Publish the current frame states of the robot."""
+        if not self.robot.io_configured:
+            return
         T_bj = self.robot.dyn.get_joint_T_stack()
         pose_wb = self.robot.pose_wb
         T_wb = tfm.pos_quat_to_transform(

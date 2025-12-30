@@ -25,9 +25,10 @@ class TrajectoryPlannerNode(Node):
         super().__init__("trajectory_planner")
 
         self.robot = kinova_gen3.make_gen3_robot(
-            variant=kinova_gen3.Gen3Variant.DOF7_BASE,
+            variant=kinova_gen3.Gen3Variant.DOF7_VISION,
         )
         self.robot.set_base_pose(GEN3_BASE_POSE)
+        self.robot.set_joint_prefix("gen3_")
 
         # ---------- Parameters ----------
         self.declare_parameter("default_plan_frequency", 100.0)
@@ -76,6 +77,10 @@ class TrajectoryPlannerNode(Node):
         q = joint_state.positions
         qd = joint_state.velocities
 
+        if not self.robot.io_configured:
+            self.robot.configure_io(
+                src_names=joint_state.joint_names,
+            )
         # update current states
         self.robot.set_joint_state(q=q, qd=qd, t=t)
 

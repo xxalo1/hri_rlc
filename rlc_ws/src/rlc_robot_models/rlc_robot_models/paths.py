@@ -11,8 +11,4 @@ def kinova_gen3_dir() -> Path:
     return descriptions_share() / "robots" / "kinova_gen3"
 
 def kinova_gen3_urdf(variant: str = "gen3") -> Path:
-    if variant == "gen3":
-        return kinova_gen3_dir() / "urdf" / "gen3.urdf"
-    if variant == "gen3_robotiq_2f_85":
-        return kinova_gen3_dir() / "urdf" / "gen3_robotiq_2f_85.urdf"
-    raise ValueError(f"Unknown Gen3 variant: {variant}")
+    return kinova_gen3_dir() / "urdf" / f"{variant}.urdf"

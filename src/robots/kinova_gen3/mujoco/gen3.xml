@@ -115,7 +115,7 @@
                   <geom class="visual" mesh="spherical_wrist_2_link"/>
                   <geom class="collision" mesh="spherical_wrist_2_link"/>
                   <body name="bracelet_link" pos="0 -0.10593 -0.00017505" quat="1 -1 0 0">
-                    <inertial pos="-0.000281 0.011402 -0.029798" quat="0.394358 0.596779 -0.577293 0.393789" mass="0.5"
+                    <inertial pos="0.000281 0.011402 -0.029798" quat="0.394358 0.596779 -0.577293 0.393789" mass="0.5"
                       diaginertia="0.000657336 0.000587019 0.000320645"/>
                     <site name="bracelet_link_com"
                       pos="0.000281 0.011402 -0.029798"
