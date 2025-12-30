@@ -24,7 +24,7 @@ class RLCMonitorNode(Node):
         super().__init__('rlc_monitor')
 
         self.declare_parameter('capacity', 10000)
-        self.declare_parameter('publish_rate', 100.0)  # Hz
+        self.declare_parameter('publish_rate', 20.0)  # Hz
         self.freq = self.get_parameter(
             'publish_rate'
             ).get_parameter_value().double_value

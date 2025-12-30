@@ -25,7 +25,7 @@ class StateAction:
     qd: FloatArray
     qdd: FloatArray
     effort_applied: FloatArray
-    effort_bl: FloatArray | None = None
+    effort_bl: FloatArray
 
 class BaseMujocoEnv:
     def __init__(self, xml_path, nsubsteps=10, seed: int | None = 0):

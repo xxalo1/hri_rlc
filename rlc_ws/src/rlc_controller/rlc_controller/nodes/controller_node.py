@@ -74,9 +74,7 @@ class Gen3ControllerNode(Node):
         self.robot.set_base_pose(GEN3_BASE_POSE)
         self.robot.ctrl.set_joint_gains(Kp=1, Kv=1, Ki=1)
         self.robot.set_ctrl_mode(CtrlMode.CT)
-        self.robot.set_joint_des()
         self.robot.set_joint_prefix("gen3_")
-        self.io_configured = False
 
         # ---------- State ----------
         self.first_state_evt = threading.Event()
@@ -120,7 +118,6 @@ class Gen3ControllerNode(Node):
         self._ctrl_mode_lock = threading.Lock()
         self._ctrl_mode_pending : CtrlMode | None = None
 
-
         # ---------- Callback Groups ----------
         self._cb_ctrl = MutuallyExclusiveCallbackGroup()
         self._cb_state = MutuallyExclusiveCallbackGroup()
@@ -144,14 +141,14 @@ class Gen3ControllerNode(Node):
             TOPICS.controller_state.type,
             TOPICS.controller_state.name,
             qos_latest,
-            callback_group=self._cb_state
+            callback_group=self._cb_ctrl
         )
         self.publish_period = 1.0 / self.controller_rate
-        # self.publish_timer = self.create_timer(
-        #    self.publish_period,
-        #    self.control_step,
-        #    callback_group=self._cb_ctrl
-        #)
+        self.publish_timer = self.create_timer(
+            self.publish_period,
+            self.control_step,
+            callback_group=self._cb_ctrl
+        )
 
         # ---------- Subscribers ----------
         self.joint_state_sub = self.create_subscription(
@@ -269,9 +266,6 @@ class Gen3ControllerNode(Node):
 
         if not self.first_state_evt.is_set():
             self.first_state_evt.set()
-
-        self.control_step()
-
 
     def _consume_traj_requests(self) -> None:
         """Consume trajectory requests. Must be called only from the control loop thread."""
