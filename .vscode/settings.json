@@ -1,4 +1,6 @@
 {
+  
+  "C_Cpp.intelliSenseEngine": "disabled",
   "python.languageServer": "Pylance",
   "python.analysis.stubPath": "typings",
   "python.analysis.extraPaths": [
