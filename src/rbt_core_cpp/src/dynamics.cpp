@@ -1,13 +1,12 @@
-#include "pinocchio_dynamics.hpp"
+#include "rbt_core_cpp/dynamics.hpp"
 
-#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/center-of-mass.hpp>
+#include <pinocchio/algorithm/compute-all-terms.hpp>
+#include <pinocchio/algorithm/crba.hpp>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>
-#include <pinocchio/algorithm/crba.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/rnea.hpp>
-#include <pinocchio/algorithm/compute-all-terms.hpp>
-#include <pinocchio/algorithm/center-of-mass.hpp>
-#include <pinocchio/algorithm/gravitation.hpp>
 #include <pinocchio/parsers/urdf.hpp>
 
 namespace rbt_core_cpp {
@@ -24,15 +23,15 @@ static pinocchio::Model build_model_from_urdf(const std::string& urdf_path, bool
 }
 
 Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame)
-: model_(std::move(model))
-, data_(model_)
-, q_(Vec::Zero(model_.nq))
-, qd_(Vec::Zero(model_.nv))
-, qdd_(Vec::Zero(model_.nv))
-, M_cache_(Mat::Zero(model_.nv, model_.nv))
-, J_cache_(Mat6::Zero(6, model_.nv))
-, tau_cache_(Vec::Zero(model_.nv))
-, qdd_task_(Vec::Zero(model_.nv))
+    : model_(std::move(model)),
+      data_(model_),
+      q_(Vec::Zero(model_.nq)),
+      qd_(Vec::Zero(model_.nv)),
+      qdd_(Vec::Zero(model_.nv)),
+      M_cache_(Mat::Zero(model_.nv, model_.nv)),
+      J_cache_(Mat6::Zero(6, model_.nv)),
+      tau_cache_(Vec::Zero(model_.nv)),
+      qdd_task_(Vec::Zero(model_.nv))
 {
   init_joint_packing();
 
@@ -47,9 +46,9 @@ Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame)
   Lambda_inv_.resize(6, 6);
 }
 
-Dynamics Dynamics::FromUrdf(const std::string& urdf_path,
-                                              const std::string& tcp_frame,
-                                              bool floating_base)
+Dynamics Dynamics::FromUrdf(
+    const std::string& urdf_path, const std::string& tcp_frame, bool floating_base
+)
 {
   auto model = build_model_from_urdf(urdf_path, floating_base);
   return Dynamics(std::move(model), tcp_frame);
@@ -58,9 +57,10 @@ Dynamics Dynamics::FromUrdf(const std::string& urdf_path,
 void Dynamics::check_size(const Eigen::Ref<const Vec>& v, int expected, const char* name)
 {
   if (v.size() != expected) {
-    throw std::runtime_error(std::string(name) + " size mismatch: got " +
-                             std::to_string(v.size()) + " expected " +
-                             std::to_string(expected));
+    throw std::runtime_error(
+        std::string(name) + " size mismatch: got " + std::to_string(v.size()) + " expected " +
+        std::to_string(expected)
+    );
   }
 }
 
@@ -89,8 +89,9 @@ void Dynamics::init_joint_packing()
     }
   }
 
-  std::sort(tmp.begin(), tmp.end(),
-            [&](int a, int b){ return joints[a].idx_v() < joints[b].idx_v(); });
+  std::sort(tmp.begin(), tmp.end(), [&](int a, int b) {
+    return joints[a].idx_v() < joints[b].idx_v();
+  });
 
   jids_ = tmp;
   idx_q_.resize(jids_.size());
@@ -114,7 +115,7 @@ void Dynamics::set_q_dof(const Eigen::Ref<const Vec>& q_dof)
     const double th = q_dof[k];
 
     if (is_cont_[k]) {
-      q_[iq]     = std::cos(th);
+      q_[iq] = std::cos(th);
       q_[iq + 1] = std::sin(th);
     } else {
       q_[iq] = th;
@@ -141,8 +142,8 @@ void Dynamics::set_qdd(const Eigen::Ref<const Vec>& qdd)
 void Dynamics::step(const Vec* q_dof, const Vec* qd, const Vec* qdd)
 {
   if (q_dof) set_q_dof(*q_dof);
-  if (qd)    set_qd(*qd);
-  if (qdd)   set_qdd(*qdd);
+  if (qd) set_qd(*qd);
+  if (qdd) set_qdd(*qdd);
 }
 
 void Dynamics::set_gravity(const Eigen::Vector3d& g)
@@ -238,18 +239,20 @@ Dynamics::Mat4 Dynamics::frame_T(pinocchio::FrameIndex fid)
   return oMf.homogeneous();
 }
 
-const Dynamics::Mat6& Dynamics::frame_jacobian(pinocchio::FrameIndex fid,
-                                                                  pinocchio::ReferenceFrame rf)
+const Dynamics::Mat6& Dynamics::frame_jacobian(
+    pinocchio::FrameIndex fid, pinocchio::ReferenceFrame rf
+)
 {
   ensure_jac();
-  // getFrameJacobian reads from cached joint Jacobians
   pinocchio::getFrameJacobian(model_, data_, fid, rf, J_cache_);
   return J_cache_;
 }
 
-const Dynamics::Vec& Dynamics::rnea(const Eigen::Ref<const Vec>& q,
-                                                      const Eigen::Ref<const Vec>& qd,
-                                                      const Eigen::Ref<const Vec>& qdd)
+const Dynamics::Vec& Dynamics::rnea(
+    const Eigen::Ref<const Vec>& q,
+    const Eigen::Ref<const Vec>& qd,
+    const Eigen::Ref<const Vec>& qdd
+)
 {
   check_size(q, model_.nq, "q");
   check_size(qd, model_.nv, "qd");
@@ -258,4 +261,4 @@ const Dynamics::Vec& Dynamics::rnea(const Eigen::Ref<const Vec>& q,
   return tau_cache_;
 }
 
-} // namespace rbt_core_cpp
+}  // namespace rbt_core_cpp
