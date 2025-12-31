@@ -26,5 +26,10 @@
     // (optional but useful) global ROS Jazzy Python packages
     "/opt/ros/jazzy/lib/python3.12/site-packages"
   ],
-  "github.copilot.chat.codeGeneration.useInstructionFiles": true
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "python.autoComplete.extraPaths": [
+    "/opt/ros/jazzy/lib/python3.12/site-packages",
+    "/opt/openrobots/lib/python3.12/site-packages",
+    ""
+  ]
 }
