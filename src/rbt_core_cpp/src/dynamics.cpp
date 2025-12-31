@@ -12,27 +12,18 @@
 namespace rbt_core_cpp
 {
 
-static pinocchio::Model build_model_from_urdf(const std::string &urdf_path, bool floating_base)
-{
-  pinocchio::Model model;
-  if (floating_base)
-  {
-    pinocchio::urdf::buildModel(urdf_path, pinocchio::JointModelFreeFlyer(), model);
-  }
-  else
-  {
-    pinocchio::urdf::buildModel(urdf_path, model);
-  }
-  return model;
-}
-
-Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame)
-    : model_(std::move(model)), data_(model_), q_(Vec::Zero(model_.nq)), qd_(Vec::Zero(model_.nv)),
-      qdd_(Vec::Zero(model_.nv)), M_cache_(Mat::Zero(model_.nv, model_.nv)),
-      J_cache_(Mat6::Zero(6, model_.nv)), tau_cache_(Vec::Zero(model_.nv)),
-      qdd_task_(Vec::Zero(model_.nv))
+Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame): 
+  model_(std::move(model)),
+  data_(model_),
+  q_(Vec::Zero(model_.nq)),
+  qd_(Vec::Zero(model_.nv)),
+  qdd_(Vec::Zero(model_.nv)),
+  M_cache_(Mat::Zero(model_.nv, model_.nv)),
+  J_cache_(Mat6::Zero(6, model_.nv)),
+  tau_cache_(Vec::Zero(model_.nv))
 {
   init_joint_packing();
+  invalidate_kinematics();
 
   if (tcp_frame.empty())
   {
@@ -42,16 +33,15 @@ Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame)
   {
     tcp_frame_id_ = frame_id(tcp_frame);
   }
-
-  // Preallocate dyn_pinv buffers with a conservative size (resize later if needed)
-  X_.resize(model_.nv, 6);
-  Lambda_inv_.resize(6, 6);
 }
 
 Dynamics Dynamics::FromUrdf(
-  const std::string &urdf_path, const std::string &tcp_frame, bool floating_base)
+  const std::string &urdf_path, 
+  const std::string &tcp_frame
+)
 {
-  auto model = build_model_from_urdf(urdf_path, floating_base);
+  pinocchio::Model model;
+  pinocchio::urdf::buildModel(urdf_path, model);
   return Dynamics(std::move(model), tcp_frame);
 }
 
@@ -63,8 +53,11 @@ void Dynamics::check_size(
 {
   if (v.size() != expected)
   {
-    throw std::runtime_error(std::string(name) + " size mismatch: got " + std::to_string(v.size()) +
-                             " expected " + std::to_string(expected));
+    throw std::runtime_error(
+      std::string(name) + " size mismatch: got " + 
+      std::to_string(v.size()) +
+      " expected " + 
+      std::to_string(expected));
   }
 }
 
@@ -73,7 +66,6 @@ void Dynamics::invalidate_kinematics()
   fk_valid_ = false;
   jac_valid_ = false;
   M_valid_ = false;
-  nle_valid_ = false;
   g_valid_ = false;
 }
 
@@ -112,14 +104,14 @@ void Dynamics::init_joint_packing()
   }
 }
 
-void Dynamics::set_q_dof(const Eigen::Ref<const Vec> &q_dof)
+void Dynamics::set_q(const Eigen::Ref<const Vec> &q)
 {
-  check_size(q_dof, n(), "q_dof");
+  check_size(q, n(), "q");
 
   for (int k = 0; k < static_cast<int>(jids_.size()); ++k)
   {
     const int iq = idx_q_[k];
-    const double th = q_dof[k];
+    const double th = q[k];
 
     if (is_cont_[k])
     {
@@ -139,8 +131,6 @@ void Dynamics::set_qd(const Eigen::Ref<const Vec> &qd)
 {
   check_size(qd, nv(), "qd");
   qd_ = qd;
-  // velocities do not invalidate FK, but they do invalidate dyn terms if you use them
-  nle_valid_ = false;
 }
 
 void Dynamics::set_qdd(const Eigen::Ref<const Vec> &qdd)
@@ -156,7 +146,7 @@ void Dynamics::step(
 )
 {
   if (q_dof)
-    set_q_dof(*q_dof);
+    set_q(*q_dof);
   if (qd)
     set_qd(*qd);
   if (qdd)
@@ -166,8 +156,6 @@ void Dynamics::step(
 void Dynamics::set_gravity(const Eigen::Vector3d &g)
 {
   model_.gravity.linear() = g;
-  g_valid_ = false;
-  nle_valid_ = false;
 }
 
 void Dynamics::compute_fk()
@@ -215,20 +203,6 @@ const Dynamics::Mat &Dynamics::M()
   return M_cache_;
 }
 
-void Dynamics::compute_nle()
-{
-  // nle requires q and qd
-  pinocchio::nonLinearEffects(model_, data_, q_, qd_);
-  nle_valid_ = true;
-}
-
-const Dynamics::Vec &Dynamics::nle()
-{
-  if (!nle_valid_)
-    compute_nle();
-  return data_.nle;
-}
-
 void Dynamics::compute_gravity()
 {
   pinocchio::computeGeneralizedGravity(model_, data_, q_);
@@ -258,7 +232,7 @@ const pinocchio::SE3 &Dynamics::frame_se3(pinocchio::FrameIndex fid)
 Dynamics::Mat4 Dynamics::frame_T(pinocchio::FrameIndex fid)
 {
   const auto &oMf = frame_se3(fid);
-  return oMf.homogeneous();
+  return oMf.toHomogeneousMatrix();
 }
 
 const Dynamics::Mat6 &Dynamics::frame_jacobian(
@@ -267,12 +241,20 @@ const Dynamics::Mat6 &Dynamics::frame_jacobian(
 )
 {
   ensure_jac();
-  pinocchio::getFrameJacobian(model_, data_, fid, rf, J_cache_);
+  pinocchio::getFrameJacobian(
+    model_, 
+    data_, 
+    fid, 
+    rf, 
+    J_cache_);
   return J_cache_;
 }
 
 const Dynamics::Vec &Dynamics::rnea(
-  const Eigen::Ref<const Vec> &q, const Eigen::Ref<const Vec> &qd, const Eigen::Ref<const Vec> &qdd)
+  const Eigen::Ref<const Vec> &q, 
+  const Eigen::Ref<const Vec> &qd, 
+  const Eigen::Ref<const Vec> &qdd
+)
 {
   check_size(q, model_.nq, "q");
   check_size(qd, model_.nv, "qd");
@@ -281,4 +263,4 @@ const Dynamics::Vec &Dynamics::rnea(
   return tau_cache_;
 }
 
-} // namespace rbt_core_cpp
+}

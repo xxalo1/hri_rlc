@@ -6,9 +6,15 @@
         "limitSymbolsToIncludedHeaders": false
       },
       "includePath": [
+        "${workspaceFolder}/src/rbt_core_cpp/include/**",
         "/opt/ros/jazzy/include/**",
-        "/home/rwolv/projects/hri_rlc/src/rbt_core_cpp/include/**",
+        "/opt/openrobots/include/**",
+        "/usr/include/eigen3/**",
         "/usr/include/**"
+      ],
+      "defines": [
+        "PINOCCHIO_WITH_URDFDOM",
+        "PINOCCHIO_ENABLE_TEMPLATE_INSTANTIATION"
       ],
       "name": "ros2",
       "intelliSenseMode": "gcc-x64",
