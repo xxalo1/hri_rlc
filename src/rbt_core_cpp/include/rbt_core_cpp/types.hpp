@@ -12,4 +12,4 @@ using Mat4 = Eigen::Matrix4d;
 using Mat6 = Eigen::Matrix<double, 6, 6>;
 using Mat6N = Eigen::Matrix<double, 6, Eigen::Dynamic>;
 
-} // namespace rbt_core_cpp
+}
