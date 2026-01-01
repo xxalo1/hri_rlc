@@ -1,12 +1,13 @@
 #pragma once
 
+#include "rbt_core_cpp/types.hpp"
+
 #include <pinocchio/fwd.hpp>
 #include <pinocchio/multibody/model.hpp>
 #include <pinocchio/multibody/data.hpp>
 #include <pinocchio/spatial/se3.hpp>
 #include <pinocchio/spatial/motion.hpp>
 
-#include <Eigen/Core>
 #include <Eigen/Cholesky>
 #include <Eigen/LU>
 
@@ -18,10 +19,10 @@ namespace rbt_core_cpp {
 
 class Dynamics final {
 public:
-  using Vec  = Eigen::VectorXd;
-  using Mat  = Eigen::MatrixXd;
-  using Mat6 = Eigen::Matrix<double, 6, Eigen::Dynamic>;
-  using Mat4 = Eigen::Matrix4d;
+  using Vec  = rbt_core_cpp::Vec;
+  using Mat  = rbt_core_cpp::Mat;
+  using Mat6 = rbt_core_cpp::Mat6N;
+  using Mat4 = rbt_core_cpp::Mat4;
 
   explicit Dynamics(
     pinocchio::Model model,

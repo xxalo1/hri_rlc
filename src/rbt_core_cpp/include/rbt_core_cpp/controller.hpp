@@ -1,20 +1,19 @@
 #pragma once
 
+#include "rbt_core_cpp/types.hpp"
 #include "rbt_core_cpp/dynamics.hpp"
-
-#include <Eigen/Core>
 
 namespace rbt_core_cpp {
 
 class Controller final {
 public:
-  using Vec  = Eigen::VectorXd;
-  using Mat  = Eigen::MatrixXd;
-  using Vec3 = Eigen::Vector3d;
-  using Vec6 = Eigen::Matrix<double, 6, 1>;
-  using Mat6 = Eigen::Matrix<double, 6, 6>;
-  using Mat4 = Eigen::Matrix4d;
-  using Mat6N = Eigen::Matrix<double, 6, Eigen::Dynamic>;
+  using Vec  = rbt_core_cpp::Vec;
+  using Mat  = rbt_core_cpp::Mat;
+  using Vec3 = rbt_core_cpp::Vec3;
+  using Vec6 = rbt_core_cpp::Vec6;
+  using Mat6 = rbt_core_cpp::Mat6;
+  using Mat4 = rbt_core_cpp::Mat4;
+  using Mat6N = rbt_core_cpp::Mat6N;
 
   explicit Controller(Dynamics& dyn);
   Controller(Dynamics& dyn, pinocchio::FrameIndex tcp_frame_id);

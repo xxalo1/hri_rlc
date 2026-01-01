@@ -106,8 +106,6 @@ void Dynamics::init_joint_packing()
 
 void Dynamics::set_q(const Eigen::Ref<const Vec> &q)
 {
-  check_size(q, n(), "q");
-
   for (int k = 0; k < static_cast<int>(jids_.size()); ++k)
   {
     const int iq = idx_q_[k];
@@ -129,13 +127,11 @@ void Dynamics::set_q(const Eigen::Ref<const Vec> &q)
 
 void Dynamics::set_qd(const Eigen::Ref<const Vec> &qd)
 {
-  check_size(qd, nv(), "qd");
   qd_ = qd;
 }
 
 void Dynamics::set_qdd(const Eigen::Ref<const Vec> &qdd)
 {
-  check_size(qdd, nv(), "qdd");
   qdd_ = qdd;
 }
 
@@ -256,9 +252,6 @@ const Dynamics::Vec &Dynamics::rnea(
   const Eigen::Ref<const Vec> &qdd
 )
 {
-  check_size(q, model_.nq, "q");
-  check_size(qd, model_.nv, "qd");
-  check_size(qdd, model_.nv, "qdd");
   tau_cache_ = pinocchio::rnea(model_, data_, q, qd, qdd);
   return tau_cache_;
 }
