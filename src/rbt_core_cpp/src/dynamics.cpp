@@ -12,15 +12,15 @@
 namespace rbt_core_cpp
 {
 
-Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame): 
-  model_(std::move(model)),
-  data_(model_),
-  q_(Vec::Zero(model_.nq)),
-  qd_(Vec::Zero(model_.nv)),
-  qdd_(Vec::Zero(model_.nv)),
-  M_cache_(Mat::Zero(model_.nv, model_.nv)),
-  J_cache_(Mat6::Zero(6, model_.nv)),
-  tau_cache_(Vec::Zero(model_.nv))
+Dynamics::Dynamics(pinocchio::Model model, std::string tcp_frame)
+  : model_(std::move(model)),
+    data_(model_),
+    q_(Vec::Zero(model_.nq)),
+    qd_(Vec::Zero(model_.nv)),
+    qdd_(Vec::Zero(model_.nv)),
+    M_cache_(Mat::Zero(model_.nv, model_.nv)),
+    J_cache_(Mat6::Zero(6, model_.nv)),
+    tau_cache_(Vec::Zero(model_.nv))
 {
   init_joint_packing();
   invalidate_kinematics();

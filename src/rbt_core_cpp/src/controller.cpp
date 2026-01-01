@@ -13,6 +13,7 @@ namespace rbt_core_cpp
 Controller::Controller(Dynamics &dyn)
   : Controller(dyn, dyn.tcp_frame_id())
 {
+
 }
 
 Controller::Controller(Dynamics &dyn, pinocchio::FrameIndex tcp_frame_id)
@@ -27,37 +28,6 @@ Controller::Controller(Dynamics &dyn, pinocchio::FrameIndex tcp_frame_id)
   e_.setZero(n);
   de_.setZero(n);
   v_.setZero(n);
-}
-
-void Controller::check_vec_size(
-  const Eigen::Ref<const Vec> &v, 
-  int expected, 
-  const char *name
-)
-{
-  if (v.size() != expected)
-  {
-    throw std::runtime_error(
-      std::string(name) + " size mismatch: got " +
-      std::to_string(v.size()) +
-      " expected " + std::to_string(expected));
-  }
-}
-
-void Controller::check_mat_size(
-  const Eigen::Ref<const Mat> &M, 
-  int rows, 
-  int cols, 
-  const char *name
-)
-{
-  if (M.rows() != rows || M.cols() != cols)
-  {
-    throw std::runtime_error(
-      std::string(name) + " size mismatch: got " +
-      std::to_string(M.rows()) + "x" + std::to_string(M.cols()) +
-      " expected " + std::to_string(rows) + "x" + std::to_string(cols));
-  }
 }
 
 Controller::Vec3 Controller::orientation_error(
@@ -144,14 +114,6 @@ void Controller::pid(
   Eigen::Ref<Vec> tau_out
 )
 {
-  const int n = dyn_.n();
-  check_vec_size(q, n, "q");
-  check_vec_size(qd, n, "qd");
-  check_vec_size(q_des, n, "q_des");
-  check_vec_size(qd_des, n, "qd_des");
-  if (tau_out.size() != n)
-    throw std::runtime_error("tau_out size mismatch");
-
   e_.noalias() = q_des - q;
   de_.noalias() = qd_des - qd;
   e_int_.noalias() += e_ * dt;
@@ -184,15 +146,6 @@ void Controller::computed_torque(
   Eigen::Ref<Vec> tau_out
 )
 {
-  const int n = dyn_.n();
-  check_vec_size(q, n, "q");
-  check_vec_size(qd, n, "qd");
-  check_vec_size(q_des, n, "q_des");
-  check_vec_size(qd_des, n, "qd_des");
-  check_vec_size(qdd_des, n, "qdd_des");
-  if (tau_out.size() != n)
-    throw std::runtime_error("tau_out size mismatch");
-
   e_.noalias() = q_des - q;
   de_.noalias() = qd_des - qd;
   v_.noalias() = qdd_des;
@@ -210,7 +163,6 @@ Controller::Vec Controller::task_to_joint(
 ) const
 {
   const int n = dyn_.n();
-  check_vec_size(xdd, J_task.rows(), "xdd");
 
   if (J_task.cols() != n)
   {
@@ -243,7 +195,6 @@ Controller::Vec Controller::task_to_joint(
   Vec qdd_sec = Vec::Zero(n);
   if (xdd_sec != nullptr && J_sec != nullptr)
   {
-    check_vec_size(*xdd_sec, J_sec->rows(), "xdd_sec");
     if (J_sec->cols() != n)
     {
       throw std::runtime_error(
@@ -280,18 +231,6 @@ Controller::Vec Controller::impedance_ee(
   const Mat *J_sec
 )
 {
-  const int n = dyn_.n();
-  check_vec_size(q, n, "q");
-  check_vec_size(qd, n, "qd");
-
-  if (xd_des != nullptr)
-    check_vec_size(*xd_des, 6, "xd_des");
-  if (xdd_des != nullptr)
-    check_vec_size(*xdd_des, 6, "xdd_des");
-
-  dyn_.set_q(q);
-  dyn_.set_qd(qd);
-
   const Mat4 T_tcp = dyn_.frame_T(tcp_frame_id_);
 
   const Eigen::Matrix3d R = T_tcp.block<3, 3>(0, 0);
@@ -324,9 +263,9 @@ Controller::Vec Controller::impedance_ee(
   const Vec6 xdd_main = xdd_des_local + Dx_ * de + Kx_ * e + Kix_ * e_task_int_;
 
   const Vec qdd_star = task_to_joint(xdd_main, J_tcp, xdd_sec, J_sec);
-  const Vec tau = dyn_.rnea(dyn_.q(), dyn_.qd(), qdd_star);
+  const Vec tau = dyn_.rnea(q, qd, qdd_star);
 
   return tau;
 }
 
-} // namespace rbt_core_cpp
+}
