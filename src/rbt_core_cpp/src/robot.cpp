@@ -10,15 +10,10 @@ Robot::Robot(RobotSpec spec)
       ctrl_(dyn_) {
   const int n = dyn_.n();
 
-  q_model_.setZero(n);
-  qd_model_.setZero(n);
-  qdd_model_.setZero(n);
+  state_.resize(n);
+  state_des_.resize(n);
 
-  q_des_model_.setZero(n);
-  qd_des_model_.setZero(n);
-  qdd_des_model_.setZero(n);
-
-  tau_model_.setZero(n);
+  tau_.setZero(n);
   tau_src_.setZero(n);
 
   // Default I/O config: assume source order matches model canonical order.
@@ -106,22 +101,28 @@ void Robot::to_src_inplace(const Eigen::Ref<const Vec> &model,
   }
 }
 
+void Robot::set_q(const Vec q_src) {
+  to_model_inplace(q_src, state_.q);
+  dyn_.set_q(state_.q);
+}
+
+void Robot::set_qd(const Vec qd_src) {
+  to_model_inplace(qd_src, state_.qd);
+  dyn_.set_qd(state_.qd);
+}
+
+void Robot::set_qdd(const Vec qdd_src) {
+  to_model_inplace(qdd_src, state_.qdd);
+  dyn_.set_qdd(state_.qdd);
+}
+
 void Robot::set_joint_state(const Vec *q_src, const Vec *qd_src,
                             const Vec *qdd_src, const double *t) {
-  if (q_src) {
-    to_model_inplace(*q_src, q_model_);
-    dyn_.set_q(q_model_);
-  }
+  if (q_src) set_q(*q_src);
 
-  if (qd_src) {
-    to_model_inplace(*qd_src, qd_model_);
-    dyn_.set_qd(qd_model_);
-  }
+  if (qd_src) set_qd(*qd_src);
 
-  if (qdd_src) {
-    to_model_inplace(*qdd_src, qdd_model_);
-    dyn_.set_qdd(qdd_model_);
-  }
+  if (qdd_src) set_qdd(*qdd_src);
 
   if (t) {
     t_prev_ = t_;
@@ -131,9 +132,9 @@ void Robot::set_joint_state(const Vec *q_src, const Vec *qd_src,
 
 void Robot::set_joint_des(const Vec *q_des_src, const Vec *qd_des_src,
                           const Vec *qdd_des_src) {
-  if (q_des_src) to_model_inplace(*q_des_src, q_des_model_);
-  if (qd_des_src) to_model_inplace(*qd_des_src, qd_des_model_);
-  if (qdd_des_src) to_model_inplace(*qdd_des_src, qdd_des_model_);
+  if (q_des_src) to_model_inplace(*q_des_src, state_des_.q);
+  if (qd_des_src) to_model_inplace(*qd_des_src, state_des_.qd);
+  if (qdd_des_src) to_model_inplace(*qdd_des_src, state_des_.qdd);
 }
 
 void Robot::set_base_pose_wb(const Eigen::Ref<const Vec> &pose_wb) {
@@ -154,17 +155,22 @@ void Robot::set_base_pose_wb(const Eigen::Ref<const Vec> &pose_wb) {
 void Robot::clear_traj() {
   ti_ = 0.0;
   tf_ = 0.0;
-  traj_model_ = JointTrajectory{};
+  traj_ = JointTrajectory{};
   traj_i1_ = 1;
   trace_mode_ = TraceMode::HOLD;
 }
 
 bool Robot::has_traj() const noexcept {
-  return (t_ >= ti_) && (t_ <= tf_) && (!traj_model_.empty());
+  if (traj_.empty()) return false;
+
+  const double t_rel = t_ - ti_;
+  const int N = traj_.length();
+  if (N <= 0) return false;
+
+  return (t_rel >= traj_.t[0]) && (t_rel <= traj_.t[N - 1]);
 }
 
-void Robot::set_joint_traj(const JointTrajectory &traj_src, double duration,
-                           double ti) {
+void Robot::set_joint_traj(const JointTrajectory &traj_src, double delay) {
   const int n = dyn_.n();
   const int N = traj_src.length();
 
@@ -181,22 +187,29 @@ void Robot::set_joint_traj(const JointTrajectory &traj_src, double duration,
         "set_joint_traj: q/qd/qdd row count mismatch with t");
   }
 
-  if (std::isnan(ti)) ti = t_;
+  if (std::isnan(delay)) delay = 0.0;
+  ti_ = t_ + delay;
 
-  ti_ = ti;
-  tf_ = ti + duration;
+  // Copy time and validate monotonicity once (NOT in the 1 kHz loop)
+  traj_.t = traj_src.t;
+  for (int k = 1; k < N; ++k) {
+    if (!(traj_.t[k] > traj_.t[k - 1])) {
+      throw std::runtime_error("set_joint_traj: t must be strictly increasing");
+    }
+  }
 
-  traj_model_.t = traj_src.t;
-  traj_model_.q.resize(N, n);
-  traj_model_.qd.resize(N, n);
-  traj_model_.qdd.resize(N, n);
+  tf_ = ti_ + traj_.t[N - 1];
+
+  traj_.q.resize(N, n);
+  traj_.qd.resize(N, n);
+  traj_.qdd.resize(N, n);
 
   for (int r = 0; r < N; ++r) {
     for (int i = 0; i < n; ++i) {
       const int src_idx = src_to_model_idx_[i];
-      traj_model_.q(r, i) = traj_src.q(r, src_idx);
-      traj_model_.qd(r, i) = traj_src.qd(r, src_idx);
-      traj_model_.qdd(r, i) = traj_src.qdd(r, src_idx);
+      traj_.q(r, i) = traj_src.q(r, src_idx);
+      traj_.qd(r, i) = traj_src.qd(r, src_idx);
+      traj_.qdd(r, i) = traj_src.qdd(r, src_idx);
     }
   }
 
@@ -205,36 +218,52 @@ void Robot::set_joint_traj(const JointTrajectory &traj_src, double duration,
 }
 
 void Robot::sample_joint_traj_into_desired_() {
-  const int N = traj_model_.length();
+  const int N = traj_.length();
   const int n = dyn_.n();
-
   if (N <= 0) return;
 
-  const auto &t_arr = traj_model_.t;
+  const auto &t_arr = traj_.t;
 
-  // Clamp outside range
-  if (t_ <= t_arr[0]) {
+  // Python semantics: relative time
+  const double t_rel = t_ - ti_;
+
+  // Degenerate N==1
+  if (N == 1) {
     for (int i = 0; i < n; ++i) {
-      q_des_model_[i] = traj_model_.q(0, i);
-      qd_des_model_[i] = traj_model_.qd(0, i);
-      qdd_des_model_[i] = traj_model_.qdd(0, i);
+      state_des_.q[i] = traj_.q(0, i);
+      state_des_.qd[i] = traj_.qd(0, i);
+      state_des_.qdd[i] = traj_.qdd(0, i);
     }
     return;
   }
 
-  if (t_ >= t_arr[N - 1]) {
+  // Clamp (same as Python)
+  if (t_rel <= t_arr[0]) {
     for (int i = 0; i < n; ++i) {
-      q_des_model_[i] = traj_model_.q(N - 1, i);
-      qd_des_model_[i] = traj_model_.qd(N - 1, i);
-      qdd_des_model_[i] = traj_model_.qdd(N - 1, i);
+      state_des_.q[i] = traj_.q(0, i);
+      state_des_.qd[i] = traj_.qd(0, i);
+      state_des_.qdd[i] = traj_.qdd(0, i);
     }
     return;
   }
 
-  // Maintain monotonic index for common 1 kHz stepping.
-  if (traj_i1_ < 1) traj_i1_ = 1;
+  if (t_rel >= t_arr[N - 1]) {
+    for (int i = 0; i < n; ++i) {
+      state_des_.q[i] = traj_.q(N - 1, i);
+      state_des_.qd[i] = traj_.qd(N - 1, i);
+      state_des_.qdd[i] = traj_.qdd(N - 1, i);
+    }
+    return;
+  }
 
-  while (traj_i1_ < N && t_arr[traj_i1_] <= t_) ++traj_i1_;
+  if (traj_i1_ < 1)
+    traj_i1_ = 1;
+  else if (traj_i1_ > N - 1)
+    traj_i1_ = N - 1;
+
+  while (traj_i1_ < N - 1 && t_arr[traj_i1_] <= t_rel) {
+    ++traj_i1_;
+  }
 
   const int i1 = traj_i1_;
   const int i0 = i1 - 1;
@@ -243,15 +272,18 @@ void Robot::sample_joint_traj_into_desired_() {
   const double t1 = t_arr[i1];
   const double dt = t1 - t0;
 
-  const double alpha = (dt <= 0.0) ? 0.0 : (t_ - t0) / dt;
+  double alpha = 0.0;
+  if (dt > 0.0) {
+    alpha = (t_rel - t0) / dt;
+  }
+
   const double a0 = 1.0 - alpha;
   const double a1 = alpha;
 
   for (int i = 0; i < n; ++i) {
-    q_des_model_[i] = a0 * traj_model_.q(i0, i) + a1 * traj_model_.q(i1, i);
-    qd_des_model_[i] = a0 * traj_model_.qd(i0, i) + a1 * traj_model_.qd(i1, i);
-    qdd_des_model_[i] =
-        a0 * traj_model_.qdd(i0, i) + a1 * traj_model_.qdd(i1, i);
+    state_des_.q[i] = a0 * traj_.q(i0, i) + a1 * traj_.q(i1, i);
+    state_des_.qd[i] = a0 * traj_.qd(i0, i) + a1 * traj_.qd(i1, i);
+    state_des_.qdd[i] = a0 * traj_.qdd(i0, i) + a1 * traj_.qdd(i1, i);
   }
 }
 
@@ -261,8 +293,8 @@ void Robot::update_joint_des_from_traj() {
   if (has_traj()) {
     sample_joint_traj_into_desired_();
   } else {
-    qd_des_model_.setZero();
-    qdd_des_model_.setZero();
+    state_des_.qd.setZero();
+    state_des_.qdd.setZero();
     trace_mode_ = TraceMode::HOLD;
     clear_traj();
   }
@@ -274,27 +306,26 @@ const Robot::Vec &Robot::compute_ctrl_effort() {
 
   switch (ctrl_mode_) {
     case CtrlMode::CT:
-      ctrl_.computed_torque(q_model_, qd_model_, q_des_model_, qd_des_model_,
-                            qdd_des_model_, tau_model_);
+      ctrl_.computed_torque(state_.q, state_.qd, state_des_.q, state_des_.qd,
+                            state_des_.qdd, tau_);
       break;
 
     case CtrlMode::PID: {
       const double dt = t_ - t_prev_;
-      ctrl_.pid(q_model_, qd_model_, q_des_model_, qd_des_model_, dt,
-                tau_model_);
+      ctrl_.pid(state_.q, state_.qd, state_des_.q, state_des_.qd, dt, tau_);
       break;
     }
 
     case CtrlMode::GC:
-      tau_model_ = dyn_.g();
+      tau_ = dyn_.g();
       break;
 
     default:
-      tau_model_.setZero();
+      tau_.setZero();
       break;
   }
 
-  to_src_inplace(tau_model_, tau_src_);
+  to_src_inplace(tau_, tau_src_);
   return tau_src_;
 }
 

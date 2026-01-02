@@ -323,8 +323,7 @@ class Robot:
 
     def set_joint_traj(self,
         joint_traj: JointTraj,
-        duration: float,
-        ti: float | None = None,
+        delay: float = 0.0,
     ) -> None:
         """
         Set the joint trajectory to follow.
@@ -344,12 +343,9 @@ class Robot:
             -Computes and stores the trajectory frequency in `self.freq`.
             -Sets `self.ti` and `self.tf`.
         """
-        if ti is None: ti = self.t
         self.joint_traj = joint_traj
-        self.ti = ti
-        tf = ti + duration
-        self.tf = tf
-
+        self.ti = joint_traj.t[0] + delay
+        self.tf = joint_traj.t[-1] + self.ti
         self.trace_mode = TraceMode.TRAJ
 
 
@@ -397,7 +393,7 @@ class Robot:
         sample is returned.
         """
         traj = self.joint_traj  # type: ignore[attr-defined]
-        t = self.t
+        t_rel = self.t - self.ti
 
         t_arr = traj.t      # (N,)
         q_arr = traj.q      # (N, n)
@@ -405,14 +401,14 @@ class Robot:
         qdd_arr = traj.qdd  # (N, n)
 
         # Clamp to first / last sample if outside range
-        if t <= t_arr[0]:
+        if t_rel <= t_arr[0]:
             return q_arr[0].copy(), qd_arr[0].copy(), qdd_arr[0].copy()
 
-        if t >= t_arr[-1]:
+        if t_rel >= t_arr[-1]:
             return q_arr[-1].copy(), qd_arr[-1].copy(), qdd_arr[-1].copy()
 
         # Find indices i0, i1 such that t_arr[i0] <= t_now <= t_arr[i1]
-        i1 = int(np.searchsorted(t_arr, t, side="right"))
+        i1 = int(np.searchsorted(t_arr, t_rel, side="right"))
         i0 = i1 - 1
 
         t0 = float(t_arr[i0])
@@ -421,7 +417,7 @@ class Robot:
 
         # Guard against degenerate dt
         if dt <= 0.0: alpha = 0.0
-        else: alpha = (t - t0) / dt
+        else: alpha = (t_rel - t0) / dt
 
         # Linear interpolation
         q_des   = (1.0 - alpha) * q_arr[i0]   + alpha * q_arr[i1]
