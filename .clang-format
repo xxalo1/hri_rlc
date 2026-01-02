@@ -1,18 +1,1 @@
-BasedOnStyle: LLVM
-IndentWidth: 2
-ColumnLimit: 100
-
-# One parameter per line once broken
-BinPackParameters: false
-BinPackArguments: false
-
-# Make the wrapped parameters look like your style (2-space indent, not huge alignment)
-AlignAfterOpenBracket: DontAlign
-ContinuationIndentWidth: 2
-
-# Put the opening brace on its own line like your example
-BreakBeforeBraces: Allman
-
-# Avoid short one-line blocks that fight readability
-AllowShortFunctionsOnASingleLine: None
-AllowShortIfStatementsOnASingleLine: Never
+BasedOnStyle: Google
