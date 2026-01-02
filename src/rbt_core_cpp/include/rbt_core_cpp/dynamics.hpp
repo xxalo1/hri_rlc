@@ -87,12 +87,6 @@ private:
   void ensure_fk();
   void ensure_jac();
 
-  static void check_size(
-    const Eigen::Ref<const Vec>& v, 
-    int expected, 
-    const char* name
-  );
-
 private:
   pinocchio::Model model_;
   pinocchio::Data  data_;
