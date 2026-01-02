@@ -174,9 +174,6 @@ public:
    */
   const Vec& compute_ctrl_effort();
 
-  // ------------------------
-  // Direct accessors (model order)
-  // ------------------------
   const Vec& q_model() const noexcept { return q_model_; }
   const Vec& qd_model() const noexcept { return qd_model_; }
   const Vec& qdd_model() const noexcept { return qdd_model_; }
@@ -188,7 +185,6 @@ public:
   double t() const noexcept { return t_; }
   double t_prev() const noexcept { return t_prev_; }
 
-  // Expose dyn/ctrl if you need them
   Dynamics& dyn() noexcept { return dyn_; }
   const Dynamics& dyn() const noexcept { return dyn_; }
 
@@ -253,4 +249,4 @@ private:
   TraceMode trace_mode_{TraceMode::HOLD};
 };
 
-} // namespace rbt_core_cpp
+}
