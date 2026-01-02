@@ -20,6 +20,7 @@ find_package(Eigen3 REQUIRED)
 add_library(rbt_core_cpp
   src/dynamics.cpp
   src/controller.cpp
+  src/robot.cpp
 )
 
 target_include_directories(rbt_core_cpp
