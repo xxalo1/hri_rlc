@@ -1,0 +1,27 @@
+namespaces:
+  sim: sim/gen3
+  ctrl: ctrl/gen3
+  plan: plan/gen3
+  exec: exec/gen3
+  mon: mon/gen3
+
+topics:
+  joint_state: "{sim}/joint_state"
+  joint_state_action: "{sim}/joint_state_action"
+  effort_cmd: "{ctrl}/effort_cmd"
+  planned_joint_traj: "{plan}/planned_joint_traj"
+  frame_states: "{mon}/frame_states"
+  planned_cart_traj: "{plan}/planned_cart_traj"
+  controller_state: "{ctrl}/controller_state"
+  current_plan: "{exec}/current_plan"
+
+services:
+  reset_sim: "{sim}/reset"
+  pause_sim: "{sim}/pause"
+  set_controller_gains: "{ctrl}/set_controller_gains"
+  set_controller_mode: "{ctrl}/set_control_mode"
+  plan_quintic: "{plan}/plan_quintic"
+  execute_traj: "{exec}/execute"
+
+actions:
+  follow_traj: "{ctrl}/follow_trajectory"
