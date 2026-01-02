@@ -87,19 +87,6 @@ private:
     const Mat* J_sec
   ) const;
 
-  static void check_vec_size(
-    const Eigen::Ref<const Vec>& v,
-    int expected,
-    const char* name
-  );
-
-  static void check_mat_size(
-    const Eigen::Ref<const Mat>& M,
-    int rows,
-    int cols,
-    const char* name
-  );
-
 private:
   Dynamics& dyn_;
   pinocchio::FrameIndex tcp_frame_id_{0};

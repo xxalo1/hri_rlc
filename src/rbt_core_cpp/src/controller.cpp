@@ -61,10 +61,6 @@ void Controller::set_joint_gains(const Mat &Kp, const Mat &Kv)
 void Controller::set_joint_gains(const Mat &Kp, const Mat &Kv, const Mat &Ki)
 {
   const int n = dyn_.n();
-  check_mat_size(Kp, n, n, "Kp");
-  check_mat_size(Kv, n, n, "Kv");
-  check_mat_size(Ki, n, n, "Ki");
-
   Kp_ = Kp;
   Kv_ = Kv;
   Ki_ = Ki;
@@ -118,9 +114,7 @@ void Controller::pid(
   de_.noalias() = qd_des - qd;
   e_int_.noalias() += e_ * dt;
 
-  tau_out.noalias() = Kp_ * e_;
-  tau_out.noalias() += Kv_ * de_;
-  tau_out.noalias() += Ki_ * e_int_;
+  tau_out.noalias() = Kp_ * e_ + Kv_ * de_ + Ki_ * e_int_;
   tau_out += dyn_.g();
 }
 
@@ -148,9 +142,7 @@ void Controller::computed_torque(
 {
   e_.noalias() = q_des - q;
   de_.noalias() = qd_des - qd;
-  v_.noalias() = qdd_des;
-  v_.noalias() += Kv_ * de_;
-  v_.noalias() += Kp_ * e_;
+  v_.noalias() = qdd_des + Kv_ * de_ + Kp_ * e_;
 
   tau_out = dyn_.rnea(dyn_.q(), dyn_.qd(), v_);
 }

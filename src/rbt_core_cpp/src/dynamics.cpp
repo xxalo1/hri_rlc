@@ -45,22 +45,6 @@ Dynamics Dynamics::FromUrdf(
   return Dynamics(std::move(model), tcp_frame);
 }
 
-void Dynamics::check_size(
-  const Eigen::Ref<const Vec> &v, 
-  int expected, 
-  const char *name
-)
-{
-  if (v.size() != expected)
-  {
-    throw std::runtime_error(
-      std::string(name) + " size mismatch: got " + 
-      std::to_string(v.size()) +
-      " expected " + 
-      std::to_string(expected));
-  }
-}
-
 void Dynamics::invalidate_kinematics()
 {
   fk_valid_ = false;
