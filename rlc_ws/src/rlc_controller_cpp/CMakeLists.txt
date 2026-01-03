@@ -26,7 +26,8 @@ add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../src/ros_utils_cpp
   ${CMAKE_CURRENT_BINARY_DIR}/ros_utils_cpp)
 
 add_executable(gen3_controller_node
-  src/gen3_controller_node.cpp
+  src/main.cpp
+  src/controller_node.cpp
 )
 
 target_include_directories(gen3_controller_node
