@@ -34,10 +34,7 @@ std::string Robot::strip_prefix_if_present(const std::string &name,
 
 void Robot::configure_io(const std::vector<std::string> &src_names,
                          const std::string &prefix) {
-  if (!prefix.empty())
-    joint_prefix_ = prefix;
-  else
-    joint_prefix_ = "";
+  if (!prefix.empty()) joint_prefix_ = prefix;
 
   src_joint_names_ = src_names;
 
@@ -167,7 +164,9 @@ bool Robot::has_traj() const noexcept {
   const int N = traj_.length();
   if (N <= 0) return false;
 
-  return (t_rel >= traj_.t[0]) && (t_rel <= traj_.t[N - 1]);
+  // Keep the trajectory "active" during the delay window (t_rel < t[0]) so the
+  // controller holds the first sample until the start time.
+  return (t_rel <= traj_.t[N - 1]);
 }
 
 void Robot::set_joint_traj(const JointTrajectory &traj_src, double delay) {

@@ -7,6 +7,9 @@
       },
       "includePath": [
         "${workspaceFolder}/src/rbt_core_cpp/include/**",
+        "${workspaceFolder}/src/ros_utils_cpp/include/**",
+        "${workspaceFolder}/rlc_ws/install/rlc_interfaces/include/**",
+        "${workspaceFolder}/rlc_ws/src/*/include/**",
         "/opt/ros/jazzy/include/**",
         "/opt/openrobots/include/**",
         "/usr/include/eigen3/**",

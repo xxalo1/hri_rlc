@@ -14,7 +14,12 @@
   <depend>sensor_msgs</depend>
   <depend>trajectory_msgs</depend>
   <depend>control_msgs</depend>
-  <depend>ament_index_cpp</depend>
+  <depend>rlc_interfaces</depend>
+  <depend>rlc_common</depend>
+  <depend>rlc_robot_models</depend>
+
+  <depend>pinocchio</depend>
+  <depend>eigen</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
