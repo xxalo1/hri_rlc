@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Generic, TypeVar
 
 from control_msgs.action import FollowJointTrajectory
@@ -25,8 +24,6 @@ from rlc_interfaces.srv import (
     SetControllerMode,
 )
 from std_srvs.srv import SetBool, Trigger
-from ament_index_python.packages import get_package_share_directory
-import yaml
 
 T = TypeVar("T")
 
@@ -37,21 +34,12 @@ class Endpoint(Generic[T]):
     name: str
     type: type[T]
 
-_CFG_PATH = Path(get_package_share_directory("rlc_common")) / "config" / "endpoints.yaml"
-_CFG = yaml.safe_load(_CFG_PATH.read_text(encoding="utf-8"))
-_NAMESPACES = {str(k): str(v) for k, v in _CFG["namespaces"].items()}
 
-
-def _resolve_name(raw: str) -> str:
-    for key, value in _NAMESPACES.items():
-        raw = raw.replace(f"{{{key}}}", value)
-    return raw
-
-SIM_NS = _NAMESPACES["sim"]
-CTRL_NS = _NAMESPACES["ctrl"]
-PLAN_NS = _NAMESPACES["plan"]
-EXEC_NS = _NAMESPACES["exec"]
-MON_NS = _NAMESPACES["mon"]
+SIM_NS   = "sim/gen3"
+CTRL_NS  = "ctrl/gen3"
+PLAN_NS  = "plan/gen3"
+EXEC_NS  = "exec/gen3"
+MON_NS   = "mon/gen3"
 
 @dataclass(frozen=True)
 class TopicEndpoints:
@@ -83,70 +71,46 @@ class ActionEndpoints:
 
 
 TOPICS = TopicEndpoints(
-    joint_state=Endpoint(
-        _resolve_name(_CFG["topics"]["joint_state"]),
-        JointState,
-    ),
-    joint_state_action=Endpoint(
-        _resolve_name(_CFG["topics"]["joint_state_action"]),
-        JointStateAction,
-    ),
-    effort_cmd=Endpoint(
-        _resolve_name(_CFG["topics"]["effort_cmd"]),
-        JointEffortCmd,
-    ),
-    planned_joint_traj=Endpoint(
-        _resolve_name(_CFG["topics"]["planned_joint_traj"]),
-        PlannedJointTrajectory,
-    ),
-    frame_states=Endpoint(
-        _resolve_name(_CFG["topics"]["frame_states"]),
-        PoseArray,
-    ),
-    planned_cart_traj=Endpoint(
-        _resolve_name(_CFG["topics"]["planned_cart_traj"]),
-        PlannedCartesianTrajectory,
-    ),
-    controller_state=Endpoint(
-        _resolve_name(_CFG["topics"]["controller_state"]),
-        JointTrajectoryControllerState,
-    ),
-    current_plan=Endpoint(
-        _resolve_name(_CFG["topics"]["current_plan"]),
-        CurrentPlan,
-    ),
+    joint_state=Endpoint(f"{SIM_NS}/joint_state", JointState),
+    joint_state_action=Endpoint(f"{SIM_NS}/joint_state_action", JointStateAction),
+    effort_cmd=Endpoint(f"{CTRL_NS}/effort_cmd", JointEffortCmd),
+    planned_joint_traj=Endpoint(f"{PLAN_NS}/planned_joint_traj", PlannedJointTrajectory),
+    frame_states=Endpoint(f"{MON_NS}/frame_states", PoseArray),
+    planned_cart_traj=Endpoint(f"{PLAN_NS}/planned_cart_traj", PlannedCartesianTrajectory),
+    controller_state=Endpoint(f"{CTRL_NS}/controller_state", JointTrajectoryControllerState),
+    current_plan=Endpoint(f"{EXEC_NS}/current_plan", CurrentPlan),
 )
 
 SERVICES = ServiceEndpoints(
     reset_sim=Endpoint(
-        name=_resolve_name(_CFG["services"]["reset_sim"]),
+        name=f"{SIM_NS}/reset",
         type=Trigger,
     ),
     pause_sim=Endpoint(
-        name=_resolve_name(_CFG["services"]["pause_sim"]),
+        name=f"{SIM_NS}/pause",
         type=SetBool,
     ),
     set_controller_gains=Endpoint(
-        name=_resolve_name(_CFG["services"]["set_controller_gains"]),
+        name=f"{CTRL_NS}/set_controller_gains",
         type=SetControllerGains,
     ),
     set_controller_mode=Endpoint(
-        name=_resolve_name(_CFG["services"]["set_controller_mode"]),
+        name=f"{CTRL_NS}/set_control_mode",
         type=SetControllerMode,
     ),
     plan_quintic=Endpoint(
-        name=_resolve_name(_CFG["services"]["plan_quintic"]),
+        name=f"{PLAN_NS}/plan_quintic",
         type=PlanJointTrajectory,
     ),
     execute_traj=Endpoint(
-        name=_resolve_name(_CFG["services"]["execute_traj"]),
+        name=f"{EXEC_NS}/execute",
         type=ExecuteTrajectory,
     ),
 )
 
 ACTIONS = ActionEndpoints(
     follow_traj=Endpoint(
-        name=_resolve_name(_CFG["actions"]["follow_traj"]),
+        name=f"{CTRL_NS}/follow_trajectory",
         type=FollowJointTrajectory,
     ),
 )

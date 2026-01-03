@@ -5,18 +5,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
-find_package(rclcpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
-find_package(pinocchio REQUIRED)
-find_package(Eigen3 REQUIRED)
-
-# Pull in the local non-ROS dynamics/controller core.
-# This keeps rbt_core_cpp compiled once (here) and reused by rlc_controller_cpp.
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../src/rbt_core_cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/rbt_core_cpp)
+find_package(rbt_core_cpp CONFIG REQUIRED)
 
 ament_python_install_package(rlc_robot_models)
 
@@ -30,24 +22,15 @@ target_include_directories(rlc_robot_models_cpp
     $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(rlc_robot_models_cpp
+ament_target_dependencies(rlc_robot_models_cpp 
   ament_index_cpp
 )
 
 target_link_libraries(rlc_robot_models_cpp
-  rbt_core_cpp
+  rbt_core_cpp::rbt_core_cpp
 )
 
 install(TARGETS rlc_robot_models_cpp
-  EXPORT export_${PROJECT_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-)
-
-# Also install/export the vendored core library so downstream packages can
-# consume rlc_robot_models_cpp cleanly.
-install(TARGETS rbt_core_cpp
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -58,9 +41,6 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
-install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/../../../src/rbt_core_cpp/include/
-  DESTINATION include
-)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -75,6 +55,6 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(pinocchio Eigen3)
+ament_export_dependencies(rbt_core_cpp)
 
 ament_package()

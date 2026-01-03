@@ -1,0 +1,4 @@
+CompileFlags:
+  # Build dir location per repo convention:
+  #   hri_rlc/build/rbt_core_cpp
+  CompilationDatabase: ../../build/rbt_core_cpp

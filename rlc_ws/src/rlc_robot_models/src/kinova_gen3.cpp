@@ -1,12 +1,11 @@
 #include "rlc_robot_models/kinova_gen3.hpp"
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
-
 #include <stdexcept>
 
 namespace rlc_robot_models {
 
-static std::string VariantName(Gen3Variant variant) {
+static std::string variant_Name(Gen3Variant variant) {
   switch (variant) {
     case Gen3Variant::DOF7_BASE:
       return "DOF7_BASE";
@@ -24,7 +23,7 @@ static std::string VariantName(Gen3Variant variant) {
   throw std::runtime_error("Unknown Gen3Variant");
 }
 
-static std::string VariantUrdfStem(Gen3Variant variant) {
+static std::string variant_urdf_stem(Gen3Variant variant) {
   switch (variant) {
     case Gen3Variant::DOF7_BASE:
       return "gen3";
@@ -42,22 +41,23 @@ static std::string VariantUrdfStem(Gen3Variant variant) {
   throw std::runtime_error("Unknown Gen3Variant");
 }
 
-std::string Gen3UrdfPath(Gen3Variant variant) {
-  const auto desc_share = ament_index_cpp::get_package_share_directory("rlc_robot_descriptions");
-  const auto stem = VariantUrdfStem(variant);
+std::string gen3_urdf_path(Gen3Variant variant) {
+  const auto desc_share =
+      ament_index_cpp::get_package_share_directory("rlc_robot_descriptions");
+  const auto stem = variant_urdf_stem(variant);
   return desc_share + "/robots/kinova_gen3/urdf/" + stem + ".urdf";
 }
 
-rbt_core_cpp::RobotSpec MakeGen3Spec(Gen3Variant variant) {
+rbt_core_cpp::RobotSpec make_gen3_spec(Gen3Variant variant) {
   rbt_core_cpp::RobotSpec spec;
-  spec.name = VariantName(variant);
-  spec.urdf_path = Gen3UrdfPath(variant);
+  spec.name = variant_Name(variant);
+  spec.urdf_path = gen3_urdf_path(variant);
   spec.tcp_frame = "tool_frame";
   return spec;
 }
 
-rbt_core_cpp::Robot MakeGen3Robot(Gen3Variant variant) {
-  return rbt_core_cpp::Robot::FromSpec(MakeGen3Spec(variant));
+rbt_core_cpp::Robot make_gen3_robot(Gen3Variant variant) {
+  return rbt_core_cpp::Robot::FromSpec(make_gen3_spec(variant));
 }
 
 }  // namespace rlc_robot_models

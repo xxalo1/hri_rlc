@@ -12,11 +12,13 @@
 
   <depend>ament_index_cpp</depend>
   <depend>yaml-cpp</depend>
-  <exec_depend>control_msgs</exec_depend>
+  <depend>control_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>rlc_interfaces</depend>
   <exec_depend>ament_index_python</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
-  <exec_depend>rlc_interfaces</exec_depend>
-  <exec_depend>std_srvs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
