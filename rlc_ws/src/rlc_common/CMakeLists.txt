@@ -27,6 +27,7 @@ target_link_libraries(rlc_common yaml-cpp)
 
 install(
   TARGETS rlc_common
+  EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -38,7 +39,7 @@ install(FILES package.xml DESTINATION share/${PROJECT_NAME})
 
 ament_export_dependencies(ament_index_cpp yaml-cpp)
 ament_export_include_directories(include)
-ament_export_libraries(rlc_common)
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

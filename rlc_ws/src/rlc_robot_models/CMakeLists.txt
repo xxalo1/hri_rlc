@@ -10,6 +10,8 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(pinocchio REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # Pull in the local non-ROS dynamics/controller core.
 # This keeps rbt_core_cpp compiled once (here) and reused by rlc_controller_cpp.
@@ -73,5 +75,6 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_dependencies(pinocchio Eigen3)
 
 ament_package()
