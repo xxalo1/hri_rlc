@@ -44,7 +44,7 @@ rlc_interfaces::msg::JointEffortCmd make_joint_effort_cmd_msg(
 
 control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
     std::size_t n, double stamp_sec, const std::vector<std::string>& names,
-    bool include_acceleration) {
+    bool include_feedback_acceleration) {
   control_msgs::msg::JointTrajectoryControllerState msg;
 
   msg.joint_names = names;
@@ -59,7 +59,7 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
   msg.error.velocities.resize(n);
   msg.error.positions.resize(n);
 
-  if (include_acceleration) {
+  if (include_feedback_acceleration) {
     msg.feedback.accelerations.resize(n);
   } else {
     msg.feedback.accelerations.clear();
@@ -107,7 +107,7 @@ bool from_joint_effort_cmd_msg(const rlc_interfaces::msg::JointEffortCmd& msg,
   return true;
 }
 
-bool from_joint_trajectory_controller_state_msg(
+bool from_joint_ctrl_state_msg(
     const control_msgs::msg::JointTrajectoryControllerState& msg,
     JointControllerStateMsgData& data) noexcept {
   const Eigen::Index n = data.size();
@@ -149,7 +149,7 @@ bool from_joint_trajectory_controller_state_msg(
   return true;
 }
 
-void to_joint_state_msg(const JointStateMsgData& data,
+bool to_joint_state_msg(const JointStateMsgData& data,
                         sensor_msgs::msg::JointState& msg) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
@@ -162,6 +162,7 @@ void to_joint_state_msg(const JointStateMsgData& data,
   if (!msg.effort.empty()) {
     std::memcpy(msg.effort.data(), data.effort.data(), bytes);
   }
+  return true;
 }
 
 bool to_joint_effort_cmd_msg(
@@ -177,7 +178,7 @@ bool to_joint_effort_cmd_msg(
   return true;
 }
 
-bool to_joint_trajectory_controller_state_msg(
+bool to_joint_ctrl_state_msg(
     const JointControllerStateMsgData& data,
     control_msgs::msg::JointTrajectoryControllerState& msg) noexcept {
   const Eigen::Index n = data.size();

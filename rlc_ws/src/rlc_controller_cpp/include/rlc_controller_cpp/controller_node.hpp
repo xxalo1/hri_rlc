@@ -10,6 +10,9 @@
 #include "rbt_core_cpp/robot.hpp"
 #include "rbt_core_cpp/types.hpp"
 
+#include "ros_utils_cpp/msg_conv.hpp"
+
+rmsg = namespace ros_utils_cpp::msg_conv;
 namespace rlc_controller_cpp
 {
 

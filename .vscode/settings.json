@@ -1,4 +1,5 @@
 {
+  "clangd.path": "/usr/bin/clangd-22",
   "C_Cpp.hover": "disabled",
   "C_Cpp.intelliSenseEngine": "disabled",
   "python.languageServer": "Pylance",
@@ -26,5 +27,6 @@
   "python.autoComplete.extraPaths": [
     "/opt/ros/jazzy/lib/python3.12/site-packages",
     "/opt/openrobots/lib/python3.12/site-packages"
-  ]
+  ],
+  "ROS2.distro": "jazzy"
 }

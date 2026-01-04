@@ -1,2 +1,12 @@
 Documentation:
   CommentFormat: Doxygen
+
+If:
+  PathMatch: .*rbt_core_cpp/.*
+CompileFlags:
+  CompilationDatabase: build/rbt_core_cpp
+---
+If:
+  PathMatch: .*ros_utils_cpp/.*
+CompileFlags:
+  CompilationDatabase: build/ros_utils_cpp

@@ -70,10 +70,10 @@ ControllerNode::ControllerNode(const rclcpp::NodeOptions& options)
   // ----------------------------
   // Publishers / Subscribers
   // ----------------------------
-    constexpr auto topics = rlc_common::TOPICS;
+  constexpr auto topics = rlc_common::TOPICS;
 
-    pub_effort_ = this->create_publisher<EffortCmdMsg>(topics.effort_cmd.name,
-                                                       qos_latest);
+  pub_effort_ =
+      this->create_publisher<EffortCmdMsg>(topics.effort_cmd.name, qos_latest);
 
   sub_js_ = this->create_subscription<JointStateMsg>(
       topics.joint_state.name, qos_latest,
