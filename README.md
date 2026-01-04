@@ -1,33 +1,40 @@
-# HRI RLC Project
+# HRI RLC
 
-## Overview
-This repository contains the code and resources for the Human-Robot Interaction Reinforcement Learning Controller (HRI RLC) project. The aim of this project is to develop and evaluate reinforcement learning algorithms for improving human-robot interaction.
+Authors:
+- Hasan Al Thobaiti
+- Rashed Albalawi
 
-## Features
-- Implementation of various reinforcement learning algorithms
-- Simulation environment for testing interactions
-- Documentation and examples for usage
+Core libs live in `src/` and the ROS 2 workspace lives in `rlc_ws/`.
 
-## Installation
-To install the necessary dependencies, run:
+## Setup (everything installs into `_install/`)
+
+### Python (editable install)
 ```bash
-pip install -r requirements.txt
+python3 -m venv _install/venv
+source _install/venv/bin/activate
+python -m pip install -U pip
+python -m pip install -e .
 ```
 
-## Usage
-To run the simulation, use the following command:
+### C++ libs (CMake + `compile_commands.json`)
+Build + install `rbt_core_cpp` into the repo-local prefix:
 ```bash
-python main.py
+cmake -S src/rbt_core_cpp -B build/rbt_core_cpp \
+  -DCMAKE_INSTALL_PREFIX="$PWD/_install" \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build/rbt_core_cpp -j
+cmake --install build/rbt_core_cpp
 ```
 
-## Contributing
-We welcome contributions! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+### ROS 2 (Jazzy) workspace (`rlc_ws/`)
+```bash
+source /opt/ros/jazzy/setup.bash
+export CMAKE_PREFIX_PATH="$PWD/_install:$CMAKE_PREFIX_PATH"
 
-## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+cd rlc_ws
+colcon build --symlink-install --install-base ../_install/ros \
+  --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-## Acknowledgments
-- Thanks to all contributors and researchers in the field of human-robot interaction.
-
-## Contact
-For any inquiries, please reach out to [your-email@example.com](mailto:your-email@example.com).
+source ../_install/ros/setup.bash
+ros2 launch rlc_bringup plotjuggler.launch.py
+```
