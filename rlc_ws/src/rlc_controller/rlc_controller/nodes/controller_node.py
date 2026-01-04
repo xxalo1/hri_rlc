@@ -20,9 +20,9 @@ from rclpy.action.server import ServerGoalHandle
 from common_utils import numpy_util as npu
 from common_utils import FloatArray
 from sim_env.mujoco.kinova_gen3_env import GEN3_BASE_POSE
-from ros_utils import msg_conv as rmsg
-from ros_utils import time_util as rtime
-from ros_utils.config import qos_latest
+from rlc_utils import msg_conv as rmsg
+from rlc_utils import time_util as rtime
+from rlc_utils.config import qos_latest
 from rlc_robot_models import kinova_gen3
 
 from rlc_common.endpoints import TOPICS, ACTIONS, SERVICES

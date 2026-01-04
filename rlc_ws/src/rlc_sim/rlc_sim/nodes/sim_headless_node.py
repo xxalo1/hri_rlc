@@ -13,8 +13,8 @@ from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from sim_backend.mujoco.mujoco_base import Observation, StateAction
 from sim_env.mujoco.kinova_gen3_env import Gen3Env
 from common_utils import numpy_util as npu, FloatArray
-from ros_utils import msg_conv as rmsg
-from ros_utils.config import qos_latest
+from rlc_utils import msg_conv as rmsg
+from rlc_utils.config import qos_latest
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, 

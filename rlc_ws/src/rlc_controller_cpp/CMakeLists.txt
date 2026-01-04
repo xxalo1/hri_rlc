@@ -21,10 +21,6 @@ find_package(rlc_robot_models REQUIRED)
 find_package(pinocchio REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-# Local (non-ROS) utilities for fast message/time conversion.
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../../src/ros_utils_cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/ros_utils_cpp)
-
 add_executable(gen3_controller_node
   src/main.cpp
   src/controller_node.cpp
@@ -51,7 +47,6 @@ target_link_libraries(gen3_controller_node
   rlc_common::rlc_common
   rlc_robot_models::rlc_robot_models_cpp
   rlc_robot_models::rbt_core_cpp
-  ros_utils_cpp
 )
 
 install(TARGETS gen3_controller_node

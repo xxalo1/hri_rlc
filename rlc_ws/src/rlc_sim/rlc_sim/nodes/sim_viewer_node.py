@@ -8,8 +8,8 @@ import rclpy
 from rclpy.node import Node
 from sim_env.mujoco.kinova_gen3_env import Gen3Env
 from sim_env.mujoco.viz_env import VizEnv
-from ros_utils import msg_conv as rmsg
-from ros_utils.config import qos_latest
+from rlc_utils import msg_conv as rmsg
+from rlc_utils.config import qos_latest
 from rlc_common.endpoints import (
     TOPICS, SERVICES,
     JointStateMsg, PlannedCartTrajMsg, CurrentPlanMsg,

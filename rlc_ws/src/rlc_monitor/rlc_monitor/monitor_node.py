@@ -5,8 +5,8 @@ from numpy import var
 import rclpy
 from rclpy.node import Node
 
-from ros_utils import msg_conv as rmsg
-from ros_utils.config import qos_latest
+from rlc_utils import msg_conv as rmsg
+from rlc_utils.config import qos_latest
 from common_utils import transforms as tfm
 from common_utils.buffers import RingBuffer, BufferSet
 from rlc_robot_models import kinova_gen3

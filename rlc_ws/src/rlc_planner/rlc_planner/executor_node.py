@@ -15,8 +15,8 @@ from rclpy.node import Node
 
 from trajectory_msgs.msg import JointTrajectory, MultiDOFJointTrajectory
 
-from ros_utils import msg_conv as rmsg
-from ros_utils import time_util as rtime
+from rlc_utils import msg_conv as rmsg
+from rlc_utils import time_util as rtime
 
 from rlc_common.endpoints import (
     TOPICS, SERVICES, ACTIONS, CurrentPlanMsg, 

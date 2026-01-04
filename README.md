@@ -44,14 +44,6 @@ cmake --build build/rbt_core_cpp --parallel
 cmake --install build/rbt_core_cpp --prefix _install
 ```
 
-Build + install `ros_utils_cpp` into the repo-local prefix:
-```bash
-cmake -S src/ros_utils_cpp -B build/ros_utils_cpp \
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build/ros_utils_cpp --parallel
-cmake --install build/ros_utils_cpp --prefix _install
-```
-
 ### ROS 2 (Jazzy) workspace (`rlc_ws/`)
 ```bash
 source /opt/ros/jazzy/setup.bash
