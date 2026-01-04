@@ -1,8 +1,6 @@
 #pragma once
-
 #include <Eigen/Core>
 
-#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -10,7 +8,7 @@ namespace ros_utils_cpp {
 
 struct JointStateMsgData {
   // If you need joint names, copy/set them once outside the hot path.
-  std::vector<std::string> joint_names;
+  std::vector<std::string> name;
 
   double stamp_sec{0.0};
 
@@ -27,9 +25,7 @@ struct JointStateMsgData {
     effort.setZero(n);
   }
 
-  std::size_t size() const noexcept {
-    return static_cast<std::size_t>(position.size());
-  }
+  int size() const noexcept { return static_cast<int>(name.size()); }
 };
 
 struct JointEffortCmdMsgData {
@@ -42,9 +38,7 @@ struct JointEffortCmdMsgData {
 
   void resize(int n) { effort.setZero(n); }
 
-  std::size_t size() const noexcept {
-    return static_cast<std::size_t>(effort.size());
-  }
+  int size() const noexcept { return static_cast<int>(effort.size()); }
 };
 
 struct JointControllerStateMsgData {
@@ -83,9 +77,7 @@ struct JointControllerStateMsgData {
     velocity_error.setZero(n);
   }
 
-  std::size_t size() const noexcept {
-    return static_cast<std::size_t>(position.size());
-  }
+  int size() const noexcept { return static_cast<int>(position.size()); }
 
   void recompute_errors() {
     position_error.noalias() = position_des - position;
