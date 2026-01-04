@@ -5,8 +5,10 @@
 
 #include "ros_utils_cpp/checks.hpp"
 #include "ros_utils_cpp/time.hpp"
+#include "ros_utils_cpp/msg_conv.hpp"
 
 namespace ru = ros_utils_cpp;
+namespace rmsg = ros_utils_cpp::msg_conv;
 namespace rtime = ros_utils_cpp::time;
 
 namespace ros_utils_cpp::msg_conv {
