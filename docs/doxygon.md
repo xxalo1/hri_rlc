@@ -86,14 +86,29 @@ Vec ComputeTorque(const Vec& q, const Vec& dq);
  */
 void LoadConfig(std::string_view path);
 
-### 5.4 Class
 /**
- * @brief Low allocation controller for joint-space commands.
+ * @brief Low-allocation controller for joint-space commands.
  *
  * @details
- * Thread safety and ownership rules must be stated if they are nontrivial.
+ * Owns the control state and produces torque commands from the latest robot state.
+ * Document any non-obvious ownership, lifetime, and invariants here.
+ *
+ * @par Usage
+ * @code{.cpp}
+ * Controller ctrl(params);
+ * ctrl.Reset();
+ *
+ * ctrl.UpdateState(q, dq);
+ * const auto tau = ctrl.Step(dt_sec);
+ * @endcode
+ *
+ * @par Thread safety
+ * Not thread-safe. External synchronization is required if accessed concurrently.
+ *
+ * @warning
+ * Callers must provide consistent units and ordering for joint vectors.
  */
-class Controller { ... };
+class Controller { /* ... */ };
 
 ## 6. Common expectations in this repo
 
