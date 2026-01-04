@@ -6,17 +6,14 @@ Authors:
 
 Core libs live in `src/` and the ROS 2 workspace lives in `rlc_ws/`.
 
-## Setup (everything installs into `_install/`)
+## Setup
 
-### Python (editable install)
+### Python
 ```bash
-python3 -m venv _install/venv
-source _install/venv/bin/activate
-python -m pip install -U pip
-python -m pip install -e .
+pip install -e .
 ```
 
-### C++ libs (CMake + `compile_commands.json`)
+### C++ libs
 Build + install `rbt_core_cpp` into the repo-local prefix:
 ```bash
 cmake -S src/rbt_core_cpp -B build/rbt_core_cpp \
