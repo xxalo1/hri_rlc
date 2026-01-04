@@ -1,15 +1,12 @@
 #pragma once
 #include <Eigen/Core>
-
 #include <string>
 #include <vector>
 
 namespace ros_utils_cpp {
 
 struct JointStateMsgData {
-  // If you need joint names, copy/set them once outside the hot path.
   std::vector<std::string> name;
-
   double stamp_sec{0.0};
 
   Eigen::VectorXd position;
@@ -17,55 +14,62 @@ struct JointStateMsgData {
   Eigen::VectorXd effort;
 
   JointStateMsgData() = default;
-  explicit JointStateMsgData(int n) { resize(n); }
+  explicit JointStateMsgData(Eigen::Index n) { resize(n); }
 
-  void resize(int n) {
-    position.setZero(n);
-    velocity.setZero(n);
-    effort.setZero(n);
+  void resize(Eigen::Index n) {
+    if (n < 0) throw std::invalid_argument("JointStateMsgData::resize: n < 0");
+    name.resize(static_cast<std::size_t>(n));
+
+    position.setZero();
+    velocity.setZero();
+    effort.setZero();
   }
 
-  int size() const noexcept { return static_cast<int>(name.size()); }
+  Eigen::Index size() const noexcept { return position.size(); }
 };
 
 struct JointEffortCmdMsgData {
-  std::vector<std::string> joint_names;
+  std::vector<std::string> name;
   double stamp_sec{0.0};
   Eigen::VectorXd effort;
 
   JointEffortCmdMsgData() = default;
-  explicit JointEffortCmdMsgData(int n) { resize(n); }
+  explicit JointEffortCmdMsgData(Eigen::Index n) { resize(n); }
 
-  void resize(int n) { effort.setZero(n); }
+  void resize(Eigen::Index n) { 
+    if (n < 0)
+      throw std::invalid_argument("JointEffortCmdMsgData::resize: n < 0");
+    name.resize(static_cast<std::size_t>(n));
+    effort.setZero(n); 
+  }
 
-  int size() const noexcept { return static_cast<int>(effort.size()); }
+  Eigen::Index size() const noexcept { return effort.size(); }
 };
 
 struct JointControllerStateMsgData {
-  std::vector<std::string> joint_names;
+  std::vector<std::string> name;
   double stamp_sec{0.0};
 
-  // Feedback state
   Eigen::VectorXd position;
   Eigen::VectorXd velocity;
   Eigen::VectorXd acceleration;
 
-  // Reference/desired state
   Eigen::VectorXd position_des;
   Eigen::VectorXd velocity_des;
   Eigen::VectorXd acceleration_des;
 
-  // Output effort (torque)
   Eigen::VectorXd effort;
 
-  // Convenience caches (can be recomputed)
   Eigen::VectorXd position_error;
   Eigen::VectorXd velocity_error;
 
   JointControllerStateMsgData() = default;
-  explicit JointControllerStateMsgData(int n) { resize(n); }
+  explicit JointControllerStateMsgData(Eigen::Index n) { resize(n); }
+  void resize(Eigen::Index n) {
+    if (n < 0)
+      throw std::invalid_argument("JointControllerStateMsgData::resize: n < 0");
+    name.resize(static_cast<std::size_t>(n));
 
-  void resize(int n) {
     position.setZero(n);
     velocity.setZero(n);
     acceleration.setZero(n);
@@ -77,7 +81,7 @@ struct JointControllerStateMsgData {
     velocity_error.setZero(n);
   }
 
-  int size() const noexcept { return static_cast<int>(position.size()); }
+  Eigen::Index size() const noexcept { return position.size(); }
 
   void recompute_errors() {
     position_error.noalias() = position_des - position;
