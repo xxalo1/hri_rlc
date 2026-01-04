@@ -5,10 +5,10 @@
 
 namespace ros_utils_cpp::time {
 
-double FromRosTime(const builtin_interfaces::msg::Time& t) noexcept;
-double FromRosDuration(const builtin_interfaces::msg::Duration& d) noexcept;
+double from_ros_time(const builtin_interfaces::msg::Time& t) noexcept;
+double from_ros_duration(const builtin_interfaces::msg::Duration& d) noexcept;
 
-builtin_interfaces::msg::Time ToRosTime(double sec) noexcept;
-builtin_interfaces::msg::Duration ToRosDuration(double sec) noexcept;
+builtin_interfaces::msg::Time to_ros_time(double sec) noexcept;
+builtin_interfaces::msg::Duration to_ros_duration(double sec) noexcept;
 
 }  // namespace ros_utils_cpp::time

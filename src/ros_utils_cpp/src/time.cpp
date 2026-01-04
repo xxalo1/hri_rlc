@@ -14,15 +14,15 @@ constexpr IntT Clamp(IntT v, IntT lo, IntT hi) noexcept {
 
 }  // namespace
 
-double FromRosTime(const builtin_interfaces::msg::Time& t) noexcept {
+double from_ros_time(const builtin_interfaces::msg::Time& t) noexcept {
   return static_cast<double>(t.sec) + 1e-9 * static_cast<double>(t.nanosec);
 }
 
-double FromRosDuration(const builtin_interfaces::msg::Duration& d) noexcept {
+double from_ros_duration(const builtin_interfaces::msg::Duration& d) noexcept {
   return static_cast<double>(d.sec) + 1e-9 * static_cast<double>(d.nanosec);
 }
 
-builtin_interfaces::msg::Time ToRosTime(double sec) noexcept {
+builtin_interfaces::msg::Time to_ros_time(double sec) noexcept {
   if (!std::isfinite(sec) || sec < 0.0) sec = 0.0;
 
   auto sec_i64 = static_cast<std::int64_t>(std::floor(sec));
@@ -45,7 +45,7 @@ builtin_interfaces::msg::Time ToRosTime(double sec) noexcept {
   return out;
 }
 
-builtin_interfaces::msg::Duration ToRosDuration(double sec) noexcept {
+builtin_interfaces::msg::Duration to_ros_duration(double sec) noexcept {
   if (!std::isfinite(sec)) sec = 0.0;
   if (sec < 0.0) sec = 0.0;
 
