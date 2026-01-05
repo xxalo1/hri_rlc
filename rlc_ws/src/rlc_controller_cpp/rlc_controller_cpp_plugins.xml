@@ -1,0 +1,10 @@
+<library path="rlc_controller_cpp_controller">
+  <class name="rlc_controller_cpp/RealtimeEffortController"
+         type="rlc_controller_cpp::RealtimeEffortController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Effort controller plugin using rbt_core_cpp::Robot.
+    </description>
+  </class>
+</library>
+
