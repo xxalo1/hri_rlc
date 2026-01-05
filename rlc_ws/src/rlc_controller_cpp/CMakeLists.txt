@@ -26,7 +26,7 @@ find_package(rlc_utils REQUIRED)
 option(BUILD_LEGACY_NODE "Build legacy rclcpp controller node" OFF)
 
 add_library(rlc_controller_cpp_controller SHARED
-  src/realtime_effort_controller.cpp
+  src/realtime_controller.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
