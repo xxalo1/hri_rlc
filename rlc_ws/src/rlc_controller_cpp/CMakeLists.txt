@@ -26,6 +26,8 @@ add_executable(gen3_controller_node
   src/controller_node.cpp
 )
 
+target_compile_features(gen3_controller_node PUBLIC cxx_std_17)
+
 target_include_directories(gen3_controller_node
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

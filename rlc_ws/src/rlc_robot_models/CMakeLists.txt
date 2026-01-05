@@ -8,13 +8,20 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(ament_index_cpp REQUIRED)
-find_package(rbt_core_cpp CONFIG REQUIRED)
+
+set(RBT_CORE_CPP_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../src/rbt_core_cpp")
+if(NOT EXISTS "${RBT_CORE_CPP_SOURCE_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR "Expected rbt_core_cpp at ${RBT_CORE_CPP_SOURCE_DIR}")
+endif()
+add_subdirectory("${RBT_CORE_CPP_SOURCE_DIR}" rbt_core_cpp)
 
 ament_python_install_package(rlc_robot_models)
 
 add_library(rlc_robot_models_cpp
   src/kinova_gen3.cpp
 )
+
+target_compile_features(rlc_robot_models_cpp PUBLIC cxx_std_17)
 
 target_include_directories(rlc_robot_models_cpp
   PUBLIC
@@ -30,7 +37,7 @@ target_link_libraries(rlc_robot_models_cpp
   rbt_core_cpp::rbt_core_cpp
 )
 
-install(TARGETS rlc_robot_models_cpp
+install(TARGETS rlc_robot_models_cpp rbt_core_cpp
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -40,6 +47,7 @@ install(TARGETS rlc_robot_models_cpp
 install(DIRECTORY include/
   DESTINATION include
 )
+install(DIRECTORY "${RBT_CORE_CPP_SOURCE_DIR}/include/" DESTINATION include)
 
 
 if(BUILD_TESTING)
@@ -55,6 +63,11 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
-ament_export_dependencies(rbt_core_cpp)
+ament_export_include_directories(include)
+ament_export_dependencies(
+  ament_index_cpp
+  pinocchio
+  Eigen3
+)
 
 ament_package()

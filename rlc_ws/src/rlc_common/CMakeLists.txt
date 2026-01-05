@@ -20,6 +20,8 @@ add_library(rlc_common
   src/endpoints.cpp
 )
 
+target_compile_features(rlc_common PUBLIC cxx_std_17)
+
 target_include_directories(rlc_common
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,7 +46,6 @@ install(
 )
 
 install(DIRECTORY include/ DESTINATION include)
-install(FILES package.xml DESTINATION share/${PROJECT_NAME})
 
 ament_export_dependencies(
   ament_index_cpp

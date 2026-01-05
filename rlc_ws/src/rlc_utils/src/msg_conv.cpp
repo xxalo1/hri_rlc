@@ -4,12 +4,12 @@
 #include <cstring>
 
 #include "rlc_utils/checks.hpp"
-#include "rlc_utils/time.hpp"
-#include "rlc_utils/msg_conv.hpp"
+#include "rlc_utils/time_util.hpp"
 
 namespace ru = rlc_utils;
-namespace rmsg = rlc_utils::msg_conv;
-namespace rtime = rlc_utils::time_util;
+namespace rumsg = rlc_utils::msg_conv;
+namespace rutime = rlc_utils::time_util;
+namespace rutypes = rlc_utils::types;
 
 namespace rlc_utils::msg_conv {
 
@@ -19,7 +19,7 @@ sensor_msgs::msg::JointState make_joint_state_msg(
   sensor_msgs::msg::JointState msg;
 
   msg.name = names;
-  msg.header.stamp = ru::time::to_ros_time(stamp_sec);
+  msg.header.stamp = rutime::to_ros_time(stamp_sec);
 
   msg.position.resize(n);
   msg.velocity.resize(n);
@@ -38,7 +38,7 @@ rlc_interfaces::msg::JointEffortCmd make_joint_effort_cmd_msg(
   rlc_interfaces::msg::JointEffortCmd msg;
 
   msg.name = names;
-  msg.header.stamp = ru::time::to_ros_time(stamp_sec);
+  msg.header.stamp = rutime::to_ros_time(stamp_sec);
   msg.effort.resize(n);
 
   return msg;
@@ -50,7 +50,7 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
   control_msgs::msg::JointTrajectoryControllerState msg;
 
   msg.joint_names = names;
-  msg.header.stamp = ru::time::to_ros_time(stamp_sec);
+  msg.header.stamp = rutime::to_ros_time(stamp_sec);
 
   msg.reference.positions.resize(n);
   msg.feedback.positions.resize(n);
@@ -71,19 +71,24 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
 }
 
 bool from_joint_state_msg(const sensor_msgs::msg::JointState& msg,
-                          JointStateMsgData& data) noexcept {
+                          rutypes::JointStateMsgData& data) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  if (!rlc_utils::checks::size_is(msg.position, n)) return false;
-  if (!rlc_utils::checks::empty_or_size_is(msg.name, n)) return false;
-  if (!rlc_utils::checks::empty_or_size_is(msg.velocity, n)) return false;
-  if (!rlc_utils::checks::empty_or_size_is(msg.effort, n)) return false;
+  if (!ru::checks::size_is(msg.position, n)) return false;
+  if (!ru::checks::empty_or_size_is(msg.name, n)) return false;
+  if (!ru::checks::empty_or_size_is(msg.velocity, n)) return false;
+  if (!ru::checks::empty_or_size_is(msg.effort, n)) return false;
 
-  data.stamp_sec = rtime::from_ros_time(msg.header.stamp);
+  data.stamp_sec = rutime::from_ros_time(msg.header.stamp);
 
   std::memcpy(data.position.data(), msg.position.data(), bytes);
-  std::memcpy(data.velocity.data(), msg.velocity.data(), bytes);
+  
+  if (!msg.velocity.empty()) {
+    std::memcpy(data.velocity.data(), msg.velocity.data(), bytes);
+  } else {
+    data.velocity.setZero();
+  }
 
   if (!msg.effort.empty()) {
     std::memcpy(data.effort.data(), msg.effort.data(), bytes);
@@ -95,14 +100,14 @@ bool from_joint_state_msg(const sensor_msgs::msg::JointState& msg,
 }
 
 bool from_joint_effort_cmd_msg(const rlc_interfaces::msg::JointEffortCmd& msg,
-                               JointEffortCmdMsgData& data) noexcept {
+                               rutypes::JointEffortCmdMsgData& data) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  if (!rlc_utils::checks::size_is(msg.effort, n)) return false;
-  if (!rlc_utils::checks::empty_or_size_is(msg.name, n)) return false;
+  if (!ru::checks::size_is(msg.effort, n)) return false;
+  if (!ru::checks::empty_or_size_is(msg.name, n)) return false;
 
-  data.stamp_sec = rtime::from_ros_time(msg.header.stamp);
+  data.stamp_sec = rutime::from_ros_time(msg.header.stamp);
 
   std::memcpy(data.effort.data(), msg.effort.data(), bytes);
 
@@ -111,14 +116,14 @@ bool from_joint_effort_cmd_msg(const rlc_interfaces::msg::JointEffortCmd& msg,
 
 bool from_joint_ctrl_state_msg(
     const control_msgs::msg::JointTrajectoryControllerState& msg,
-    JointControllerStateMsgData& data) noexcept {
+    rutypes::JointControllerStateMsgData& data) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  if (!rlc_utils::checks::empty_or_size_is(msg.joint_names, n))
+  if (!ru::checks::empty_or_size_is(msg.joint_names, n))
     return false;
 
-  if (!rlc_utils::checks::all_size_is(
+  if (!ru::checks::all_size_is(
           n, msg.feedback.positions, msg.feedback.velocities,
           msg.reference.positions, msg.reference.velocities,
           msg.reference.accelerations, msg.error.positions,
@@ -126,10 +131,10 @@ bool from_joint_ctrl_state_msg(
     return false;
   }
 
-  if (!rlc_utils::checks::empty_or_size_is(msg.feedback.accelerations, n))
+  if (!ru::checks::empty_or_size_is(msg.feedback.accelerations, n))
     return false;
 
-  data.stamp_sec = rtime::from_ros_time(msg.header.stamp);
+  data.stamp_sec = rutime::from_ros_time(msg.header.stamp);
 
   std::memcpy(data.position.data(), msg.feedback.positions.data(), bytes);
   std::memcpy(data.velocity.data(), msg.feedback.velocities.data(), bytes);
@@ -151,12 +156,12 @@ bool from_joint_ctrl_state_msg(
   return true;
 }
 
-bool to_joint_state_msg(const JointStateMsgData& data,
+bool to_joint_state_msg(const rutypes::JointStateMsgData& data,
                         sensor_msgs::msg::JointState& msg) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  msg.header.stamp = ru::time::to_ros_time(data.stamp_sec);
+  msg.header.stamp = rutime::to_ros_time(data.stamp_sec);
 
   std::memcpy(msg.position.data(), data.position.data(), bytes);
   std::memcpy(msg.velocity.data(), data.velocity.data(), bytes);
@@ -168,12 +173,12 @@ bool to_joint_state_msg(const JointStateMsgData& data,
 }
 
 bool to_joint_effort_cmd_msg(
-    const JointEffortCmdMsgData& data,
+    const rutypes::JointEffortCmdMsgData& data,
     rlc_interfaces::msg::JointEffortCmd& msg) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  msg.header.stamp = ru::time::to_ros_time(data.stamp_sec);
+  msg.header.stamp = rutime::to_ros_time(data.stamp_sec);
 
   std::memcpy(msg.effort.data(), data.effort.data(), bytes);
 
@@ -181,12 +186,12 @@ bool to_joint_effort_cmd_msg(
 }
 
 bool to_joint_ctrl_state_msg(
-    const JointControllerStateMsgData& data,
+    const rutypes::JointControllerStateMsgData& data,
     control_msgs::msg::JointTrajectoryControllerState& msg) noexcept {
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  msg.header.stamp = ru::time::to_ros_time(data.stamp_sec);
+  msg.header.stamp = rutime::to_ros_time(data.stamp_sec);
 
   std::memcpy(msg.feedback.positions.data(), data.position.data(), bytes);
   std::memcpy(msg.feedback.velocities.data(), data.velocity.data(), bytes);

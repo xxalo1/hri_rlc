@@ -1,10 +1,11 @@
-#include "ros_utils_cpp/time.hpp"
+#include "rlc_utils/time_util.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
 
-namespace ros_utils_cpp::time_util {
+namespace rlc_utils::time_util {
 namespace {
 
 template <typename IntT>
@@ -71,5 +72,4 @@ builtin_interfaces::msg::Duration to_ros_duration(double sec) noexcept {
   return out;
 }
 
-}  // namespace ros_utils_cpp::time
-
+}  // namespace rlc_utils::time_util
