@@ -1,290 +1,215 @@
-# CMakeLists Professional Rules (ROS 2 ament, target based)
+# Repo Packaging Standard (ROS 2 and standalone CMake)
 
-This document is a project standard for writing `CMakeLists.txt` files in this repository. It is written for ROS 2 packages using `ament_cmake`, but most rules also apply to pure CMake projects.
+These rules define how packages are structured and exported in this repository. They apply to humans and automation.
 
-## 1. The mental model
+## 1. Package types and required files
 
-1. CMake configures a build. It generates build files for Ninja or Make.
-2. A target is what CMake builds.
-   1. Executable target created by `add_executable(...)`
-   2. Library target created by `add_library(...)`
-   3. Interface target created by `add_library(name INTERFACE)` for header only requirements
-3. You attach build rules to targets. Avoid global flags when possible.
-4. Headers are compile time. Libraries are link time.
-5. If your public headers include a dependency header, that dependency is part of your public interface.
+1. ROS 2 CMake package (C++ libraries and or nodes)  
+   Required: `package.xml`, `CMakeLists.txt`
+2. ROS 2 Python package  
+   Required: `package.xml`, `setup.cfg`, `setup.py` (or equivalent)
+3. ROS 2 mixed package (C++ plus installable Python module)  
+   Required: `package.xml`, `CMakeLists.txt`, `setup.cfg`, `setup.py`
+4. ROS 2 description only package (URDF, meshes, xacro, config)  
+   Required: `package.xml`, `CMakeLists.txt`
+5. Standalone CMake library (non ROS), installed to repo `/_install`  
+   Required: `CMakeLists.txt`, install rules, `*Config.cmake` generation
 
-## 2. File structure and order
+## 2. CMake rules (ament_cmake)
 
-Recommended order in `CMakeLists.txt`:
-
-1. `cmake_minimum_required(...)`
+### 2.1 Standard layout
+Recommended order:
+1. `cmake_minimum_required`
 2. `project(... LANGUAGES CXX)`
-3. Project defaults (C++ standard and extensions)
-4. `find_package(ament_cmake REQUIRED)` and other `find_package(...)`
-5. Python install rules, if any
-6. Define targets (`add_library`, `add_executable`)
-7. Attach target properties (compile features, includes, options, dependencies)
-8. Install rules
-9. Export rules
-10. Testing rules
-11. `ament_package()` last
+3. C++ standard defaults
+4. `find_package(...)`
+5. Targets
+6. Target properties and dependencies
+7. Install
+8. Export
+9. Tests
+10. `ament_package()` last
 
-## 3. C++ standard policy
-
-For ROS 2 workspaces, set the default per package, then also enforce per exported target.
+### 2.2 C++ standard
+Repository standard is C++20.
 
 At package scope:
-
 ```cmake
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 ```
 
-On exported libraries:
-
+Exported libraries must also declare the contract:
 ```cmake
-target_compile_features(my_lib PUBLIC cxx_std_20)
+target_compile_features(<pkg>_lib PUBLIC cxx_std_20)
 ```
 
-Why both.
-1. The package default makes new targets consistent.
-2. The target requirement is the public contract for downstream consumers.
+### 2.3 Target based configuration only
+Use `target_*` commands. Avoid global flags.
 
-## 4. Target based rules
-
-### 4.1 Prefer target based commands
-
-Use these on targets.
-1. `target_include_directories`
-2. `target_compile_options`
-3. `target_compile_definitions`
-4. `target_link_libraries`
-5. `target_compile_features`
-
-Avoid global settings like `add_compile_options(...)` unless you truly want every target to inherit it.
-
-### 4.2 PUBLIC, PRIVATE, INTERFACE
-
-Always choose visibility for each requirement.
-
-1. PRIVATE
-   Only this target needs it to build.
-2. PUBLIC
-   This target needs it, and anything linking to it also needs it.
-3. INTERFACE
-   This target does not compile code. Dependents need it.
-
-Rule of thumb for dependencies.
-1. If a dependency is included in public headers under `include/`, it must be PUBLIC.
-2. If it is only used in `.cpp`, it should be PRIVATE.
-
-Example.
-
+Preferred:
 ```cmake
-target_link_libraries(my_lib PUBLIC Eigen3::Eigen)
-target_compile_options(my_lib PRIVATE -Wall -Wextra -Wpedantic)
+target_include_directories
+target_compile_options
+target_link_libraries
+target_compile_features
 ```
 
-### 4.3 Build interface and install interface for includes
-
-For installed packages, include paths differ between the build tree and install tree. Always use this pattern for libraries with installed headers.
-
+Avoid:
 ```cmake
-target_include_directories(my_lib
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
+add_compile_options(...)
+set(CMAKE_CXX_FLAGS ...)
 ```
 
-## 5. Dependencies in ROS 2 ament
-
-### 5.1 `find_package`
-
-For each dependency you use in CMake, add a `find_package(dep REQUIRED)`.
-
-### 5.2 `ament_target_dependencies`
-
-For ROS 2 packages that provide headers and linking flags, attach them to the target.
-
+Warnings belong on the target and are PRIVATE:
 ```cmake
-ament_target_dependencies(my_lib
-  rclcpp
-  sensor_msgs
-  control_msgs
-)
-```
-
-This is the standard way to express ROS dependencies for a target.
-
-### 5.3 Imported targets
-
-When a dependency provides a CMake target like `Eigen3::Eigen`, prefer it.
-
-```cmake
-target_link_libraries(my_lib PUBLIC Eigen3::Eigen)
-```
-
-## 6. Names and exported targets
-
-### 6.1 Internal target name vs public name
-
-You may keep an internal target name and export a stable public name.
-
-Example.
-1. Internal: `rlc_utils_lib`
-2. Public: `rlc_utils::utils`
-
-To make the installed exported target be `rlc_utils::utils`, do both.
-
-```cmake
-add_library(rlc_utils_lib ...)
-set_target_properties(rlc_utils_lib PROPERTIES EXPORT_NAME utils)
-```
-
-Optional convenience during development in the same build tree.
-
-```cmake
-add_library(rlc_utils::utils ALIAS rlc_utils_lib)
-```
-
-Important.
-1. Aliases are not exported by default.
-2. The exported name is controlled by `EXPORT_NAME` and the export namespace.
-
-## 7. Install rules
-
-### 7.1 Install targets
-
-Install the compiled target and attach an export set.
-
-```cmake
-install(TARGETS my_lib
-  EXPORT export_${PROJECT_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
-)
-```
-
-### 7.2 Install headers
-
-```cmake
-install(DIRECTORY include/ DESTINATION include)
-```
-
-## 8. Export rules for downstream packages
-
-Downstream packages typically do this.
-
-```cmake
-find_package(my_pkg REQUIRED)
-target_link_libraries(their_target PRIVATE my_pkg::some_target)
-```
-
-To support that, export targets and dependencies.
-
-```cmake
-ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET NAMESPACE my_pkg::)
-ament_export_include_directories(include)
-ament_export_dependencies(
-  Eigen3
-  sensor_msgs
-)
-```
-
-Meaning of `ament_export_dependencies`.
-1. It declares the package level dependency chain for downstream `find_package`.
-2. Use it for dependencies that are part of your public interface, especially when your public headers include them.
-
-## 9. Warnings and hygiene
-
-Attach warnings to your targets as PRIVATE.
-
-```cmake
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(my_lib PRIVATE -Wall -Wextra -Wpedantic)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  target_compile_options(tgt PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 ```
 
-Avoid exporting warning flags to downstream consumers.
+### 2.4 PUBLIC vs PRIVATE
+A dependency is PUBLIC if it is required by public headers under `include/`.
 
-## 10. Python in a mixed package
+Rule:
+1. dependency headers appear in installed headers ⇒ PUBLIC
+2. dependency used only in `.cpp` ⇒ PRIVATE
 
-Python install is not a CMake link target. It is installed as a package module.
-
+### 2.5 Include directories
+Use build and install interfaces:
 ```cmake
-find_package(ament_cmake_python REQUIRED)
-ament_python_install_package(my_python_pkg)
+target_include_directories(tgt PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
 ```
 
-You do not normally create a CMake target name for Python.
+### 2.6 Naming and exports
+Libraries use an internal name ending with `_lib` and export a namespaced target.
 
-## 11. Minimal template for a mixed Python plus C++ ROS 2 library package
+Pattern:
+1. internal target: `<pkg>_lib`
+2. exported target: `<pkg>::<component>`
 
+Implementation:
 ```cmake
-cmake_minimum_required(VERSION 3.8)
-project(my_pkg LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-find_package(ament_cmake REQUIRED)
-find_package(ament_cmake_python REQUIRED)
-
-find_package(Eigen3 REQUIRED)
-find_package(sensor_msgs REQUIRED)
-
-ament_python_install_package(my_pkg)
-
-add_library(my_pkg_lib
-  src/a.cpp
-)
-set_target_properties(my_pkg_lib PROPERTIES EXPORT_NAME utils)
+add_library(my_pkg_lib src/a.cpp)
 add_library(my_pkg::utils ALIAS my_pkg_lib)
+set_target_properties(my_pkg_lib PROPERTIES EXPORT_NAME utils)
+```
 
-target_compile_features(my_pkg_lib PUBLIC cxx_std_20)
-
-target_include_directories(my_pkg_lib
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-
-ament_target_dependencies(my_pkg_lib
-  sensor_msgs
-)
-
-target_link_libraries(my_pkg_lib PUBLIC Eigen3::Eigen)
-
-install(TARGETS my_pkg_lib
-  EXPORT export_${PROJECT_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
-)
-
+Export:
+```cmake
+install(TARGETS my_pkg_lib EXPORT export_${PROJECT_NAME} ...)
 install(DIRECTORY include/ DESTINATION include)
 
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET NAMESPACE my_pkg::)
-ament_export_dependencies(Eigen3 sensor_msgs)
+ament_export_dependencies(...)
+```
 
+### 2.7 Nodes (executables)
+Executables install to `lib/${PROJECT_NAME}` and are not exported as libraries:
+```cmake
+add_executable(my_node src/main.cpp)
+ament_target_dependencies(my_node rclcpp)
+install(TARGETS my_node DESTINATION lib/${PROJECT_NAME})
+```
+
+### 2.8 Description only packages
+Do not add compiler flags or targets. Only install data:
+```cmake
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY robots/ DESTINATION share/${PROJECT_NAME})
 ament_package()
 ```
 
-## 12. Review checklist
+## 3. `package.xml` rules (ROS 2)
 
-Before merging a `CMakeLists.txt`, confirm:
-1. Targets exist for every library and executable.
-2. Public headers live under `include/` and are installed.
-3. Build interface and install interface include dirs are correct.
-4. Dependencies included in public headers are PUBLIC on the target.
-5. Warnings are PRIVATE.
-6. Targets are installed and exported.
-7. `ament_package()` is the last line.
+1. `package.xml` is required for every ROS package.
+2. Build type must be declared.
 
+CMake packages:
+```xml
+<buildtool_depend>ament_cmake</buildtool_depend>
+<export><build_type>ament_cmake</build_type></export>
+```
+
+Python packages:
+```xml
+<buildtool_depend>ament_python</buildtool_depend>
+<export><build_type>ament_python</build_type></export>
+```
+
+Mixed packages:
+```xml
+<buildtool_depend>ament_cmake</buildtool_depend>
+<build_depend>ament_cmake_python</build_depend>
+<export><build_type>ament_cmake</build_type></export>
+```
+
+3. Dependencies must match usage. Default to `<depend>` unless there is a strong reason to split build and exec.
+
+Example:
+```xml
+<depend>rclcpp</depend>
+<depend>rlc_common</depend>
+<depend>rlc_robot_models</depend>
+```
+
+4. Test tools go under `<test_depend>`.
+
+## 4. Python packaging rules (`setup.cfg`, `setup.py`)
+
+Include Python packaging metadata whenever the package installs an importable module or provides console scripts.
+
+Minimal `setup.py`:
+```python
+from setuptools import setup
+setup()
+```
+
+Minimal `setup.cfg`:
+```ini
+[metadata]
+name = rlc_common
+version = 0.0.0
+
+[options]
+packages = find:
+zip_safe = True
+
+[options.entry_points]
+console_scripts =
+  example_node = rlc_common.scripts.example_node:main
+```
+
+If the package contains no installable Python module, omit `setup.cfg` and `setup.py`.
+
+## 5. Standalone non ROS CMake libraries (installed to `/_install`)
+
+1. Standalone libraries must install targets, headers, and CMake package config files.
+2. The `*Config.cmake` must pull in dependencies via `find_dependency(...)` so consumers only need `find_package(<lib> CONFIG REQUIRED)`.
+
+`Config.cmake.in` pattern:
+```cmake
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(Eigen3)
+include("${CMAKE_CURRENT_LIST_DIR}/<lib>Targets.cmake")
+```
+
+Consumption from ROS workspace:
+```bash
+export CMAKE_PREFIX_PATH="$PWD/_install:${CMAKE_PREFIX_PATH}"
+colcon build --symlink-install
+```
+
+## 6. Avoid list (mandatory)
+
+1. Do not use global `add_compile_options(...)` in packages that export libraries.
+2. Do not export or install standalone libraries from inside a ROS package. Use `find_package(<lib> CONFIG REQUIRED)`.
+3. Do not link against internal target names. Link only to exported namespaced targets like `pkg::component`.
+4. Do not copy another library's headers into a different package's `include/`.
+5. Do not list dependencies in `ament_export_dependencies(...)` unless they are part of the public interface or required for downstream `find_package` correctness.
