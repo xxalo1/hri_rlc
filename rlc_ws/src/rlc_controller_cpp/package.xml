@@ -11,12 +11,17 @@
 
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>sensor_msgs</depend>
   <depend>trajectory_msgs</depend>
   <depend>control_msgs</depend>
+  <depend>controller_interface</depend>
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
   <depend>rlc_interfaces</depend>
   <depend>rlc_common</depend>
   <depend>rlc_robot_models</depend>
+  <depend>rlc_utils</depend>
 
   <depend>pinocchio</depend>
   <depend>eigen</depend>
