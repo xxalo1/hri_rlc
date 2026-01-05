@@ -136,3 +136,4 @@ log/
 **/build/
 **/install/
 **/log/
+_install/
