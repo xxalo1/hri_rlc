@@ -113,7 +113,7 @@ struct JointEffortCmdMsgData {
  *
  * @details
  * Sizes:
- * - `name`: length = `size()` (may be left unset by converters).
+ * - `joint_names`: length = `size()` (may be left unset by converters).
  * - `position`, `velocity`, `acceleration`: Feedback [rad], [rad/s], [rad/s^2], size = `size()`.
  * - `position_des`, `velocity_des`, `acceleration_des`: Reference [rad], [rad/s], [rad/s^2], size = `size()`.
  * - `effort`: Output effort/torque [N·m], size = `size()`.
@@ -123,7 +123,7 @@ struct JointEffortCmdMsgData {
  * - `stamp_sec`: Message stamp [s], typically derived from `header.stamp`.
  */
 struct JointControllerStateMsgData {
-  std::vector<std::string> name;
+  std::vector<std::string> joint_names;
   double stamp_sec{0.0};
 
   Eigen::VectorXd position;
@@ -156,7 +156,7 @@ struct JointControllerStateMsgData {
   void resize(Eigen::Index n) {
     if (n < 0)
       throw std::invalid_argument("JointControllerStateMsgData::resize: n < 0");
-    name.resize(static_cast<std::size_t>(n));
+    joint_names.resize(static_cast<std::size_t>(n));
 
     position.setZero(n);
     velocity.setZero(n);
