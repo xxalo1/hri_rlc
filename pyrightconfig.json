@@ -1,4 +1,26 @@
 {
+
+  "python.analysis.stubPath": "${workspaceFolder}/typings",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/src",
+
+    "${workspaceFolder}/rlc_ws/build/rlc_common",
+    "${workspaceFolder}/rlc_ws/build/rlc_interfaces",
+    "${workspaceFolder}/rlc_ws/build/rlc_controller",
+    "${workspaceFolder}/rlc_ws/build/rlc_planner",
+    "${workspaceFolder}/rlc_ws/build/rlc_sim",
+    "${workspaceFolder}/rlc_ws/build/rlc_bringup",
+
+    "${workspaceFolder}/rlc_ws/install/rlc_common/lib/python3.12/site-packages",
+    "${workspaceFolder}/rlc_ws/install/rlc_interfaces/lib/python3.12/site-packages",
+    "${workspaceFolder}/rlc_ws/install/rlc_controller/lib/python3.12/site-packages",
+    "${workspaceFolder}/rlc_ws/install/rlc_planner/lib/python3.12/site-packages",
+    "${workspaceFolder}/rlc_ws/install/rlc_sim/lib/python3.12/site-packages",
+    "${workspaceFolder}/rlc_ws/install/rlc_bringup/lib/python3.12/site-packages",
+
+    "/opt/ros/jazzy/lib/python3.12/site-packages"
+  ],
+
   "extraPaths": [
     "rlc_ws/src",
     "src"
