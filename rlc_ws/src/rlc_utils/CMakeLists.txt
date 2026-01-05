@@ -54,8 +54,7 @@ ament_target_dependencies(rlc_utils_lib
   rlc_interfaces
 )
 
-# Your public headers include Eigen, so this must be PUBLIC
-target_link_libraries(rlc_utils_lib PUBLIC Eigen3::Eigen)
+target_link_libraries(rlc_utils_lib Eigen3::Eigen)
 
 install(TARGETS rlc_utils_lib
   EXPORT export_${PROJECT_NAME}

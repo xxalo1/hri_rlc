@@ -19,7 +19,10 @@ add_library(rlc_robot_models_lib
 )
 
 add_library(rlc_robot_models::models ALIAS rlc_robot_models_lib)
-set_target_properties(rlc_robot_models_lib PROPERTIES EXPORT_NAME models)
+set_target_properties(rlc_robot_models_lib PROPERTIES
+  EXPORT_NAME models
+  POSITION_INDEPENDENT_CODE ON
+)
 
 target_compile_features(rlc_robot_models_lib PUBLIC cxx_std_20)
 
@@ -38,7 +41,7 @@ ament_target_dependencies(rlc_robot_models_lib
 )
 
 # Link to your external library
-target_link_libraries(rlc_robot_models_lib PUBLIC rbt_core_cpp::rbt_core_cpp)
+target_link_libraries(rlc_robot_models_lib rbt_core_cpp::rbt_core_cpp)
 
 install(TARGETS rlc_robot_models_lib
   EXPORT export_${PROJECT_NAME}
