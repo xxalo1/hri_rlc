@@ -1,15 +1,13 @@
 #include "rlc_controller_cpp/controller_node.hpp"
 
 #include <Eigen/Core>
-#include <algorithm>
 #include <chrono>
 #include <stdexcept>
 
 #include "rlc_robot_models/kinova_gen3.hpp"
+#include "rlc_utils/msg_conv.hpp"
 namespace rlc_controller_cpp {
-using namespace std::chrono_literals;
-
-static inline double to_sec(const rclcpp::Time& t) { return t.seconds(); }
+namespace rumsg = rlc_utils::msg_conv;
 
 ControllerNode::ControllerNode(const rclcpp::NodeOptions& options)
     : rclcpp::Node("gen3_controller", options),
@@ -26,41 +24,9 @@ ControllerNode::ControllerNode(const rclcpp::NodeOptions& options)
     throw std::runtime_error("controller_rate_hz must be > 0");
   }
 
-  // After construction:
-  n_ = robot_.n();
-
-  // Preallocate buffers (once n_ is known)
-  state_.q.resize(n_);
-  state_.qd.resize(n_);
-  state_.qdd.resize(n_);
-  des_.q.resize(n_);
-  des_.qd.resize(n_);
-  des_.qdd.resize(n_);
-  state_.qdd.setZero();
-  des_.qd.setZero();
-  des_.qdd.setZero();
-
-  // Set base pose
-  // Eigen::Matrix<double,7,1> pose;
-  // for (int i = 0; i < 7; ++i) pose[i] =
-  // params_.base_pose_wb[static_cast<size_t>(i)];
-  // robot_->set_base_pose_wb(pose);
-
-  // Set defaults (adjust to your controller API)
-  // robot_->set_ctrl_mode(rbt_core_cpp::CtrlMode::CT);
-  // robot_->ctrl().set_joint_gains(/*kp=*/1.0, /*kv=*/1.0, /*ki=*/1.0);
-
-  // ----------------------------
-  // Preallocate buffers (once n_ is known)
-  // ----------------------------
-  // state_.q.resize(n_);  state_.qd.resize(n_);  state_.qdd.resize(n_);
-  // des_.q.resize(n_);    des_.qd.resize(n_);    des_.qdd.resize(n_);
-  // state_.qdd.setZero(); des_.qd.setZero(); des_.qdd.setZero();
-
-  // ----------------------------
-  // Callback group: mutually exclusive (no locks, no races)
-  // ----------------------------
-  cb_group_ =
+  cb_ctrl_ =
+      this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  cb_state_ =
       this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   // QoS similar to "latest"
@@ -72,13 +38,15 @@ ControllerNode::ControllerNode(const rclcpp::NodeOptions& options)
   // ----------------------------
   constexpr auto topics = rlc_common::TOPICS;
 
-  pub_effort_ =
-      this->create_publisher<EffortCmdMsg>(topics.effort_cmd.name, qos_latest);
+  pub_effort_ = this->create_publisher<JointEffortCmdMsg>(
+      topics.effort_cmd.name, qos_latest);
 
+  rclcpp::SubscriptionOptions sub_opts;
+  sub_opts.callback_group = cb_state_;
   sub_js_ = this->create_subscription<JointStateMsg>(
       topics.joint_state.name, qos_latest,
       std::bind(&ControllerNode::joint_state_cb, this, std::placeholders::_1),
-      rclcpp::SubscriptionOptions{.callback_group = cb_group_});
+      sub_opts);
 
   // ----------------------------
   // Timer: control step
@@ -87,104 +55,89 @@ ControllerNode::ControllerNode(const rclcpp::NodeOptions& options)
       std::chrono::duration<double>(1.0 / params_.controller_rate_hz));
 
   timer_ = this->create_wall_timer(
-      period_ns, std::bind(&ControllerNode::control_step, this), cb_group_);
+      period_ns, std::bind(&ControllerNode::control_step, this), cb_ctrl_);
 
-  this->get_logger().info(("gen3_controller_cpp started. controller_rate_hz=" +
-                           std::to_string(params_.controller_rate_hz))
-                              .c_str());
+  RCLCPP_INFO(this->get_logger(),
+              "gen3_controller_cpp started. controller_rate_hz=%.3f",
+              params_.controller_rate_hz);
 }
 
 void ControllerNode::configure_from_first_state(const JointStateMsg& msg) {
-  // Copy names once (string allocations happen once here, not in hot path)
-  state_.names = msg.name;
+  std::size_t n = msg.name.size();
 
-  if (static_cast<int>(state_.names.size()) != n_) {
-    throw std::runtime_error("JointState name size != robot DOF");
-  }
-  if (static_cast<int>(msg.position.size()) != n_) {
-    throw std::runtime_error("JointState position size != robot DOF");
-  }
-  if (!msg.velocity.empty() && static_cast<int>(msg.velocity.size()) != n_) {
-    throw std::runtime_error("JointState velocity size != robot DOF");
+  if (n == 0) {
+    throw std::runtime_error(
+        "Received JointState msg with zero joint names in "
+        "configure_from_first_state");
   }
 
-  // Configure mapping once.
-  // If you need a prefix later, call robot_.configure_io(state_.names,
-  // "gen3_").
-  robot_.configure_io(state_.names);
+  if (msg.position.size() != n) {
+    throw std::runtime_error(
+        "JointState msg position size does not match name size");
+  }
 
-  // Pre-size outgoing message once (no resizing later)
-  msg_.effort_cmd.name = state_.names;
-  msg_.effort_cmd.effort.resize(static_cast<size_t>(n_));  // allocate once
+  // check robot compatibility with recieved joint length
+  if (robot_.n() != static_cast<int>(n)) {
+    throw std::runtime_error(
+        "Robot model joint count does not match recieved JointState msg");
+  }
 
-  io_configured_ = true;
+  const Eigen::Index ni = static_cast<Eigen::Index>(n);
+
+  // resize preallocated containers
+  joint_state_.resize(ni);
+  ctrl_state_.resize(ni);
+  joint_cmd_.resize(ni);
+
+  // construct outgoing messages once
+  joint_cmd_msg_ = rumsg::make_joint_effort_cmd_msg(n, 0.0, msg.name);
+  ctrl_state_msg_ = rumsg::make_joint_ctrl_state_msg(n, 0.0, msg.name);
+
+  // copy joint names
+  joint_state_.name = msg.name;
+  ctrl_state_.joint_names = msg.name;
+  ctrl_state_msg_.joint_names = msg.name;
+  joint_cmd_.name = msg.name;
+  joint_cmd_msg_.name = msg.name;
+
+  // configure robot I/O
+  robot_.configure_io(joint_state_.name);
 }
 
 void ControllerNode::joint_state_cb(const JointStateMsg::SharedPtr msg) {
   if (!msg) return;
 
-  // One-time config on first message
-  if (!io_configured_) {
-    configure_from_first_state(*msg);
-  }
-
-  // Stamp
-  state_.stamp = msg->header.stamp;
-
-  // Copy into preallocated Eigen vectors (no allocations)
-  // Positions are required
-  {
-    const double* p = msg->position.data();
-    for (int i = 0; i < n_; ++i) state_.q[i] = p[i];
-  }
-
-  // Velocities optional
-  if (!msg->velocity.empty()) {
-    const double* v = msg->velocity.data();
-    for (int i = 0; i < n_; ++i) state_.qd[i] = v[i];
-  } else {
-    state_.qd.setZero();
-  }
-
-  // Accelerations not provided in JointState; keep zero
-  state_.qdd.setZero();
-
-  state_.has_state = true;
-}
-
-void ControllerNode::fill_effort_cmd_msg(const Vec& tau_src,
-                                         const rclcpp::Time& stamp) {
-  // tau_src is src order already per Robot::compute_ctrl_effort() contract
-  msg_.effort_cmd.header.stamp = stamp;
-
-  auto& e = msg_.effort_cmd.effort;
-  for (int i = 0; i < n_; ++i) {
-    e[static_cast<size_t>(i)] = tau_src[i];
-  }
+  std::atomic_store_explicit(&latest_js_msg_,
+                             std::static_pointer_cast<const JointStateMsg>(msg),
+                             std::memory_order_release);
+  latest_js_seq_.fetch_add(1, std::memory_order_release);
 }
 
 void ControllerNode::control_step() {
-  if (!io_configured_) return;
-  if (!state_.has_state) return;
+  const std::uint64_t seq = latest_js_seq_.load(std::memory_order_acquire);
+  if (seq == consumed_js_seq_) return;
+  consumed_js_seq_ = seq;
 
-  // Update robot state (src order in)
-  const double t_sec = to_sec(state_.stamp);
-  robot_.set_joint_state(&state_.q, &state_.qd, &state_.qdd, &t_sec);
+  const auto msg =
+      std::atomic_load_explicit(&latest_js_msg_, std::memory_order_acquire);
+  if (!msg) return;
 
-  // Desired policy for phase 1: HOLD current q, zero qd/qdd
-  // (no trajectory logic yet)
-  des_.q = state_.q;  // O(n) copy, no alloc
-  des_.qd.setZero();
-  des_.qdd.setZero();
-  robot_.set_joint_des(&des_.q, &des_.qd, &des_.qdd);
+  if (!io_configured_.load(std::memory_order_acquire)) {
+    configure_from_first_state(*msg);
+    io_configured_.store(true, std::memory_order_release);
+    return;
+  }
 
-  // Compute effort (no allocations expected inside if Robot is implemented
-  // correctly)
-  const Vec& tau_src = robot_.compute_ctrl_effort();
+  if (!rumsg::from_joint_state_msg(*msg, joint_state_)) return;
 
-  // Publish
-  fill_effort_cmd_msg(tau_src, state_.stamp);
-  pub_effort_->publish(msg_.effort_cmd);
+  robot_.set_joint_state(&joint_state_.position, &joint_state_.velocity,
+                         nullptr, &joint_state_.stamp_sec);
+
+  joint_cmd_.effort.noalias() = robot_.compute_ctrl_effort();
+  joint_cmd_.stamp_sec = joint_state_.stamp_sec;
+  rumsg::to_joint_effort_cmd_msg(joint_cmd_, joint_cmd_msg_);
+
+  pub_effort_->publish(joint_cmd_msg_);
 }
 
 }  // namespace rlc_controller_cpp
