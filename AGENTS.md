@@ -3,3 +3,4 @@
 - Make request-scoped changes (no unrelated refactors).
 - Python: any new/modified function/method/class must include/update a docstring strictly per `docs/sphinx.md`.
 - C++: any new/modified public API/function/method/class must include/update a Doxygen doc strictly per `docs/doxygen.md`.
+- CMakeLists: any new/modified CMakeLists.txt file should strictly follows the instrcutions in `docs/CMakeLists.md`.
