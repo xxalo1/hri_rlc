@@ -47,8 +47,7 @@ cmake --install build/rbt_core_cpp --prefix _install
 ### ROS 2 (Jazzy) workspace (`rlc_ws/`)
 ```bash
 source /opt/ros/jazzy/setup.bash
-export CMAKE_PREFIX_PATH=../_install:$CMAKE_PREFIX_PATH
-
+export CMAKE_PREFIX_PATH="$PWD/_install:$CMAKE_PREFIX_PATH"
 cd rlc_ws
 colcon build --symlink-install \
   --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
