@@ -47,35 +47,38 @@ class RealtimeController final
   controller_interface::return_type update(
       const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
- private:
-  struct IfaceIndexCache {
-    std::vector<std::size_t> pos;
-    std::vector<std::size_t> vel;
-    std::vector<std::size_t> eff;
-    bool ready{false};
+  struct JointStateInterfaces {
+    hardware_interface::LoanedStateInterface* position{nullptr};
+    hardware_interface::LoanedStateInterface* velocity{nullptr};
+  };
 
-    void clear() {
-      pos.clear();
-      vel.clear();
-      eff.clear();
-      ready = false;
-    }
+  struct JointCommandInterfaces {
+    hardware_interface::LoanedCommandInterface* effort{nullptr};
   };
 
  private:
-  controller_interface::CallbackReturn validate_and_cache_interfaces_();
+  controller_interface::CallbackReturn init_interface_handles();
 
-  void write_zero_effort_();
+  controller_interface::CallbackReturn calibrate();
+  controller_interface::return_type read_state(const rclcpp::Time& time);
+  controller_interface::return_type write_cmd();
+
+  std::size_t ndof() const { return ndof_; }
+  void set_ndof(std::size_t ndof) { ndof_ = ndof; }
 
  private:
+  std::size_t ndof_{0};
   std::vector<std::string> joints_;
+  std::vector<JointStateInterfaces> state_handles_;
+  std::vector<JointCommandInterfaces> command_handles_;
 
   std::optional<rbt_core_cpp::Robot> robot_;
 
   rlc_utils::types::JointStateMsgData joint_state_;
   rlc_utils::types::JointEffortCmdMsgData joint_cmd_;
 
-  IfaceIndexCache ifaces_{};
+  std::vector<std::string> claimed_state_interfaces_;
+  std::vector<std::string> claimed_command_interfaces_;
 };
 
 }  // namespace rlc_controller_cpp
