@@ -20,7 +20,7 @@ if(BUILD_TESTING)
 endif()
 
 install(
-  DIRECTORY robots
+  DIRECTORY robots scripts
   DESTINATION share/${PROJECT_NAME}
 )
 
