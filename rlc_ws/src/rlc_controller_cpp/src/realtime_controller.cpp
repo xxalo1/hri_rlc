@@ -46,6 +46,8 @@ ci::CallbackReturn Self::on_configure(const rclcpp_lifecycle::State&) {
   set_ndof(joints_.size());
   const std::size_t n = ndof();
 
+  claimed_state_interfaces_.clear();
+  claimed_command_interfaces_.clear();
   claimed_state_interfaces_.reserve(n * 2);
   claimed_command_interfaces_.reserve(n);
 
@@ -214,14 +216,21 @@ ci::return_type Self::write_cmd() {
 
 ci::return_type Self::update(const rclcpp::Time& time,
                              const rclcpp::Duration&) {
-  read_state(time);
+  
+  auto rt = read_state(time);
+  if (rt != ci::return_type::OK) {
+    return rt;
+  }
 
   robot_->set_joint_state(&joint_state_.position, &joint_state_.velocity,
                           nullptr, &joint_state_.stamp_sec);
   joint_cmd_.effort.noalias() = robot_->compute_ctrl_effort();
   joint_cmd_.stamp_sec = joint_state_.stamp_sec;
 
-  write_cmd();
+  rt = write_cmd();
+  if (rt != ci::return_type::OK) {
+    return rt;
+  }
 
   return ci::return_type::OK;
 }
