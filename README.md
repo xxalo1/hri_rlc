@@ -44,6 +44,15 @@ cmake --build build/rbt_core_cpp --parallel
 cmake --install build/rbt_core_cpp --prefix _install
 ```
 
+### third party
+
+```bash
+cd third_party/robots_ws
+rm -rf src/*
+vcs import src < ../robots.lock.repos
+colcon build --symlink-install
+```
+
 ### ROS 2 (Jazzy) workspace (`rlc_ws/`)
 ```bash
 source /opt/ros/jazzy/setup.bash

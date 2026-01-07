@@ -8,5 +8,9 @@
     "/opt/ros/jazzy/lib/python3.12/site-packages",
     "/opt/openrobots/lib/python3.12/site-packages"
   ],
-  "ROS2.distro": "jazzy"
+  "ROS2.distro": "jazzy",
+  "python.analysis.extraPaths": [
+    "/opt/openrobots/lib/python3.12/site-packages",
+    "/opt/ros/jazzy/lib/python3.12/site-packages"
+  ]
 }
