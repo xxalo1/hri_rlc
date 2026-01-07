@@ -1,0 +1,19 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 1000
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    rlc_controller:
+      type: YOUR_CONTROLLER_PLUGIN_TYPE
+      ros__parameters:
+        joints:
+          - joint_1
+          - joint_2
+          - joint_3
+          - joint_4
+          - joint_5
+          - joint_6
+          - joint_7
+        # Add your controller parameters here

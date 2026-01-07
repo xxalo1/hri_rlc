@@ -14,6 +14,16 @@
   <exec_depend>rlc_interfaces</exec_depend>
   <exec_depend>rlc_planner</exec_depend>
   <exec_depend>rlc_sim</exec_depend>
+  <exec_depend>rlc_robot_descriptions</exec_depend>
+
+  <!-- gen3_gz.launch.py runtime deps -->
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
