@@ -24,6 +24,8 @@
   <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>rosgraph_msgs</exec_depend>
   <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>kortex_description</exec_depend>
+  <exec_depend>rlc_controller_cpp</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 
