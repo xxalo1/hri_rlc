@@ -7,14 +7,15 @@
 
 #include <Eigen/Core>
 #include <cstddef>
-#include <string>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace rlc_utils::types {
 
 /**
- * @brief Preallocated joint state container matching `sensor_msgs::msg::JointState`.
+ * @brief Preallocated joint state container matching
+ * `sensor_msgs::msg::JointState`.
  *
  * @details
  * Sizes:
@@ -37,7 +38,8 @@ struct JointStateMsgData {
   JointStateMsgData() = default;
 
   /**
-   * @brief Constructs a container sized for `n` joints and zeros numeric fields.
+   * @brief Constructs a container sized for `n` joints and zeros numeric
+   * fields.
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
@@ -65,7 +67,8 @@ struct JointStateMsgData {
 };
 
 /**
- * @brief Preallocated joint effort command container matching `rlc_interfaces::msg::JointEffortCmd`.
+ * @brief Preallocated joint effort command container matching
+ * `rlc_interfaces::msg::JointEffortCmd`.
  *
  * @details
  * Sizes:
@@ -83,7 +86,8 @@ struct JointEffortCmdMsgData {
   JointEffortCmdMsgData() = default;
 
   /**
-   * @brief Constructs a container sized for `n` joints and zeros numeric fields.
+   * @brief Constructs a container sized for `n` joints and zeros numeric
+   * fields.
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
@@ -94,11 +98,11 @@ struct JointEffortCmdMsgData {
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  void resize(Eigen::Index n) { 
+  void resize(Eigen::Index n) {
     if (n < 0)
       throw std::invalid_argument("JointEffortCmdMsgData::resize: n < 0");
     name.resize(static_cast<std::size_t>(n));
-    effort.setZero(n); 
+    effort.setZero(n);
   }
 
   /**
@@ -109,13 +113,16 @@ struct JointEffortCmdMsgData {
 };
 
 /**
- * @brief Preallocated controller state container matching `control_msgs::msg::JointTrajectoryControllerState`.
+ * @brief Preallocated controller state container matching
+ * `control_msgs::msg::JointTrajectoryControllerState`.
  *
  * @details
  * Sizes:
  * - `joint_names`: length = `size()` (may be left unset by converters).
- * - `position`, `velocity`, `acceleration`: Feedback [rad], [rad/s], [rad/s^2], size = `size()`.
- * - `position_des`, `velocity_des`, `acceleration_des`: Reference [rad], [rad/s], [rad/s^2], size = `size()`.
+ * - `position`, `velocity`, `acceleration`: Feedback [rad], [rad/s], [rad/s^2],
+ * size = `size()`.
+ * - `position_des`, `velocity_des`, `acceleration_des`: Reference [rad],
+ * [rad/s], [rad/s^2], size = `size()`.
  * - `effort`: Output effort/torque [N·m], size = `size()`.
  * - `position_error`, `velocity_error`: Error terms, size = `size()`.
  *
@@ -142,7 +149,8 @@ struct JointControllerStateMsgData {
   JointControllerStateMsgData() = default;
 
   /**
-   * @brief Constructs a container sized for `n` joints and zeros numeric fields.
+   * @brief Constructs a container sized for `n` joints and zeros numeric
+   * fields.
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
@@ -176,7 +184,8 @@ struct JointControllerStateMsgData {
   Eigen::Index size() const noexcept { return position.size(); }
 
   /**
-   * @brief Recomputes `position_error` and `velocity_error` from current and desired values.
+   * @brief Recomputes `position_error` and `velocity_error` from current and
+   * desired values.
    * @details Computes:
    * - `position_error = position_des - position`
    * - `velocity_error = velocity_des - velocity`
@@ -187,4 +196,73 @@ struct JointControllerStateMsgData {
   }
 };
 
+/**
+ * @brief Preallocated container mirroring
+ * `trajectory_msgs::msg::JointTrajectory`.
+ *
+ * @details
+ * This struct is intended as an internal, preallocated representation suitable
+ * for real-time control loops after conversion from ROS messages in a
+ * non-real-time context.
+ *
+ * Message fields covered:
+ * - Header:
+ *   - `stamp_sec`: Header stamp [s], typically derived from `header.stamp`.
+ *   - `frame_id`: Header frame id string.
+ * - Trajectory:
+ *   - `joint_names`: Joint name list, length = `n()`.
+ *   - `t`: Time-from-start [s], shape = (N,).
+ *   - `q`: Positions [rad], shape = (N, n()) RowMajor.
+ *   - `qd`: Velocities [rad/s], shape = (N, n()) RowMajor.
+ *   - `qdd`: Accelerations [rad/s^2], shape = (N, n()) RowMajor.
+ *   - `effort`: Effort/torque [N·m], shape = (N, n()) RowMajor.
+ *
+ * Optional point fields:
+ * - In ROS, `velocities`, `accelerations`, and `effort` may be empty per-point.
+ *   When converting, set `has_qd/has_qdd/has_effort` accordingly and either:
+ *   - leave the corresponding matrix sized and filled with zeros, or
+ *   - size it to (0, 0) if you prefer sparse storage (not recommended for RT).
+ */
+struct JointTrajectoryMsgData {
+  using MatTraj =
+      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+
+  std::vector<std::string> joint_names;
+  uint64_t seq{0}; 
+
+  Eigen::VectorXd t;
+
+  MatTraj q;
+  MatTraj qd;
+  MatTraj qdd;
+  MatTraj effort;
+
+  JointTrajectoryMsgData() = default;
+
+  /**
+   * @brief Resizes buffers for `N` samples and `n` joints and zeros numeric
+   * fields.
+   * @param[in] N Number of trajectory samples (points).
+   * @param[in] n Number of joints.
+   * @throws std::invalid_argument If `N < 0` or `n < 0`.
+   */
+  void resize(std::size_t N, std::size_t n) {
+    t.setZero(N);
+    q.setZero(N, n);
+    qd.setZero(N, n);
+    qdd.setZero(N, n);
+    effort.setZero(N, n);
+  }
+
+  /**
+   * @brief Returns the number of trajectory samples.
+   * @return Sample count `N`.
+   */
+  std::size_t length() const noexcept {
+    return static_cast<std::size_t>(t.size());
+  }
+  std::size_t ndof() const noexcept {
+    return static_cast<std::size_t>(joint_names.size());
+  }
+};
 }  // namespace rlc_utils::types

@@ -1,5 +1,7 @@
 #include "rlc_utils/msg_conv.hpp"
 
+#include <Eigen/src/Core/util/Meta.h>
+
 #include <Eigen/Core>
 #include <cstring>
 
@@ -7,7 +9,6 @@
 #include "rlc_utils/time_util.hpp"
 
 namespace ru = rlc_utils;
-namespace rumsg = rlc_utils::msg_conv;
 namespace rutime = rlc_utils::time_util;
 namespace rutypes = rlc_utils::types;
 
@@ -83,7 +84,7 @@ bool from_joint_state_msg(const sensor_msgs::msg::JointState& msg,
   data.stamp_sec = rutime::from_ros_time(msg.header.stamp);
 
   std::memcpy(data.position.data(), msg.position.data(), bytes);
-  
+
   if (!msg.velocity.empty()) {
     std::memcpy(data.velocity.data(), msg.velocity.data(), bytes);
   } else {
@@ -120,14 +121,13 @@ bool from_joint_ctrl_state_msg(
   const Eigen::Index n = data.size();
   const auto bytes = static_cast<std::size_t>(n) * sizeof(double);
 
-  if (!ru::checks::empty_or_size_is(msg.joint_names, n))
-    return false;
+  if (!ru::checks::empty_or_size_is(msg.joint_names, n)) return false;
 
-  if (!ru::checks::all_size_is(
-          n, msg.feedback.positions, msg.feedback.velocities,
-          msg.reference.positions, msg.reference.velocities,
-          msg.reference.accelerations, msg.error.positions,
-          msg.error.velocities, msg.output.effort)) {
+  if (!ru::checks::all_size_is(n, msg.feedback.positions,
+                               msg.feedback.velocities, msg.reference.positions,
+                               msg.reference.velocities,
+                               msg.reference.accelerations, msg.error.positions,
+                               msg.error.velocities, msg.output.effort)) {
     return false;
   }
 
@@ -207,6 +207,42 @@ bool to_joint_ctrl_state_msg(
     std::memcpy(msg.feedback.accelerations.data(), data.acceleration.data(),
                 bytes);
   }
+  return true;
+}
+
+bool from_joint_trajectory_msg(const trajectory_msgs::msg::JointTrajectory& msg,
+                               rutypes::JointTrajectoryMsgData& data) noexcept {
+  const std::size_t n = data.ndof();
+  const std::size_t N = data.length();
+  const auto bytes = n * sizeof(double);
+
+  if (n <= 0 || N <= 0) return false;
+
+  if (!ru::checks::size_is(msg.joint_names, n)) return false;
+  if (!ru::checks::size_is(data.joint_names, n)) return false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (msg.joint_names[i] != data.joint_names[i]) return false;
+  }
+
+  if (!ru::checks::size_is(msg.points, N)) return false;
+
+  for (std::size_t k = 0; k < N; ++k) {
+    const auto& pt = msg.points[k];
+    const double t = rutime::from_ros_duration(pt.time_from_start);
+
+    data.t(static_cast<Eigen::Index>(k)) = t;
+
+    if (!ru::checks::size_is(pt.positions, n)) return false;
+    if (!ru::checks::size_is(pt.velocities, n)) return false;
+    if (!ru::checks::size_is(pt.accelerations, n)) return false;
+
+    const auto row_off = k * n;
+
+    std::memcpy(data.q.data() + row_off, pt.positions.data(), bytes);
+    std::memcpy(data.qd.data() + row_off, pt.velocities.data(), bytes);
+    std::memcpy(data.qdd.data() + row_off, pt.accelerations.data(), bytes);
+  }
+
   return true;
 }
 

@@ -7,6 +7,7 @@
 
 #include <builtin_interfaces/msg/duration.hpp>
 #include <builtin_interfaces/msg/time.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 namespace rlc_utils::time_util {
 

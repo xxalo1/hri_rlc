@@ -9,6 +9,7 @@
 #include <control_msgs/msg/joint_trajectory_controller_state.hpp>
 #include <rlc_interfaces/msg/joint_effort_cmd.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 #include "rlc_utils/types.hpp"
 
@@ -137,6 +138,33 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
 [[nodiscard]] bool from_joint_ctrl_state_msg(
     const control_msgs::msg::JointTrajectoryControllerState& msg,
     types::JointControllerStateMsgData& data) noexcept;
+
+
+/**
+ * @brief Copies a ROS `JointTrajectory` message into a preallocated data
+ * container.
+ * @param[in] msg Source message.
+ * @param[out] data Destination container (preallocated).
+ * @return True on success; false if any required/optional field violates the
+ * size contract.
+ *
+ * @details
+ * Contract (with `n = data.ndof()`, `N = data.length()`):
+ * - `msg.joint_names` must have length = `n`.
+ * - `msg.points` must have length = `N`.
+ * - For each point in `msg.points`:
+ *   - `positions` and `velocities` must have length = `n`.
+ *
+ * Sets `data.joint_names` from `msg.joint_names` and fills in `data.t`,
+ * `data.q`, and `data.qd` from the message points. Accelerations and effort are
+ * not processed.
+ *
+ * @note Allocation-free; O(N·n) in the number of trajectory points and joints
+ * (copies via `std::memcpy`).
+ */
+[[nodiscard]] bool from_joint_trajectory_msg(
+    const trajectory_msgs::msg::JointTrajectory& msg,
+    types::JointTrajectoryMsgData& data) noexcept;
 
 /**
  * @brief Copies a preallocated data container into a ROS `JointState` message.
