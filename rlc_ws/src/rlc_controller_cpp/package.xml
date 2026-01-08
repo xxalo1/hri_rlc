@@ -20,7 +20,6 @@
   <depend>pluginlib</depend>
   <depend>rlc_interfaces</depend>
   <depend>rlc_common</depend>
-  <depend>rlc_robot_models</depend>
   <depend>rlc_utils</depend>
 
   <depend>pinocchio</depend>

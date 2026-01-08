@@ -18,9 +18,10 @@ find_package(sensor_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 
+find_package(rbt_core_cpp REQUIRED CONFIG)
+
 find_package(rlc_interfaces REQUIRED)
 find_package(rlc_common REQUIRED)
-find_package(rlc_robot_models REQUIRED)
 find_package(rlc_utils REQUIRED)
 
 option(BUILD_LEGACY_NODE "Build legacy rclcpp controller node" OFF)
@@ -47,12 +48,11 @@ ament_target_dependencies(rlc_controller_cpp_controller
   pluginlib
   rclcpp
   rclcpp_lifecycle
-  rlc_robot_models
   rlc_utils
 )
 
 target_link_libraries(rlc_controller_cpp_controller
-    rlc_robot_models::models
+    rbt_core_cpp::rbt_core_cpp
     rlc_utils::utils
 )
 
@@ -82,13 +82,12 @@ if(BUILD_LEGACY_NODE)
   control_msgs
   rlc_interfaces
   rlc_common
-  rlc_robot_models
   rlc_utils
   )
 
   target_link_libraries(controller_node_cpp
     rlc_common::common
-    rlc_robot_models::models
+    rbt_core_cpp::rbt_core_cpp
     rlc_utils::utils
   )
 endif()
