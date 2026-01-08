@@ -3,3 +3,7 @@ repositories:
     type: git
     url: https://github.com/Kinovarobotics/ros2_kortex.git
     version: main
+  franka_description:
+    type: git
+    url: https://github.com/frankarobotics/franka_description
+    version: main
