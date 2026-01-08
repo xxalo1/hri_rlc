@@ -2,17 +2,14 @@
 
 /**
  * @file robot.hpp
- * @brief High-level robot wrapper combining dynamics, control, and joint-order mapping.
+ * @brief High-level robot wrapper combining dynamics, control, and joint-order
+ * mapping.
  */
 
 #include <Eigen/Geometry>
 #include <cmath>
-#include <cstddef>
-#include <limits>
-#include <stdexcept>
+#include <memory>
 #include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include "rbt_core_cpp/controller.hpp"
@@ -42,35 +39,44 @@ enum class TraceMode { HOLD, TRAJ };
  * @details
  * - `name`: Human-readable robot name (used for logging/identification).
  * - `urdf_path`: Path to the robot URDF used to build the Pinocchio model.
- * - `tcp_frame`: TCP frame name in the model; if empty, the last frame in the model is used.
+ * - `tcp_frame`: TCP frame name in the model; if empty, the last frame in the
+ * - `urdf_source`: Identifies how the URDF is provided; path vs XML string.
+ * model is used.
  */
 struct RobotSpec {
   std::string name;
-  std::string urdf_path;
+  std::string urdf;
   std::string tcp_frame;
+  rbt_core_cpp::UrdfSource urdf_source;
 };
 
 /**
  * @brief Joint trajectory container (time + q/qd/qdd).
  *
  * @details
- * A trajectory is specified in *source joint order* (I/O/actuator order) and converted once into
- * *model canonical order* when passed to `Robot::set_joint_traj()` for efficient sampling.
+ * A trajectory is specified in *source joint order* (I/O/actuator order) and
+ * converted once into *model canonical order* when passed to
+ * `Robot::set_joint_traj()` for efficient sampling.
  *
  * Sizes/shape:
  * - `t`: time [s], shape = (N,), strictly increasing.
  * - `q`: joint positions [rad], shape = (N, n()) RowMajor (source joint order).
- * - `qd`: joint velocities [rad/s], shape = (N, n()) RowMajor (source joint order).
- * - `qdd`: joint accelerations [rad/s^2], shape = (N, n()) RowMajor (source joint order).
+ * - `qd`: joint velocities [rad/s], shape = (N, n()) RowMajor (source joint
+ * order).
+ * - `qdd`: joint accelerations [rad/s^2], shape = (N, n()) RowMajor (source
+ * joint order).
  */
 struct JointTrajectory {
   using MatTraj =
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
   Eigen::VectorXd t;  ///< Time [s], shape = (N,).
-  MatTraj q;          ///< Joint positions [rad], shape = (N, n()) RowMajor (source joint order).
-  MatTraj qd;         ///< Joint velocities [rad/s], shape = (N, n()) RowMajor (source joint order).
-  MatTraj qdd;        ///< Joint accelerations [rad/s^2], shape = (N, n()) RowMajor (source joint order).
+  MatTraj q;    ///< Joint positions [rad], shape = (N, n()) RowMajor (source
+                ///< joint order).
+  MatTraj qd;   ///< Joint velocities [rad/s], shape = (N, n()) RowMajor (source
+                ///< joint order).
+  MatTraj qdd;  ///< Joint accelerations [rad/s^2], shape = (N, n()) RowMajor
+                ///< (source joint order).
 
   /// @brief Returns true if the trajectory has no samples.
   /// @return True if `t.size() == 0`.
@@ -107,12 +113,13 @@ struct JointState {
 };
 
 /**
- * @brief Fast robot wrapper around dynamics + control with source/model joint-order mapping.
+ * @brief Fast robot wrapper around dynamics + control with source/model
+ * joint-order mapping.
  *
  * @details
- * Unless otherwise stated, joint vectors passed into setters are in *source joint order*
- * (I/O/actuator order), `size = n()`. Internally, state is stored in *model canonical order*,
- * `size = n()`.
+ * Unless otherwise stated, joint vectors passed into setters are in *source
+ * joint order* (I/O/actuator order), `size = n()`. Internally, state is stored
+ * in *model canonical order*, `size = n()`.
  *
  * @par Usage
  * @code{.cpp}
@@ -129,12 +136,14 @@ struct JointState {
  * @endcode
  *
  * @par Thread safety
- * Not thread-safe. External synchronization is required if accessed concurrently.
+ * Not thread-safe. External synchronization is required if accessed
+ * concurrently.
  *
  * @throws std::runtime_error If I/O mapping or inputs are invalid.
  *
  * @warning
- * Be explicit about joint vector ordering (source vs model) and sizes (`n()`, `nq()`, `nv()`).
+ * Be explicit about joint vector ordering (source vs model) and sizes (`n()`,
+ * `nq()`, `nv()`).
  */
 class Robot final {
  public:
@@ -200,16 +209,18 @@ class Robot final {
   /**
    * @brief Sets a joint name prefix used for I/O name normalization.
    * @param[in] prefix Prefix to strip before matching against canonical names.
-   * @details This affects how `configure_io()` maps source joint names to model canonical names.
+   * @details This affects how `configure_io()` maps source joint names to model
+   * canonical names.
    */
   void set_joint_prefix(const std::string& prefix);
 
   /**
-   * @brief Configures mapping between source joint order and model canonical order.
+   * @brief Configures mapping between source joint order and model canonical
+   * order.
    * @param[in] src_names Joint names in source (I/O) order, size = `n()`.
    * @param[in] prefix Optional joint name prefix to strip before matching.
-   * @throws std::runtime_error If `src_names` is the wrong size, contains duplicates (after prefix stripping),
-   * or is missing any canonical joint.
+   * @throws std::runtime_error If `src_names` is the wrong size, contains
+   * duplicates (after prefix stripping), or is missing any canonical joint.
    */
   void configure_io(const std::vector<std::string>& src_names,
                     const std::string& prefix = "");
@@ -223,21 +234,28 @@ class Robot final {
   // ------------------------
   /**
    * @brief Updates the robot state from inputs in source joint order.
-   * @param[in] q_src Optional joint positions [rad], size = `n()`; may be nullptr (no update).
-   * @param[in] qd_src Optional joint velocities [rad/s], size = `n()`; may be nullptr (no update).
-   * @param[in] qdd_src Optional joint accelerations [rad/s^2], size = `n()`; may be nullptr (no update).
+   * @param[in] q_src Optional joint positions [rad], size = `n()`; may be
+   * nullptr (no update).
+   * @param[in] qd_src Optional joint velocities [rad/s], size = `n()`; may be
+   * nullptr (no update).
+   * @param[in] qdd_src Optional joint accelerations [rad/s^2], size = `n()`;
+   * may be nullptr (no update).
    * @param[in] t Optional sample time [s]; may be nullptr (no update).
-   * @details Updated values are stored internally in model canonical order and forwarded into `dyn()` so that
-   * subsequent dynamics/control calls use the new state.
+   * @details Updated values are stored internally in model canonical order and
+   * forwarded into `dyn()` so that subsequent dynamics/control calls use the
+   * new state.
    */
   void set_joint_state(const Vec* q_src = nullptr, const Vec* qd_src = nullptr,
                        const Vec* qdd_src = nullptr, const double* t = nullptr);
 
   /**
    * @brief Updates the desired joint state from inputs in source joint order.
-   * @param[in] q_des_src Optional desired joint positions [rad], size = `n()`; may be nullptr (no update).
-   * @param[in] qd_des_src Optional desired joint velocities [rad/s], size = `n()`; may be nullptr (no update).
-   * @param[in] qdd_des_src Optional desired joint accelerations [rad/s^2], size = `n()`; may be nullptr (no update).
+   * @param[in] q_des_src Optional desired joint positions [rad], size = `n()`;
+   * may be nullptr (no update).
+   * @param[in] qd_des_src Optional desired joint velocities [rad/s], size =
+   * `n()`; may be nullptr (no update).
+   * @param[in] qdd_des_src Optional desired joint accelerations [rad/s^2], size
+   * = `n()`; may be nullptr (no update).
    * @details Desired values are stored internally in model canonical order.
    */
   void set_joint_des(const Vec* q_des_src = nullptr,
@@ -252,20 +270,23 @@ class Robot final {
 
   /**
    * @brief Sets joint velocities (source order) and updates `dyn()`.
-   * @param[in] qd_src Joint velocities [rad/s], size = `n()` (source joint order).
+   * @param[in] qd_src Joint velocities [rad/s], size = `n()` (source joint
+   * order).
    */
   void set_qd(const Vec qd_src);
 
   /**
    * @brief Sets joint accelerations (source order) and updates `dyn()`.
-   * @param[in] qdd_src Joint accelerations [rad/s^2], size = `n()` (source joint order).
+   * @param[in] qdd_src Joint accelerations [rad/s^2], size = `n()` (source
+   * joint order).
    */
   void set_qdd(const Vec qdd_src);
 
   // Base pose / gravity (same conceptual behavior as robot.py set_base_pose)
   /**
    * @brief Sets base pose and updates gravity accordingly.
-   * @param[in] pose_wb_xyzwxyz World-from-base pose, size = 7 [x y z qw qx qy qz].
+   * @param[in] pose_wb_xyzwxyz World-from-base pose, size = 7 [x y z qw qx qy
+   * qz].
    * @throws std::runtime_error If `pose_wb_xyzwxyz.size() != 7`.
    */
   void set_base_pose_wb(const Eigen::Ref<const Vec>& pose_wb_xyzwxyz);
@@ -295,36 +316,50 @@ class Robot final {
   /// @brief Clears any active trajectory and switches to hold mode.
   void clear_traj();
 
-  /// @brief Returns true if a trajectory is present and active at the current time.
+  /// @brief Returns true if a trajectory is present and active at the current
+  /// time.
   /// @return True if a trajectory is currently active.
   bool has_traj() const noexcept;
 
   /**
-   * @brief Sets an externally generated joint trajectory (inputs in source joint order).
-   * @param[in] traj_src Joint trajectory:
+   * @brief Sets an externally generated joint trajectory (inputs in source
+   * joint order).
+    * @param[in] traj_src Joint trajectory (shared ownership):
    *   - `t`: time [s], shape = (N,), strictly increasing.
-   *   - `q`: joint positions [rad], shape = (N, `n()`) RowMajor (source joint order).
-   *   - `qd`: joint velocities [rad/s], shape = (N, `n()`) RowMajor (source joint order).
-   *   - `qdd`: joint accelerations [rad/s^2], shape = (N, `n()`) RowMajor (source joint order).
+   *   - `q`: joint positions [rad], shape = (N, `n()`) RowMajor (source joint
+   * order).
+   *   - `qd`: joint velocities [rad/s], shape = (N, `n()`) RowMajor (source
+   * joint order).
+   *   - `qdd`: joint accelerations [rad/s^2], shape = (N, `n()`) RowMajor
+   * (source joint order).
    * @param[in] delay Start delay [s].
-   * @throws std::runtime_error If the trajectory is empty, shapes mismatch, or `t` is not strictly increasing.
+    * @details
+    * This stores a pointer to the provided trajectory. The
+    * trajectory must not be modified after being passed in.
+    *
+    * @throws std::runtime_error If `traj_src` is null, the trajectory is empty,
+    * shapes mismatch, or `t` is not strictly increasing.
    */
-  void set_joint_traj(const JointTrajectory& traj_src, double delay = 0.0);
+    void set_joint_traj(std::shared_ptr<const JointTrajectory> traj_src,
+                 double delay = 0.0);
 
-  /// @brief Updates the desired state from the active trajectory (if in `TraceMode::TRAJ`).
+  /// @brief Updates the desired state from the active trajectory (if in
+  /// `TraceMode::TRAJ`).
   void update_joint_des_from_traj();
 
   // ------------------------
   // Control
   // ------------------------
   /**
-   * @brief Computes control effort in *source joint order* (matches actuator ordering).
+   * @brief Computes control effort in *source joint order* (matches actuator
+   * ordering).
    * @return Torque command [N·m], size = `n()` (source joint order).
-   * @note The returned reference is valid until the next call to `compute_ctrl_effort()`.
+   * @note The returned reference is valid until the next call to
+   * `compute_ctrl_effort()`.
    *
    * @details
-   * This function optionally updates desired state from the active trajectory (`TraceMode::TRAJ`)
-   * and runs CT / PID / GC based on `CtrlMode`.
+   * This function optionally updates desired state from the active trajectory
+   * (`TraceMode::TRAJ`) and runs CT / PID / GC based on `CtrlMode`.
    */
   const Vec& compute_ctrl_effort();
 
@@ -337,19 +372,23 @@ class Robot final {
   const Vec& qd_model() const noexcept { return state_.qd; }
 
   /// @brief Returns the current joint accelerations in model canonical order.
-  /// @return Joint accelerations [rad/s^2], size = `n()` (model canonical order).
+  /// @return Joint accelerations [rad/s^2], size = `n()` (model canonical
+  /// order).
   const Vec& qdd_model() const noexcept { return state_.qdd; }
 
   /// @brief Returns the desired joint positions in model canonical order.
-  /// @return Desired joint positions [rad], size = `n()` (model canonical order).
+  /// @return Desired joint positions [rad], size = `n()` (model canonical
+  /// order).
   const Vec& q_des_model() const noexcept { return state_des_.q; }
 
   /// @brief Returns the desired joint velocities in model canonical order.
-  /// @return Desired joint velocities [rad/s], size = `n()` (model canonical order).
+  /// @return Desired joint velocities [rad/s], size = `n()` (model canonical
+  /// order).
   const Vec& qd_des_model() const noexcept { return state_des_.qd; }
 
   /// @brief Returns the desired joint accelerations in model canonical order.
-  /// @return Desired joint accelerations [rad/s^2], size = `n()` (model canonical order).
+  /// @return Desired joint accelerations [rad/s^2], size = `n()` (model
+  /// canonical order).
   const Vec& qdd_des_model() const noexcept { return state_des_.qdd; }
 
   /// @brief Returns the current sample time.
@@ -425,7 +464,7 @@ class Robot final {
   // Trajectory storage (internally in model order for fast sampling)
   double ti_{0.0};
   double tf_{0.0};
-  JointTrajectory traj_;
+  std::shared_ptr<const JointTrajectory> traj_;
   int traj_i1_{1};  // cached upper index for monotonic time stepping
 
   // Modes

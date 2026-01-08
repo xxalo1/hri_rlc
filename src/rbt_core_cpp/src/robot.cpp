@@ -1,12 +1,10 @@
 #include "rbt_core_cpp/robot.hpp"
 
-#include <algorithm>
-
 namespace rbt_core_cpp {
 
 Robot::Robot(RobotSpec spec)
     : spec_(std::move(spec)),
-      dyn_(Dynamics::FromUrdf(spec_.urdf_path, spec_.tcp_frame)),
+      dyn_(Dynamics::FromUrdf(spec_.urdf, spec_.urdf_source, spec_.tcp_frame)),
       ctrl_(dyn_) {
   const int n = dyn_.n();
 
@@ -152,76 +150,58 @@ void Robot::set_base_pose_wb(const Eigen::Ref<const Vec> &pose_wb) {
 void Robot::clear_traj() {
   ti_ = 0.0;
   tf_ = 0.0;
-  traj_ = JointTrajectory{};
+  traj_.reset();
   traj_i1_ = 1;
   trace_mode_ = TraceMode::HOLD;
 }
 
 bool Robot::has_traj() const noexcept {
-  if (traj_.empty()) return false;
+  if (!traj_ || traj_->empty()) return false;
 
   const double t_rel = t_ - ti_;
-  const int N = traj_.length();
+  const int N = traj_->length();
   if (N <= 0) return false;
 
   // Keep the trajectory "active" during the delay window (t_rel < t[0]) so the
   // controller holds the first sample until the start time.
-  return (t_rel <= traj_.t[N - 1]);
+  return (t_rel <= traj_->t[N - 1]);
 }
 
-void Robot::set_joint_traj(const JointTrajectory &traj_src, double delay) {
+void Robot::set_joint_traj(std::shared_ptr<const JointTrajectory> traj_src,
+                           double delay) {
+  if (!traj_src) throw std::runtime_error("set_joint_traj: traj_src is null");
+
   const int n = dyn_.n();
-  const int N = traj_src.length();
-
+  const int N = traj_src->length();
   if (N <= 0) throw std::runtime_error("set_joint_traj: empty trajectory");
-
-  if (traj_src.q.cols() != n || traj_src.qd.cols() != n ||
-      traj_src.qdd.cols() != n) {
+  if (traj_src->q.cols() != n || traj_src->qd.cols() != n ||
+      traj_src->qdd.cols() != n) {
     throw std::runtime_error(
         "set_joint_traj: q/qd/qdd must be (N, n_src) with n_src == dyn.n()");
   }
-  if (traj_src.q.rows() != N || traj_src.qd.rows() != N ||
-      traj_src.qdd.rows() != N) {
-    throw std::runtime_error(
-        "set_joint_traj: q/qd/qdd row count mismatch with t");
+  if (traj_src->q.rows() != N || traj_src->qd.rows() != N ||
+      traj_src->qdd.rows() != N) {
+    throw std::runtime_error("set_joint_traj: q/qd/qdd row count mismatch with t");
   }
 
   if (std::isnan(delay)) delay = 0.0;
   ti_ = t_ + delay;
 
-  // Copy time and validate monotonicity once (NOT in the 1 kHz loop)
-  traj_.t = traj_src.t;
-  for (int k = 1; k < N; ++k) {
-    if (!(traj_.t[k] > traj_.t[k - 1])) {
-      throw std::runtime_error("set_joint_traj: t must be strictly increasing");
-    }
-  }
+  traj_ = std::move(traj_src);
 
-  tf_ = ti_ + traj_.t[N - 1];
-
-  traj_.q.resize(N, n);
-  traj_.qd.resize(N, n);
-  traj_.qdd.resize(N, n);
-
-  for (int r = 0; r < N; ++r) {
-    for (int i = 0; i < n; ++i) {
-      const int src_idx = src_to_model_idx_[i];
-      traj_.q(r, i) = traj_src.q(r, src_idx);
-      traj_.qd(r, i) = traj_src.qd(r, src_idx);
-      traj_.qdd(r, i) = traj_src.qdd(r, src_idx);
-    }
-  }
+  tf_ = ti_ + traj_->t[traj_->length() - 1];
 
   traj_i1_ = 1;
   trace_mode_ = TraceMode::TRAJ;
 }
 
 void Robot::sample_joint_traj_into_desired_() {
-  const int N = traj_.length();
+  if (!traj_) return;
+  const int N = traj_->length();
   const int n = dyn_.n();
   if (N <= 0) return;
 
-  const auto &t_arr = traj_.t;
+  const auto &t_arr = traj_->t;
 
   // Python semantics: relative time
   const double t_rel = t_ - ti_;
@@ -229,9 +209,9 @@ void Robot::sample_joint_traj_into_desired_() {
   // Degenerate N==1
   if (N == 1) {
     for (int i = 0; i < n; ++i) {
-      state_des_.q[i] = traj_.q(0, i);
-      state_des_.qd[i] = traj_.qd(0, i);
-      state_des_.qdd[i] = traj_.qdd(0, i);
+      state_des_.q[i] = traj_->q(0, i);
+      state_des_.qd[i] = traj_->qd(0, i);
+      state_des_.qdd[i] = traj_->qdd(0, i);
     }
     return;
   }
@@ -239,18 +219,18 @@ void Robot::sample_joint_traj_into_desired_() {
   // Clamp (same as Python)
   if (t_rel <= t_arr[0]) {
     for (int i = 0; i < n; ++i) {
-      state_des_.q[i] = traj_.q(0, i);
-      state_des_.qd[i] = traj_.qd(0, i);
-      state_des_.qdd[i] = traj_.qdd(0, i);
+      state_des_.q[i] = traj_->q(0, i);
+      state_des_.qd[i] = traj_->qd(0, i);
+      state_des_.qdd[i] = traj_->qdd(0, i);
     }
     return;
   }
 
   if (t_rel >= t_arr[N - 1]) {
     for (int i = 0; i < n; ++i) {
-      state_des_.q[i] = traj_.q(N - 1, i);
-      state_des_.qd[i] = traj_.qd(N - 1, i);
-      state_des_.qdd[i] = traj_.qdd(N - 1, i);
+      state_des_.q[i] = traj_->q(N - 1, i);
+      state_des_.qd[i] = traj_->qd(N - 1, i);
+      state_des_.qdd[i] = traj_->qdd(N - 1, i);
     }
     return;
   }
@@ -280,9 +260,9 @@ void Robot::sample_joint_traj_into_desired_() {
   const double a1 = alpha;
 
   for (int i = 0; i < n; ++i) {
-    state_des_.q[i] = a0 * traj_.q(i0, i) + a1 * traj_.q(i1, i);
-    state_des_.qd[i] = a0 * traj_.qd(i0, i) + a1 * traj_.qd(i1, i);
-    state_des_.qdd[i] = a0 * traj_.qdd(i0, i) + a1 * traj_.qdd(i1, i);
+    state_des_.q[i] = a0 * traj_->q(i0, i) + a1 * traj_->q(i1, i);
+    state_des_.qd[i] = a0 * traj_->qd(i0, i) + a1 * traj_->qd(i1, i);
+    state_des_.qdd[i] = a0 * traj_->qdd(i0, i) + a1 * traj_->qdd(i1, i);
   }
 }
 
