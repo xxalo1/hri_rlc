@@ -1,7 +1,15 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="gen3">
 
-  <xacro:arg name="controllers_yaml"/>
+  <!--
+    robot_state_publisher (URDF parser) requires every joint parent/child link
+    to be explicitly defined in the URDF.
+
+    The kortex xacro used below creates a fixed joint with parent="world" when
+    the load_robot parent is set to "world". Add a dummy world link so URDF
+    parsing succeeds.
+  -->
+  <link name="world"/>
 
   <xacro:include filename="$(find kortex_description)/robots/kortex_robot.xacro"/>
 
@@ -44,7 +52,7 @@
   <gazebo>
     <plugin filename="libgz_ros2_control-system.so"
             name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-      <parameters>${controllers_yaml}</parameters>
+      <parameters>$(find rlc_bringup)/config/gen3_gz_controllers.yaml</parameters>
       <controller_manager_name>controller_manager</controller_manager_name>
     </plugin>
   </gazebo>
