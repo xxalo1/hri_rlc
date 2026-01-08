@@ -51,7 +51,7 @@ std::string gen3_urdf_path(Gen3Variant variant) {
 rbt_core_cpp::RobotSpec make_gen3_spec(Gen3Variant variant) {
   rbt_core_cpp::RobotSpec spec;
   spec.name = variant_Name(variant);
-  spec.urdf_path = gen3_urdf_path(variant);
+  spec.urdf = gen3_urdf_path(variant);
   spec.tcp_frame = "tool_frame";
   return spec;
 }
