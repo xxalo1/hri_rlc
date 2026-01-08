@@ -44,28 +44,30 @@ cmake --build build/rbt_core_cpp --parallel
 cmake --install build/rbt_core_cpp --prefix _install
 ```
 
-### third party
+### Third party (Kinova Kortex)
 
 ```bash
 cd third_party/robots_ws
 rm -rf src/*
-vcs import src < ../robots.lock.repos
+vcs import src < ../robots.repos
+vcs export src > ../robots.lock.repos
 colcon build --symlink-install
 ```
 
 ### ROS 2 (Jazzy) workspace (`rlc_ws/`)
 ```bash
 source /opt/ros/jazzy/setup.bash
+
 export CMAKE_PREFIX_PATH="$PWD/_install:$CMAKE_PREFIX_PATH"
 cd rlc_ws
 colcon build --symlink-install \
   --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 source install/setup.bash
-ros2 launch rlc_bringup plotjuggler.launch.py
-```
+source ../third_party/robots_ws/install/setup.bash
 
-If PlotJuggler is not installed:
-```bash
-ros2 launch rlc_bringup plotjuggler.launch.py start_plotjuggler:=false
+export GZ_SIM_SYSTEM_PLUGIN_PATH="$(ros2 pkg prefix gz_ros2_control)/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH}"
+export GZ_SIM_RESOURCE_PATH="$(ros2 pkg prefix kortex_description)/share:${GZ_SIM_RESOURCE_PATH}"
+
+ros2 launch rlc_bringup gen3_gz.launch.py
 ```
