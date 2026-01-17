@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from launch import LaunchDescription
-from launch.actions import AppendEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler
+from launch.actions import (
+    AppendEnvironmentVariable,
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    RegisterEventHandler,
+)
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackagePrefix, FindPackageShare
@@ -29,6 +39,7 @@ def generate_launch_description() -> LaunchDescription:
     robot_name = LaunchConfiguration("robot_name")
     xacro_file = LaunchConfiguration("xacro_file")
     controllers_yaml = LaunchConfiguration("controllers_yaml")
+    load_gripper = LaunchConfiguration("load_gripper")
 
     gz_ros2_control_system_plugins = PathJoinSubstitution(
         [FindPackagePrefix("gz_ros2_control"), "lib"]
@@ -45,9 +56,6 @@ def generate_launch_description() -> LaunchDescription:
             "fr3.urdf.xacro",
         ]
     )
-    default_controllers = PathJoinSubstitution(
-        [FindPackageShare("franka_gazebo_bringup"), "config", "franka_gazebo_controllers.yaml"]
-    )
 
     robot_description = {
         "robot_description": ParameterValue(
@@ -59,11 +67,14 @@ def generate_launch_description() -> LaunchDescription:
                     " ",
                     "gazebo:=true",
                     " ",
+                    " arm_id:=fr3",
+                    " ",
                     "ros2_control:=true",
                     " ",
                     "gazebo_effort:=true",
                     " ",
-                    "hand:=false"
+                    "hand:=",
+                    load_gripper,
                 ]
             ),
             value_type=str,
@@ -82,7 +93,7 @@ def generate_launch_description() -> LaunchDescription:
         arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
     )
 
-    rsp = Node(
+    robot_state_publisher = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
@@ -95,6 +106,14 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         arguments=["-name", robot_name, "-param", "robot_description"],
         parameters=[robot_description, {"use_sim_time": use_sim_time}],
+    )
+
+    ros2_controllers_path = PathJoinSubstitution(
+        [
+            FindPackageShare("franka_gazebo_bringup"),
+            "config",
+            "franka_gazebo_controllers.yaml",
+        ]
     )
 
     jsb_spawner = Node(
@@ -166,12 +185,12 @@ def generate_launch_description() -> LaunchDescription:
             ),
             DeclareLaunchArgument(
                 "controllers_yaml",
-                default_value=default_controllers,
+                default_value=ros2_controllers_path,
                 description="ros2_control controller manager YAML.",
             ),
             gz,
             clock_bridge,
-            rsp,
+            robot_state_publisher,
             spawn,
             start_jsb_after_spawn,
             start_ctrl_after_jsb,
