@@ -19,7 +19,6 @@ All commands below assume a POSIX shell (e.g., bash) and are run from the reposi
 - MuJoCo (Python): https://mujoco.readthedocs.io/en/stable/python.html
 - PyTorch: https://pytorch.org/get-started/locally/
 - CMake >= 3.16, a C++17 compiler, and Eigen3
-- PlotJuggler (optional): https://github.com/facontidavide/PlotJuggler
 
 ### Clone
 ```bash
