@@ -65,6 +65,11 @@ void TrajoptPlanner::set_traj_seed(trajopt::TrajArray&& traj) {
   traj_seed_ = std::move(traj);
 }
 
+void TrajoptPlanner::add_feature_cost(feature_cost c) {
+  if (!c.phi) throw std::invalid_argument("add_feature_cost: phi is empty");
+  feature_costs_.push_back(std::move(c));
+}
+
 trajopt::TrajArray TrajoptPlanner::solve() {
   if (!env_) throw std::runtime_error("solve: env_ is null");
   if (q_start_.size() == 0 || q_goal_.size() == 0)
@@ -108,7 +113,21 @@ void TrajoptPlanner::construct_problem() const {
   goal->vals = trajopt::DblVec(q_goal_.data(), q_goal_.data() + q_goal_.size());
   pci.cnt_infos.push_back(goal);
 
+  // feature costs
+  for (const auto& fc : feature_costs_) {
+  }
+
   prob_ = trajopt::ConstructProblem(pci);
+}
+
+sco::VarVector TrajoptPlanner::get_vars(
+    const boost::shared_ptr<trajopt::TrajOptProb>& prob) {
+  sco::VarVector vars;
+  for (int t = 0; t < n_steps_; ++t) {
+    auto row = prob->GetVarRow(t);
+    vars.insert(vars.end(), row.begin(), row.end());
+  }
+  return vars;
 }
 
 trajopt::TrajArray TrajoptPlanner::make_linear_seed(const Eigen::VectorXd& q0,

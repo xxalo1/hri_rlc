@@ -14,6 +14,13 @@
 
 namespace rbt_planning {
 
+struct feature_cost {
+  std::string name;
+  double weight;
+  std::function<double(const trajopt::TrajArray&)> phi;
+  std::function<Eigen::VectorXd(const trajopt::TrajArray&)> grad;
+};
+
 class TrajoptPlanner {
  public:
   explicit TrajoptPlanner(
@@ -33,6 +40,7 @@ class TrajoptPlanner {
                        const Eigen::VectorXd& q_start);
   void set_goal_state(const Eigen::VectorXd& q_goal);
   void set_traj_seed(trajopt::TrajArray&& seed);
+  void add_feature_cost(feature_cost c);
 
   trajopt::TrajArray solve();
 
@@ -45,6 +53,8 @@ class TrajoptPlanner {
   static trajopt::TrajArray make_linear_seed(const Eigen::VectorXd& q0,
                                              const Eigen::VectorXd& q1,
                                              int n_steps);
+  static sco::VarVector get_vars(
+      const boost::shared_ptr<trajopt::TrajOptProb>& prob);
 
  private:
   std::shared_ptr<tesseract_environment::Environment> env_;
@@ -59,6 +69,7 @@ class TrajoptPlanner {
 
   boost::shared_ptr<trajopt::TrajOptProb> prob_;
   sco::OptStatus last_status_{sco::OptStatus::INVALID};
+  std::vector<feature_cost> feature_costs_;
 };
 
 }  // namespace rbt_planning
