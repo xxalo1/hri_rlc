@@ -42,6 +42,8 @@ class TrajoptPlanner {
   void set_traj_seed(trajopt::TrajArray&& seed);
   void add_feature_cost(feature_cost c);
 
+  void attach_feature_cost(feature_cost c);
+
   trajopt::TrajArray solve();
 
   boost::shared_ptr<trajopt::TrajOptProb> last_problem() const;
@@ -54,6 +56,8 @@ class TrajoptPlanner {
                                              const Eigen::VectorXd& q1,
                                              int n_steps);
   static sco::VarVector get_vars(
+      const boost::shared_ptr<trajopt::TrajOptProb>& prob);
+  static void attach_feature_cost(
       const boost::shared_ptr<trajopt::TrajOptProb>& prob);
 
  private:

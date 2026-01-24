@@ -57,7 +57,7 @@ void TrajoptPlanner::validate_traj(const trajopt::TrajArray& seed) const {
 
   if (seed.cols() != q_start_.size())
     throw std::invalid_argument(
-        "validate_traj: seed number of columns must match DOF");
+        "validate_traj: seed number of columns must match ndof");
 }
 
 void TrajoptPlanner::set_traj_seed(trajopt::TrajArray&& traj) {
@@ -86,8 +86,8 @@ trajopt::TrajArray TrajoptPlanner::solve() {
   return trajopt::getTraj(opt.x(), prob_->GetVars());
 }
 
-void TrajoptPlanner::construct_problem() const {
-  const int dof = static_cast<int>(q_start_.size());
+void TrajoptPlanner::construct_problem() {
+  const int ndof = static_cast<int>(q_start_.size());
 
   trajopt::ProblemConstructionInfo pci(env_);
 
@@ -102,22 +102,19 @@ void TrajoptPlanner::construct_problem() const {
   auto vel = std::make_shared<trajopt::JointVelCostInfo>();
   vel->term_type = trajopt::TT_COST;
   vel->name = "joint_vel_smooth";
-  vel->coeffs = trajopt::DblVec(dof, 1.0);
+  vel->coeffs = trajopt::DblVec(ndof, 1.0);
   pci.cost_infos.push_back(vel);
 
   auto goal = std::make_shared<trajopt::JointConstraintInfo>();
   goal->term_type = trajopt::TT_CNT;
   goal->name = "goal_joint_target";
   goal->timestep = n_steps_ - 1;
-  goal->coeffs = trajopt::DblVec(dof, 1.0);
+  goal->coeffs = trajopt::DblVec(ndof, 1.0);
   goal->vals = trajopt::DblVec(q_goal_.data(), q_goal_.data() + q_goal_.size());
   pci.cnt_infos.push_back(goal);
 
-  // feature costs
-  for (const auto& fc : feature_costs_) {
-  }
-
   prob_ = trajopt::ConstructProblem(pci);
+  attach_feature_cost(prob_);
 }
 
 sco::VarVector TrajoptPlanner::get_vars(
@@ -138,8 +135,8 @@ trajopt::TrajArray TrajoptPlanner::make_linear_seed(const Eigen::VectorXd& q0,
   if (q0.size() != q1.size())
     throw std::invalid_argument("make_linear_seed: q0 and q1 must match");
 
-  const int dof = static_cast<int>(q0.size());
-  trajopt::TrajArray traj(n_steps, dof);
+  const int ndof = static_cast<int>(q0.size());
+  trajopt::TrajArray traj(n_steps, ndof);
 
   for (int t = 0; t < n_steps; ++t) {
     const double a = static_cast<double>(t) / static_cast<double>(n_steps - 1);
