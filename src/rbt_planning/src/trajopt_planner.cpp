@@ -1,7 +1,9 @@
 #include "rbt_planning/trajopt_planner.hpp"
 
+#include <functional>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace rbt_planning {
 
@@ -118,13 +120,34 @@ void TrajoptPlanner::construct_problem() {
 }
 
 sco::VarVector TrajoptPlanner::get_vars(
-    const boost::shared_ptr<trajopt::TrajOptProb>& prob) {
+    const boost::shared_ptr<trajopt::TrajOptProb>& prob, const int T,
+    const int ndof) const {
   sco::VarVector vars;
-  for (int t = 0; t < n_steps_; ++t) {
+  vars.reserve(static_cast<std::size_t>(T * ndof));
+  for (int t = 0; t < T; ++t) {
     auto row = prob->GetVarRow(t);
     vars.insert(vars.end(), row.begin(), row.end());
   }
   return vars;
+}
+
+void TrajoptPlanner::attach_feature_costs(trajopt::TrajOptProb& prob) const {
+  const int T = prob.GetNumSteps();
+  const int dof = prob.GetNumDOF();
+  auto vars = get_vars(boost::make_shared<trajopt::TrajOptProb>(prob), T, dof);
+
+  for (const auto& c : feature_costs_) {
+    auto f =
+        sco::ScalarOfVector::construct([T, dof, w = c.weight, phi = c.phi](
+                                           const Eigen::VectorXd& x) -> double {
+          Eigen::Map<const trajopt::TrajArray> traj(x.data(), T,
+                                                    dof);  // view, no copy
+          return w * phi(traj);
+        });
+
+    auto cost = boost::make_shared<sco::CostFromFunc>(f, vars, c.name);
+    prob.addCost(cost);
+  }
 }
 
 trajopt::TrajArray TrajoptPlanner::make_linear_seed(const Eigen::VectorXd& q0,
