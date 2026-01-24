@@ -1,0 +1,15 @@
+repositories:
+  vendor/tesseract:
+    type: git
+    url: https://github.com/tesseract-robotics/tesseract.git
+    version: master
+
+  vendor/tesseract_planning:
+    type: git
+    url: https://github.com/tesseract-robotics/tesseract_planning.git
+    version: master
+
+  vendor/trajopt:
+    type: git
+    url: https://github.com/tesseract-robotics/trajopt.git
+    version: master

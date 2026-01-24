@@ -1,0 +1,17 @@
+repositories:
+  rlc_ws/src/vendor/franka_ros2:
+    type: git
+    url: https://github.com/frankarobotics/franka_ros2/tree/jazzy.git
+    version: master
+  src/vendor/tesseract:
+    type: git
+    url: https://github.com/tesseract-robotics/tesseract.git
+    version: master
+  src/vendor/tesseract_planning:
+    type: git
+    url: https://github.com/tesseract-robotics/tesseract_planning.git
+    version: master
+  src/vendor/trajopt:
+    type: git
+    url: https://github.com/tesseract-robotics/trajopt.git
+    version: master
