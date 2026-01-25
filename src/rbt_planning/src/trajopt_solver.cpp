@@ -1,34 +1,33 @@
-#include "rbt_planning/trajopt_planner.hpp"
-
 #include <functional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
+#include "rbt_planning/trajopt_solver.hpp"
+
 namespace rbt_planning {
 
-TrajoptPlanner::TrajoptPlanner(
+TrajoptSolver::TrajoptSolver(
     std::shared_ptr<tesseract_environment::Environment> env)
     : env_(std::move(env)) {}
 
-void TrajoptPlanner::set_environment(
+void TrajoptSolver::set_environment(
     std::shared_ptr<tesseract_environment::Environment> env) {
   env_ = std::move(env);
 }
 
-void TrajoptPlanner::set_manipulator_group(std::string group) {
+void TrajoptSolver::set_manipulator_group(std::string group) {
   manipulator_group_ = std::move(group);
 }
 
-void TrajoptPlanner::set_num_steps(int n_steps) {
+void TrajoptSolver::set_num_steps(int n_steps) {
   if (n_steps < 2)
     throw std::invalid_argument("set_num_steps: n_steps must be >= 2");
   n_steps_ = n_steps;
 }
 
-void TrajoptPlanner::set_start_state(
-    const std::vector<std::string>& joint_names,
-    const Eigen::VectorXd& q_start) {
+void TrajoptSolver::set_start_state(const std::vector<std::string>& joint_names,
+                                    const Eigen::VectorXd& q_start) {
   if (!env_) throw std::runtime_error("set_start_state: env_ is null");
 
   if (static_cast<int>(joint_names.size()) != q_start.size())
@@ -41,7 +40,7 @@ void TrajoptPlanner::set_start_state(
   env_->setState(joint_names_, q_start_);
 }
 
-void TrajoptPlanner::set_goal_state(const Eigen::VectorXd& q_goal) {
+void TrajoptSolver::set_goal_state(const Eigen::VectorXd& q_goal) {
   if (q_start_.size() == 0)
     throw std::runtime_error("set_goal_state: call set_start_state first");
 
@@ -52,7 +51,7 @@ void TrajoptPlanner::set_goal_state(const Eigen::VectorXd& q_goal) {
   q_goal_ = q_goal;
 }
 
-void TrajoptPlanner::validate_traj(const trajopt::TrajArray& seed) const {
+void TrajoptSolver::validate_traj(const trajopt::TrajArray& seed) const {
   if (seed.rows() != n_steps_)
     throw std::invalid_argument(
         "validate_traj: seed number of rows must match n_steps");
@@ -62,24 +61,24 @@ void TrajoptPlanner::validate_traj(const trajopt::TrajArray& seed) const {
         "validate_traj: seed number of columns must match ndof");
 }
 
-void TrajoptPlanner::set_traj_seed(trajopt::TrajArray&& traj) {
+void TrajoptSolver::set_traj_seed(trajopt::TrajArray&& traj) {
   validate_traj(traj);
   traj_seed_ = std::move(traj);
 }
 
-void TrajoptPlanner::add_feature_cost(feature_cost c) {
+void TrajoptSolver::add_feature_cost(feature_cost c) {
   if (!c.phi) throw std::invalid_argument("add_feature_cost: phi is empty");
   feature_costs_.push_back(std::move(c));
 }
 
-trajopt::TrajArray TrajoptPlanner::solve() {
+trajopt::TrajArray TrajoptSolver::solve() {
   if (!env_) throw std::runtime_error("solve: env_ is null");
   if (q_start_.size() == 0 || q_goal_.size() == 0)
     throw std::runtime_error("solve: start/goal not set");
 
   construct_problem();
 
-  sco::BasicTrustRegionSQP opt(prob_);
+  sco::BasicTrustRegionSQP opt(*prob_);
   const sco::DblVec x0 = trajopt::trajToDblVec(prob_->GetInitTraj());
 
   opt.initialize(x0);
@@ -88,7 +87,7 @@ trajopt::TrajArray TrajoptPlanner::solve() {
   return trajopt::getTraj(opt.x(), prob_->GetVars());
 }
 
-void TrajoptPlanner::construct_problem() {
+void TrajoptSolver::construct_problem() {
   const int ndof = static_cast<int>(q_start_.size());
 
   trajopt::ProblemConstructionInfo pci(env_);
@@ -116,25 +115,25 @@ void TrajoptPlanner::construct_problem() {
   pci.cnt_infos.push_back(goal);
 
   prob_ = trajopt::ConstructProblem(pci);
-  attach_feature_cost(prob_);
+  attach_feature_costs(*prob_);
 }
 
-sco::VarVector TrajoptPlanner::get_vars(
-    const boost::shared_ptr<trajopt::TrajOptProb>& prob, const int T,
-    const int ndof) const {
+sco::VarVector TrajoptSolver::get_vars(trajopt::TrajOptProb& prob) const {
   sco::VarVector vars;
+  const int T = prob.GetNumSteps();
+  const int ndof = prob.GetNumDOF();
   vars.reserve(static_cast<std::size_t>(T * ndof));
   for (int t = 0; t < T; ++t) {
-    auto row = prob->GetVarRow(t);
+    auto row = prob.GetVarRow(t);
     vars.insert(vars.end(), row.begin(), row.end());
   }
   return vars;
 }
 
-void TrajoptPlanner::attach_feature_costs(trajopt::TrajOptProb& prob) const {
+void TrajoptSolver::attach_feature_costs(trajopt::TrajOptProb& prob) const {
   const int T = prob.GetNumSteps();
   const int dof = prob.GetNumDOF();
-  auto vars = get_vars(boost::make_shared<trajopt::TrajOptProb>(prob), T, dof);
+  auto vars = get_vars(prob);
 
   for (const auto& c : feature_costs_) {
     auto f =
@@ -150,9 +149,9 @@ void TrajoptPlanner::attach_feature_costs(trajopt::TrajOptProb& prob) const {
   }
 }
 
-trajopt::TrajArray TrajoptPlanner::make_linear_seed(const Eigen::VectorXd& q0,
-                                                    const Eigen::VectorXd& q1,
-                                                    int n_steps) {
+trajopt::TrajArray TrajoptSolver::make_linear_seed(const Eigen::VectorXd& q0,
+                                                   const Eigen::VectorXd& q1,
+                                                   int n_steps) const {
   if (n_steps < 2)
     throw std::invalid_argument("make_linear_seed: n_steps must be >= 2");
   if (q0.size() != q1.size())

@@ -3,6 +3,7 @@
 #include <tesseract_environment/environment.h>
 
 #include <Eigen/Core>
+#include <functional>
 #include <memory>
 #include <string>
 #include <trajopt/problem_description.hpp>
@@ -21,16 +22,14 @@ struct feature_cost {
   std::function<Eigen::VectorXd(const trajopt::TrajArray&)> grad;
 };
 
-class TrajoptPlanner {
+class TrajoptSolver {
  public:
-  explicit TrajoptPlanner(
+  explicit TrajoptSolver(
       std::shared_ptr<tesseract_environment::Environment> env = nullptr);
 
   sco::OptStatus last_status() const { return last_status_; }
 
-  boost::shared_ptr<trajopt::TrajOptProb> last_problem() const {
-    return last_prob_;
-  }
+  boost::shared_ptr<trajopt::TrajOptProb> last_problem() const { return prob_; }
   void set_environment(std::shared_ptr<tesseract_environment::Environment> env);
 
   void set_manipulator_group(std::string group);
@@ -42,23 +41,16 @@ class TrajoptPlanner {
   void set_traj_seed(trajopt::TrajArray&& seed);
   void add_feature_cost(feature_cost c);
 
-  void attach_feature_cost(feature_cost c);
-
   trajopt::TrajArray solve();
 
-  boost::shared_ptr<trajopt::TrajOptProb> last_problem() const;
-  sco::OptStatus last_status() const;
-
  private:
-  void construct_problem() const;
+  void construct_problem();
   void validate_traj(const trajopt::TrajArray& seed) const;
-  static trajopt::TrajArray make_linear_seed(const Eigen::VectorXd& q0,
-                                             const Eigen::VectorXd& q1,
-                                             int n_steps);
-  static sco::VarVector get_vars(
-      const boost::shared_ptr<trajopt::TrajOptProb>& prob);
-  static void attach_feature_cost(
-      const boost::shared_ptr<trajopt::TrajOptProb>& prob);
+  trajopt::TrajArray make_linear_seed(const Eigen::VectorXd& q0,
+                                      const Eigen::VectorXd& q1,
+                                      int n_steps) const;
+  static sco::VarVector get_vars(trajopt::TrajOptProb& prob);
+  void attach_feature_costs(trajopt::TrajOptProb& prob) const;
 
  private:
   std::shared_ptr<tesseract_environment::Environment> env_;
