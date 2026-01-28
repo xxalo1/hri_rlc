@@ -1,17 +1,48 @@
 repositories:
+  # Franka ROS 2
   rlc_ws/src/vendor/franka_ros2:
     type: git
     url: https://github.com/frankarobotics/franka_ros2.git
     version: jazzy
+  rlc_ws/src/vendor/franka_description:
+    type: git
+    url: https://github.com/frankarobotics/franka_description.git
+    version: 2.3.0
+
+  # Tesseract + TrajOpt
   src/vendor/tesseract:
     type: git
     url: https://github.com/tesseract-robotics/tesseract.git
-    version: master
-  src/vendor/tesseract_planning:
-    type: git
-    url: https://github.com/tesseract-robotics/tesseract_planning.git
     version: master
   src/vendor/trajopt:
     type: git
     url: https://github.com/tesseract-robotics/trajopt.git
     version: master
+
+  # Franka ROS 2 dependencies
+  rlc_ws/src/vendor/libfranka:
+    type: git
+    url: https://github.com/frankarobotics/libfranka.git
+    version: 0.19.0
+
+  # Tesseract dependencies
+  src/vendor/ros_industrial_cmake_boilerplate:
+    type: git
+    url: https://github.com/ros-industrial/ros_industrial_cmake_boilerplate.git
+    version: 0.7.4
+  src/vendor/boost_plugin_loader:
+    type: git
+    url: https://github.com/tesseract-robotics/boost_plugin_loader.git
+    version: 0.4.3
+  src/vendor/opw_kinematics:
+    type: git
+    url: https://github.com/Jmeyer1292/opw_kinematics.git
+    version: 0.5.2
+  src/vendor/octomap:
+    type: git
+    url: https://github.com/OctoMap/octomap.git
+    version: v1.9.8
+  src/vendor/cereal:
+    type: git
+    url: https://github.com/Levi-Armstrong/cereal.git
+    version: catkin
