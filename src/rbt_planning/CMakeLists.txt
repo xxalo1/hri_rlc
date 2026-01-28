@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(rbt_core_cpp VERSION 0.1.0 LANGUAGES CXX)
+project(rbt_planning VERSION 0.1.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -10,46 +10,46 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Dependencies (exported as part of the public interface via target_link_libraries PUBLIC)
-find_package(pinocchio REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(tesseract_environment REQUIRED)
+find_package(trajopt REQUIRED)
 
-add_library(rbt_core_cpp
-  src/dynamics.cpp
-  src/controller.cpp
-  src/robot.cpp
+add_library(rbt_planning
+  src/trajopt_solver.cpp
 )
-add_library(rbt_core_cpp::rbt_core_cpp ALIAS rbt_core_cpp)
+add_library(rbt_planning::rbt_planning ALIAS rbt_planning)
 
 # Public contract: consumers compile with C++20 when they use your headers
-target_compile_features(rbt_core_cpp PUBLIC cxx_std_20)
+target_compile_features(rbt_planning PUBLIC cxx_std_20)
 
-target_include_directories(rbt_core_cpp
+target_include_directories(rbt_planning
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_link_libraries(rbt_core_cpp
+target_link_libraries(rbt_planning
   PUBLIC
-    pinocchio::pinocchio
+    trajopt::trajopt
+    tesseract::tesseract_environment
     Eigen3::Eigen
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-  target_compile_options(rbt_core_cpp PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(rbt_planning PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-set_target_properties(rbt_core_cpp PROPERTIES
+set_target_properties(rbt_planning PROPERTIES
   POSITION_INDEPENDENT_CODE ON
-  EXPORT_NAME rbt_core_cpp
+  EXPORT_NAME rbt_planning
 )
 
 # --------------------------
 # Install: library + headers
 # --------------------------
 
-install(TARGETS rbt_core_cpp
-  EXPORT rbt_core_cppTargets
+install(TARGETS rbt_planning
+  EXPORT rbt_planningTargets
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -65,26 +65,26 @@ install(DIRECTORY include/
 # --------------------------
 
 # Export targets file
-install(EXPORT rbt_core_cppTargets
-  NAMESPACE rbt_core_cpp::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbt_core_cpp
+install(EXPORT rbt_planningTargets
+  NAMESPACE rbt_planning::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbt_planning
 )
 
 # Generate and install the config + version files
 configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rbt_core_cppConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/rbt_core_cppConfig.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbt_core_cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rbt_planningConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/rbt_planningConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbt_planning
 )
 
 write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/rbt_core_cppConfigVersion.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/rbt_planningConfigVersion.cmake
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMajorVersion
 )
 
 install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/rbt_core_cppConfig.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/rbt_core_cppConfigVersion.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbt_core_cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/rbt_planningConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/rbt_planningConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rbt_planning
 )
