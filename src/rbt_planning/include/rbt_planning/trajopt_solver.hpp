@@ -29,7 +29,7 @@ class TrajoptSolver {
 
   sco::OptStatus last_status() const { return last_status_; }
 
-  boost::shared_ptr<trajopt::TrajOptProb> last_problem() const { return prob_; }
+  std::shared_ptr<trajopt::TrajOptProb> last_problem() const { return prob_; }
   void set_environment(std::shared_ptr<tesseract_environment::Environment> env);
 
   void set_manipulator_group(std::string group);
@@ -38,7 +38,7 @@ class TrajoptSolver {
   void set_start_state(const std::vector<std::string>& joint_names,
                        const Eigen::VectorXd& q_start);
   void set_goal_state(const Eigen::VectorXd& q_goal);
-  void set_traj_seed(trajopt::TrajArray&& seed);
+  void set_traj_seed(trajopt::TrajArray&& traj);
   void add_feature_cost(feature_cost c);
 
   trajopt::TrajArray solve();
@@ -63,7 +63,7 @@ class TrajoptSolver {
   Eigen::VectorXd q_goal_;
   trajopt::TrajArray traj_seed_;
 
-  boost::shared_ptr<trajopt::TrajOptProb> prob_;
+  std::shared_ptr<trajopt::TrajOptProb> prob_;
   sco::OptStatus last_status_{sco::OptStatus::INVALID};
   std::vector<feature_cost> feature_costs_;
 };

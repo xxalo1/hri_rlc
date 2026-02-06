@@ -1,9 +1,11 @@
+#include "rbt_planning/trajopt_solver.hpp"
+
 #include <functional>
 #include <stdexcept>
+#include <trajopt_sco/modeling_utils.hpp>
+#include <trajopt_sco/num_diff.hpp>
 #include <utility>
 #include <vector>
-
-#include "rbt_planning/trajopt_solver.hpp"
 
 namespace rbt_planning {
 
@@ -78,7 +80,7 @@ trajopt::TrajArray TrajoptSolver::solve() {
 
   construct_problem();
 
-  sco::BasicTrustRegionSQP opt(*prob_);
+  sco::BasicTrustRegionSQP opt(prob_);
   const sco::DblVec x0 = trajopt::trajToDblVec(prob_->GetInitTraj());
 
   opt.initialize(x0);
@@ -94,31 +96,39 @@ void TrajoptSolver::construct_problem() {
 
   pci.basic_info.n_steps = n_steps_;
   pci.basic_info.manip = manipulator_group_;
-  pci.basic_info.start_fixed = true;
+  pci.basic_info.fixed_timesteps = trajopt::IntVec{0};
   pci.basic_info.use_time = false;
 
   pci.init_info.type = trajopt::InitInfo::GIVEN_TRAJ;
-  pci.init_info.data = traj_seed_;
+  if (traj_seed_.rows() == 0) {
+    pci.init_info.data = make_linear_seed(q_start_, q_goal_, n_steps_);
+  } else {
+    validate_traj(traj_seed_);
+    pci.init_info.data = traj_seed_;
+  }
 
-  auto vel = std::make_shared<trajopt::JointVelCostInfo>();
-  vel->term_type = trajopt::TT_COST;
+  auto vel = std::make_shared<trajopt::JointVelTermInfo>();
+  vel->term_type = trajopt::TermType::TT_COST;
   vel->name = "joint_vel_smooth";
   vel->coeffs = trajopt::DblVec(ndof, 1.0);
+  vel->targets = trajopt::DblVec(ndof, 0.0);
   pci.cost_infos.push_back(vel);
 
-  auto goal = std::make_shared<trajopt::JointConstraintInfo>();
-  goal->term_type = trajopt::TT_CNT;
+  auto goal = std::make_shared<trajopt::JointPosTermInfo>();
+  goal->term_type = trajopt::TermType::TT_CNT;
   goal->name = "goal_joint_target";
-  goal->timestep = n_steps_ - 1;
+  goal->first_step = n_steps_ - 1;
+  goal->last_step = n_steps_ - 1;
   goal->coeffs = trajopt::DblVec(ndof, 1.0);
-  goal->vals = trajopt::DblVec(q_goal_.data(), q_goal_.data() + q_goal_.size());
+  goal->targets =
+      trajopt::DblVec(q_goal_.data(), q_goal_.data() + q_goal_.size());
   pci.cnt_infos.push_back(goal);
 
   prob_ = trajopt::ConstructProblem(pci);
   attach_feature_costs(*prob_);
 }
 
-sco::VarVector TrajoptSolver::get_vars(trajopt::TrajOptProb& prob) const {
+sco::VarVector TrajoptSolver::get_vars(trajopt::TrajOptProb& prob) {
   sco::VarVector vars;
   const int T = prob.GetNumSteps();
   const int ndof = prob.GetNumDOF();
@@ -144,7 +154,7 @@ void TrajoptSolver::attach_feature_costs(trajopt::TrajOptProb& prob) const {
           return w * phi(traj);
         });
 
-    auto cost = boost::make_shared<sco::CostFromFunc>(f, vars, c.name);
+    auto cost = std::make_shared<sco::CostFromFunc>(f, vars, c.name);
     prob.addCost(cost);
   }
 }
