@@ -21,6 +21,13 @@ class Command;
 namespace rlc_scene_bridge
 {
 
+struct Options
+{
+  tesseract_scene::NamingPolicy naming_policy;
+  std::string world_frame;
+  bool allow_replace{ true };
+};
+
 class TesseractEnvSync
 {
 public:
@@ -31,13 +38,6 @@ public:
 
   using CommandPtr = std::shared_ptr<const tesseract_environment::Command>;
   using CommandList = std::vector<CommandPtr>;
-
-  struct Options
-  {
-    tesseract_scene::NamingPolicy naming_policy;
-    std::string world_frame;
-    bool allow_replace{ true };
-  };
 
   TesseractEnvSync(MonitorInterfaceConstPtr monitor_interface,
                    std::string monitor_namespace, rclcpp::Logger logger,
@@ -57,20 +57,32 @@ public:
   EnvironmentUPtr snapshot() const;
 
   const std::string& monitorNamespace() const noexcept
-  { return monitor_namespace_; };
+  {
+    return monitor_namespace_;
+  };
 
   const Options& options() const noexcept
-  { return opt_; }
+  {
+    return opt_;
+  }
 
 private:
   bool fromFullScene(const PlanningSceneMsg& scene);
+
   bool fromDiff(const PlanningSceneMsg& scene);
+
   bool applyCommands(const tesseract_environment::Commands& commands) const;
+
   CommandPtr makeAddWorldCommand(const moveit_msgs::msg::CollisionObject& object);
+
   CommandPtr makeRemoveWorldCommand(const moveit_msgs::msg::CollisionObject& object);
+
   CommandPtr makeMoveWorldCommand(const moveit_msgs::msg::CollisionObject& object);
+
   CommandPtr makeAddAttachedCommand(const moveit_msgs::msg::AttachedCollisionObject& aco);
+
   CommandPtr makeRemoveAttachedCommand(const moveit_msgs::msg::CollisionObject& object);
+  
   bool appendRemoveAttachedCommands(const moveit_msgs::msg::AttachedCollisionObject& aco,
                                     tesseract_environment::Commands& commands);
 
