@@ -8,17 +8,22 @@
 
 namespace rlc_scene_bridge
 {
-MoveItTesseractBridge::MoveItTesseractBridge(
-    rclcpp::Node& node, std::shared_ptr<tesseract_environment::Environment> env,
-    Options opt)
+MoveItTesseractBridge::MoveItTesseractBridge(rclcpp::Node& node,
+                                             MonitorInterfaceConstPtr monitor_interface,
+                                             Options opt)
   : node_(node)
   , logger_(node_.get_logger().get_child("rlc_scene_bridge.scene_bridge"))
   , opt_(std::move(opt))
 {
-  if (!env)
-    throw std::invalid_argument("MoveItTesseractBridge: env is null");
+  auto monitor_interface = makeMonitorInterface(node_, opt.monitor_namespace);
+  if (!monitor_interface)
+  {
+    RCLCPP_ERROR(getLogger(), "MoveItTesseractBridge() failed: monitor_interface is null");
+    return false;
+  }
 
-  env_sync_ = std::make_unique<TesseractEnvSync>(node_, std::move(env));
+  env_sync_ = std::make_unique<TesseractEnvSync>(
+      std::move(monitor_interface), opt_.monitor_namespace, logger_, opt_.env_sync_opt);
 
   cbg_ = node_.create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
@@ -233,7 +238,9 @@ void MoveItTesseractBridge::onSyncResponse(
 }
 
 bool MoveItTesseractBridge::isSynchronized() const noexcept
-{ return env_state_.load(std::memory_order_relaxed) == EnvState::SYNCHRONIZED; }
+{
+  return env_state_.load(std::memory_order_relaxed) == EnvState::SYNCHRONIZED;
+}
 
 rclcpp::Time MoveItTesseractBridge::lastUpdateStamp() const noexcept
 {
@@ -255,7 +262,12 @@ MoveItTesseractBridge::envSnapshot() const
   if (!isSynchronized())
     return nullptr;
 
-  return env_sync_->snapshot();
+  auto env_uptr = env_sync_->snapshot();
+  if (!env_uptr)
+  {
+    return nullptr;
+  }
+  return std::shared_ptr<tesseract_environment::Environment>(std::move(env_uptr));
 }
 
 }  // namespace rlc_scene_bridge

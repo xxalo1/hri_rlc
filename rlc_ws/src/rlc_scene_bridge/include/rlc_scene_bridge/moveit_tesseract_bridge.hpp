@@ -11,7 +11,7 @@
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <string>
-
+#include "tesseract_env_sync.hpp"
 namespace tesseract_environment
 {
 class Environment;
@@ -19,7 +19,11 @@ class Environment;
 
 namespace rlc_scene_bridge
 {
-class TesseractEnvSync;
+
+namespace tesseract_environment
+{
+class EnvironmentMonitorInterface;
+}
 
 class MoveItTesseractBridge
 {
@@ -28,23 +32,23 @@ public:
   using PlanningSceneMsgConstPtr = PlanningSceneMsg::ConstSharedPtr;
   using PlanningSceneComponentsMsg = moveit_msgs::msg::PlanningSceneComponents;
   using GetPlanningScene = moveit_msgs::srv::GetPlanningScene;
+  using MonitorInterfaceConstPtr =
+      std::shared_ptr<const tesseract_environment::EnvironmentMonitorInterface>;
 
   struct Options
   {
+    std::string monitor_namespace{ "tesseract_monitor" };
     std::string scene_topic{ "/move_group/monitored_planning_scene" };
     std::string get_scene_srv{ "/get_planning_scene" };
-
     uint32_t scene_components{ PlanningSceneComponentsMsg::ROBOT_STATE |
                                PlanningSceneComponentsMsg::ROBOT_STATE_ATTACHED_OBJECTS |
                                PlanningSceneComponentsMsg::WORLD_OBJECT_GEOMETRY };
-
     std::chrono::milliseconds srv_wait{ std::chrono::milliseconds{ 500 } };
-
     std::size_t scene_qos_depth{ 25 };
+    TesseractEnvSync::Options env_sync_opt{};
   };
 
-  MoveItTesseractBridge(rclcpp::Node& node,
-                        std::shared_ptr<tesseract_environment::Environment> env,
+  MoveItTesseractBridge(rclcpp::Node& node, MonitorInterfaceConstPtr monitor_interface,
                         Options opt = {});
 
   ~MoveItTesseractBridge();
@@ -61,10 +65,14 @@ public:
   void requestSync();
 
   const Options& options() const noexcept
-  { return opt_; }
+  {
+    return opt_;
+  }
 
   rclcpp::CallbackGroup::SharedPtr callbackGroup() const
-  { return cbg_; }
+  {
+    return cbg_;
+  }
 
 private:
   enum class EnvState : uint8_t
