@@ -1,5 +1,6 @@
 #include <stdexcept>
 #include <utility>
+#include <tesseract_environment/environment.h>
 #include <tesseract_environment/environment_monitor_interface.h>
 #include <rlc_scene_bridge/tesseract_env_sync.hpp>
 #include <tesseract_environment/commands/add_link_command.h>
@@ -45,26 +46,14 @@ TesseractEnvSync::EnvironmentUPtr TesseractEnvSync::snapshot() const
 
 void TesseractEnvSync::applyFullScene(const PlanningSceneMsg& scene)
 {
-  std::unordered_map<std::string, tesseract_scene::ObjectInfo> world_objects_next;
-  std::unordered_map<std::string, tesseract_scene::ObjectInfo> attached_objects_next;
-
-  auto commands = fromFullScene(scene, world_objects_next, attached_objects_next);
+  auto commands = fromFullScene(scene);
   applyCommands(commands);
-
-  world_objects_ = std::move(world_objects_next);
-  attached_objects_ = std::move(attached_objects_next);
 }
 
 void TesseractEnvSync::applyDiff(const PlanningSceneMsg& scene)
 {
-  auto world_objects_next = world_objects_;
-  auto attached_objects_next = attached_objects_;
-
-  auto commands = fromDiff(scene, world_objects_next, attached_objects_next);
+  auto commands = fromDiff(scene);
   applyCommands(commands);
-
-  world_objects_ = std::move(world_objects_next);
-  attached_objects_ = std::move(attached_objects_next);
 }
 
 void TesseractEnvSync::applyCommands(const tesseract_environment::Commands& commands) const
@@ -78,18 +67,12 @@ void TesseractEnvSync::applyCommands(const tesseract_environment::Commands& comm
 }
 
 tesseract_environment::Commands TesseractEnvSync::fromFullScene(
-    const PlanningSceneMsg& scene,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
-    const
+    const PlanningSceneMsg& scene)
 {
   tesseract_environment::Commands commands;
   commands.reserve(world_objects_.size() + attached_objects_.size() +
                    scene.world.collision_objects.size() +
                    scene.robot_state.attached_collision_objects.size());
-
-  world_objects_next.clear();
-  attached_objects_next.clear();
 
   // Clear existing world objects.
   for (const auto& kv : world_objects_)
@@ -107,17 +90,20 @@ tesseract_environment::Commands TesseractEnvSync::fromFullScene(
         std::make_shared<tesseract_environment::RemoveLinkCommand>(info.link_name));
   }
 
+  world_objects_.clear();
+  attached_objects_.clear();
+
   // Add all world objects.
   for (const auto& object : scene.world.collision_objects)
   {
-    auto cmd = makeAddWorldCommand(object, world_objects_next);
+    auto cmd = makeAddWorldCommand(object);
     commands.push_back(std::move(cmd));
   }
 
   // Add all attached objects.
   for (const auto& aco : scene.robot_state.attached_collision_objects)
   {
-    auto cmd = makeAddAttachedCommand(aco, attached_objects_next);
+    auto cmd = makeAddAttachedCommand(aco);
     commands.push_back(std::move(cmd));
   }
 
@@ -125,10 +111,7 @@ tesseract_environment::Commands TesseractEnvSync::fromFullScene(
 }
 
 tesseract_environment::Commands TesseractEnvSync::fromDiff(
-    const PlanningSceneMsg& scene,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
-    const
+    const PlanningSceneMsg& scene)
 {
   tesseract_environment::Commands commands;
   commands.reserve(scene.world.collision_objects.size() +
@@ -143,19 +126,19 @@ tesseract_environment::Commands TesseractEnvSync::fromDiff(
     {
       case moveit_msgs::msg::CollisionObject::ADD:
       {
-        cmd = makeAddWorldCommand(object, world_objects_next);
+        cmd = makeAddWorldCommand(object);
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::REMOVE:
       {
-        cmd = makeRemoveWorldCommand(object, world_objects_next);
+        cmd = makeRemoveWorldCommand(object);
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::MOVE:
       {
-        cmd = makeMoveWorldCommand(object, world_objects_next);
+        cmd = makeMoveWorldCommand(object);
         break;
       }
 
@@ -184,13 +167,13 @@ tesseract_environment::Commands TesseractEnvSync::fromDiff(
     {
       case moveit_msgs::msg::CollisionObject::ADD:
       {
-        commands.push_back(makeAddAttachedCommand(aco, attached_objects_next));
+        commands.push_back(makeAddAttachedCommand(aco));
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::REMOVE:
       {
-        appendRemoveAttachedCommands(aco, attached_objects_next, commands);
+        appendRemoveAttachedCommands(aco, commands);
         break;
       }
 
@@ -215,8 +198,7 @@ tesseract_environment::Commands TesseractEnvSync::fromDiff(
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeAddWorldCommand(
-    const moveit_msgs::msg::CollisionObject& object,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next) const
+    const moveit_msgs::msg::CollisionObject& object)
 {
   if (object.id.empty())
   {
@@ -230,16 +212,14 @@ tesseract_environment::Command::Ptr TesseractEnvSync::makeAddWorldCommand(
                             object.id + "'");
   }
 
-  world_objects_next.insert_or_assign(built->info.id, built->info);
+  world_objects_.insert_or_assign(built->info.id, built->info);
 
   return std::make_shared<tesseract_environment::AddLinkCommand>(
       built->link, built->joint, opt_.allow_replace);
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeAddAttachedCommand(
-    const moveit_msgs::msg::AttachedCollisionObject& aco,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
-    const
+    const moveit_msgs::msg::AttachedCollisionObject& aco)
 {
   if (aco.object.id.empty())
   {
@@ -253,16 +233,14 @@ tesseract_environment::Command::Ptr TesseractEnvSync::makeAddAttachedCommand(
                             aco.object.id + "'");
   }
 
-  attached_objects_next.insert_or_assign(built->info.id, built->info);
+  attached_objects_.insert_or_assign(built->info.id, built->info);
 
   return std::make_shared<tesseract_environment::AddLinkCommand>(
       built->link, built->joint, opt_.allow_replace);
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeMoveWorldCommand(
-    const moveit_msgs::msg::CollisionObject& object,
-    const std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next)
-    const
+    const moveit_msgs::msg::CollisionObject& object) const
 {
   const std::string& id = object.id;
   if (id.empty())
@@ -270,8 +248,8 @@ tesseract_environment::Command::Ptr TesseractEnvSync::makeMoveWorldCommand(
     throw std::domain_error("TesseractEnvSync: MOVE world object with empty id");
   }
 
-  auto it = world_objects_next.find(id);
-  if (it == world_objects_next.end())
+  auto it = world_objects_.find(id);
+  if (it == world_objects_.end())
   {
     throw std::domain_error("TesseractEnvSync: MOVE for unknown world object '" + id +
                             "'");
@@ -294,8 +272,7 @@ tesseract_environment::Command::Ptr TesseractEnvSync::makeMoveWorldCommand(
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeRemoveWorldCommand(
-    const moveit_msgs::msg::CollisionObject& object,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next) const
+    const moveit_msgs::msg::CollisionObject& object)
 {
   const std::string& id = object.id;
   if (id.empty())
@@ -303,23 +280,21 @@ tesseract_environment::Command::Ptr TesseractEnvSync::makeRemoveWorldCommand(
     throw std::domain_error("TesseractEnvSync: REMOVE world object with empty id");
   }
 
-  auto it = world_objects_next.find(id);
-  if (it == world_objects_next.end())
+  auto it = world_objects_.find(id);
+  if (it == world_objects_.end())
   {
     throw std::domain_error("TesseractEnvSync: REMOVE for unknown world object '" + id +
                             "'");
   }
 
   const std::string link_name = it->second.link_name;
-  world_objects_next.erase(it);
+  world_objects_.erase(it);
 
   return std::make_shared<tesseract_environment::RemoveLinkCommand>(link_name);
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeRemoveAttachedCommand(
-    const moveit_msgs::msg::CollisionObject& object,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
-    const
+    const moveit_msgs::msg::CollisionObject& object)
 {
   const std::string& id = object.id;
   if (id.empty())
@@ -327,23 +302,22 @@ tesseract_environment::Command::Ptr TesseractEnvSync::makeRemoveAttachedCommand(
     throw std::domain_error("TesseractEnvSync: REMOVE attached object with empty id");
   }
 
-  auto it = attached_objects_next.find(id);
-  if (it == attached_objects_next.end())
+  auto it = attached_objects_.find(id);
+  if (it == attached_objects_.end())
   {
     throw std::domain_error("TesseractEnvSync: REMOVE for unknown attached object '" +
                             id + "'");
   }
 
   const std::string link_name = it->second.link_name;
-  attached_objects_next.erase(it);
+  attached_objects_.erase(it);
 
   return std::make_shared<tesseract_environment::RemoveLinkCommand>(link_name);
 }
 
 void TesseractEnvSync::appendRemoveAttachedCommands(
     const moveit_msgs::msg::AttachedCollisionObject& aco,
-    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next,
-    tesseract_environment::Commands& commands) const
+    tesseract_environment::Commands& commands)
 {
   if (aco.link_name.empty())
   {
@@ -355,13 +329,13 @@ void TesseractEnvSync::appendRemoveAttachedCommands(
 
   if (id.empty())
   {
-    for (auto it = attached_objects_next.begin(); it != attached_objects_next.end();)
+    for (auto it = attached_objects_.begin(); it != attached_objects_.end();)
     {
       if (it->second.parent_link == aco.link_name)
       {
         commands.push_back(std::make_shared<tesseract_environment::RemoveLinkCommand>(
             it->second.link_name));
-        it = attached_objects_next.erase(it);
+        it = attached_objects_.erase(it);
       }
       else
       {
@@ -372,7 +346,7 @@ void TesseractEnvSync::appendRemoveAttachedCommands(
   }
 
   // Remove single by id
-  auto cmd = makeRemoveAttachedCommand(aco.object, attached_objects_next);
+  auto cmd = makeRemoveAttachedCommand(aco.object);
 
   commands.push_back(std::move(cmd));
 }
