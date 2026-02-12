@@ -1,5 +1,3 @@
-// rlc_scene_bridge/src/tesseract_cmd_builders.cpp
-
 #include "rlc_scene_bridge/tesseract_scene_utils.hpp"
 
 #include <cmath>
@@ -14,10 +12,8 @@
 
 #include <tesseract_environment/commands/add_link_command.h>
 #include <tesseract_geometry/geometries.h>
-#include <tesseract_scene_graph/collision.h>
 #include <tesseract_scene_graph/joint.h>
 #include <tesseract_scene_graph/link.h>
-#include <tesseract_scene_graph/visual.h>
 #include <shape_msgs/msg/plane.hpp>
 
 namespace rlc_scene_bridge
@@ -185,8 +181,8 @@ bool fillLinkGeometry(const moveit_msgs::msg::CollisionObject& object,
 
 std::optional<BuiltObject>
 buildFixedLinkObject(const moveit_msgs::msg::CollisionObject& object,
-                     std::string parent_link, std::string link_name,
-                     std::string joint_name)
+                     const std::string& parent_link, const std::string& link_name,
+                     const std::string& joint_name)
 {
   tesseract_scene_graph::Link link(link_name);
   if (!fillLinkGeometry(object, link_name, link))
@@ -195,14 +191,14 @@ buildFixedLinkObject(const moveit_msgs::msg::CollisionObject& object,
   }
 
   tesseract_scene_graph::Joint joint(joint_name);
-  joint.parent_link_name = std::move(parent_link);
+  joint.parent_link_name = parent_link;
   joint.child_link_name = link_name;
   joint.type = tesseract_scene_graph::JointType::FIXED;
   joint.parent_to_joint_origin_transform = poseToIsometry(object.pose);
 
   ObjectInfo info;
   info.id = object.id;
-  info.frame_id = object.header.frame_id;  // or rename to moveit_frame_id later
+  info.frame_id = object.header.frame_id;
   info.link_name = link_name;
   info.joint_name = joint_name;
   info.parent_link = joint.parent_link_name;

@@ -1,31 +1,31 @@
-#include "rlc_scene_bridge/scene_bridge.hpp"
+#include <rlc_scene_bridge/moveit_tesseract_bridge.hpp>
 
-#include <functional>
 #include <stdexcept>
+#include <typeinfo>
 #include <utility>
-
-#include <rmw/qos_profiles.h>
+#include <tesseract_monitoring/environment_monitor_interface.h>
+#include <tesseract_environment/environment.h>
 
 namespace rlc_scene_bridge
 {
-MoveItTesseractBridge::MoveItTesseractBridge(rclcpp::Node& node,
+MoveItTesseractBridge::MoveItTesseractBridge(rclcpp::Node::SharedPtr node,
                                              MonitorInterfaceConstPtr monitor_interface,
-                                             Options opt)
-  : node_(node)
-  , logger_(node_.get_logger().get_child("rlc_scene_bridge.scene_bridge"))
+                                             MoveItTesseractBridgeOptions opt)
+  : node_(std::move(node))
+  , logger_(rclcpp::get_logger("rlc_scene_bridge.scene_bridge"))
   , opt_(std::move(opt))
 {
-  auto monitor_interface = makeMonitorInterface(node_, opt.monitor_namespace);
-  if (!monitor_interface)
+  if (!node_)
   {
-    RCLCPP_ERROR(getLogger(), "MoveItTesseractBridge() failed: monitor_interface is null");
-    return false;
+    throw std::invalid_argument("node is null");
   }
 
-  env_sync_ = std::make_unique<TesseractEnvSync>(
-      std::move(monitor_interface), opt_.monitor_namespace, logger_, opt_.env_sync_opt);
+  logger_ = node_->get_logger().get_child("rlc_scene_bridge.scene_bridge");
 
-  cbg_ = node_.create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+  env_sync_ = std::make_unique<TesseractEnvSync>(std::move(monitor_interface),
+                                                 opt_.monitor_namespace, opt_.env_sync);
+
+  cbg_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
   rclcpp::QoS qos(rclcpp::KeepLast(opt_.scene_qos_depth));
   qos.reliable();
@@ -42,56 +42,43 @@ MoveItTesseractBridge::MoveItTesseractBridge(rclcpp::Node& node,
       };
   sub_opts.callback_group = cbg_;
 
-  auto scene_cb = [this](PlanningSceneMsgConstPtr msg) { onSceneUpdate(std::move(msg)); };
+  auto scene_cb = [this](PlanningSceneMsgConstPtr msg) { onSceneUpdate(msg); };
 
-  scene_sub_ = node_.create_subscription<PlanningSceneMsg>(opt_.scene_topic, qos,
-                                                           scene_cb, sub_opts);
+  scene_sub_ = node_->create_subscription<PlanningSceneMsg>(opt_.scene_topic, qos,
+                                                            scene_cb, sub_opts);
 
-  get_scene_client_ = node_.create_client<GetPlanningScene>(
-      opt_.get_scene_srv, rmw_qos_profile_services_default, cbg_);
+  get_scene_client_ = node_->create_client<GetPlanningScene>(opt_.get_scene_srv,
+                                                             rclcpp::ServicesQoS(), cbg_);
+
+  requestSync();
 }
 
-MoveItTesseractBridge::~MoveItTesseractBridge()
-{
-  scene_sub_.reset();
-  get_scene_client_.reset();
-  env_sync_.reset();
-}
+MoveItTesseractBridge::~MoveItTesseractBridge() = default;
 
-void MoveItTesseractBridge::onSceneUpdate(PlanningSceneMsgConstPtr msg)
+void MoveItTesseractBridge::onSceneUpdate(const PlanningSceneMsgConstPtr& msg)
 {
   if (!msg)
   {
     return;
   }
 
-  const auto now_ns = node_.now().nanoseconds();
-  const auto env_state = env_state_.load(std::memory_order_acquire);
+  const auto now_ns = node_->now().nanoseconds();
 
   // Full scene.
   if (!msg->is_diff)
   {
     try
     {
-      const bool ok = env_sync_->applyFullScene(*msg);
-      if (!ok)
-      {
-        RCLCPP_WARN(logger_, "MoveItTesseractBridge: full scene apply rejected; "
-                             "requesting baseline resync");
-        env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
-        requestSync();
-        return;
-      }
-
+      env_sync_->applyFullScene(*msg);
       env_state_.store(EnvState::SYNCHRONIZED, std::memory_order_release);
-      last_update_ns_.store(node_.now().nanoseconds(), std::memory_order_release);
+      last_update_ns_.store(now_ns, std::memory_order_release);
     }
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(logger_,
-                   "MoveItTesseractBridge: exception while applying full PlanningScene; "
-                   "requesting baseline resync: %s",
-                   e.what());
+                   "MoveItTesseractBridge: rejected full PlanningScene requesting "
+                   "baseline resync: (%s): %s",
+                   typeid(e).name(), e.what());
       env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
       requestSync();
     }
@@ -99,6 +86,9 @@ void MoveItTesseractBridge::onSceneUpdate(PlanningSceneMsgConstPtr msg)
   }
 
   // Diff scene.
+
+  const auto env_state = env_state_.load(std::memory_order_acquire);
+
   switch (env_state)
   {
     case EnvState::UNINITIALIZED:
@@ -114,34 +104,23 @@ void MoveItTesseractBridge::onSceneUpdate(PlanningSceneMsgConstPtr msg)
     {
       try
       {
-        const bool ok = env_sync_->applyDiff(*msg);
-        if (!ok)
-        {
-          RCLCPP_ERROR(logger_, "MoveItTesseractBridge: failed to apply PlanningScene "
-                                "diff; requesting baseline resync");
-          env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
-          requestSync();
-          return;
-        }
-
-        last_update_ns_.store(node_.now().nanoseconds(), std::memory_order_release);
+        env_sync_->applyDiff(*msg);
+        last_update_ns_.store(now_ns, std::memory_order_release);
       }
       catch (const std::exception& e)
       {
         RCLCPP_ERROR(logger_,
-                     "MoveItTesseractBridge: failed to apply PlanningScene diff; "
-                     "requesting baseline resync: %s",
-                     e.what());
+                     "MoveItTesseractBridge: failed to apply PlanningScene diff (%s): %s",
+                     typeid(e).name(), e.what());
+
         env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
         requestSync();
       }
       return;
     }
+    default:
+      break;
   }
-
-  RCLCPP_ERROR(logger_, "MoveItTesseractBridge: unknown EnvState");
-  env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
-  requestSync();
 }
 
 void MoveItTesseractBridge::requestSync()
@@ -150,7 +129,9 @@ void MoveItTesseractBridge::requestSync()
 
   const auto env_state = env_state_.load(std::memory_order_acquire);
   if (env_state == EnvState::SYNCHRONIZING)
+  {
     return;
+  }
 
   if (!get_scene_client_)
   {
@@ -176,14 +157,14 @@ void MoveItTesseractBridge::requestSync()
   req->components.components = opt_.scene_components;
 
   auto req_cb = [this](rclcpp::Client<GetPlanningScene>::SharedFuture future) {
-    onSyncResponse(std::move(future));
+    onSyncResponse(future);
   };
 
   (void)get_scene_client_->async_send_request(req, req_cb);
 }
 
 void MoveItTesseractBridge::onSyncResponse(
-    rclcpp::Client<GetPlanningScene>::SharedFuture future)
+    const rclcpp::Client<GetPlanningScene>::SharedFuture& future)
 {
   std::shared_ptr<GetPlanningScene::Response> res;
 
@@ -202,6 +183,7 @@ void MoveItTesseractBridge::onSyncResponse(
     RCLCPP_ERROR(logger_, "onSyncResponse(): GetPlanningScene future.get() failed: %s",
                  e.what());
     env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
+    requestSync();
     return;
   }
 
@@ -209,22 +191,33 @@ void MoveItTesseractBridge::onSyncResponse(
   {
     RCLCPP_ERROR(logger_, "onSyncResponse(): GetPlanningScene response is null");
     env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
+    requestSync();
     return;
   }
 
   try
   {
-    const bool ok = env_sync_->applyFullScene(res->scene);
-    if (!ok)
-    {
-      RCLCPP_WARN(logger_, "MoveItTesseractBridge: full scene apply rejected; requesting "
-                           "baseline resync");
-      env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
-      requestSync();
-      return;
-    }
+    env_sync_->applyFullScene(res->scene);
     env_state_.store(EnvState::SYNCHRONIZED, std::memory_order_release);
-    last_update_ns_.store(node_.now().nanoseconds(), std::memory_order_release);
+    last_update_ns_.store(node_->now().nanoseconds(), std::memory_order_release);
+  }
+  catch (const std::domain_error& e)
+  {
+    RCLCPP_WARN(logger_,
+                "onSyncResponse(): rejected full PlanningScene from service; requesting "
+                "baseline resync: %s",
+                e.what());
+    env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
+    requestSync();
+  }
+  catch (const std::runtime_error& e)
+  {
+    RCLCPP_ERROR(logger_,
+                 "onSyncResponse(): failed to apply full PlanningScene from service; "
+                 "requesting baseline resync: %s",
+                 e.what());
+    env_state_.store(EnvState::UNINITIALIZED, std::memory_order_release);
+    requestSync();
   }
   catch (const std::exception& e)
   {
@@ -254,20 +247,29 @@ MoveItTesseractBridge::envSnapshot() const
   if (!env_sync_)
   {
     RCLCPP_ERROR_THROTTLE(
-        logger_, *node_.get_clock(), 2000,
+        logger_, *node_->get_clock(), 2000,
         "MoveItTesseractBridge::envSnapshot(): EnvSync is not constructed.");
     return nullptr;
   }
 
   if (!isSynchronized())
-    return nullptr;
-
-  auto env_uptr = env_sync_->snapshot();
-  if (!env_uptr)
   {
     return nullptr;
   }
-  return std::shared_ptr<tesseract_environment::Environment>(std::move(env_uptr));
+
+  try
+  {
+    auto env_uptr = env_sync_->snapshot();
+    return std::shared_ptr<tesseract_environment::Environment>(std::move(env_uptr));
+  }
+  catch (const std::exception& e)
+  {
+    RCLCPP_ERROR_THROTTLE(
+        logger_, *node_->get_clock(), 2000,
+        "MoveItTesseractBridge::envSnapshot(): failed to snapshot environment: %s",
+        e.what());
+    return nullptr;
+  }
 }
 
 }  // namespace rlc_scene_bridge

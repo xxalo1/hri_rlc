@@ -1,20 +1,14 @@
 #pragma once
 
-#include <memory>
+#include <optional>
 #include <string>
 
+#include <Eigen/Geometry>
+#include <geometry_msgs/msg/pose.hpp>
 #include <moveit_msgs/msg/attached_collision_object.hpp>
 #include <moveit_msgs/msg/collision_object.hpp>
-#include <tesseract_environment/fwd.h>
-#include <tesseract_scene_graph/collision.h>
 #include <tesseract_scene_graph/joint.h>
 #include <tesseract_scene_graph/link.h>
-#include <tesseract_scene_graph/visual.h>
-
-namespace tesseract_environment
-{
-class Command;
-}
 
 namespace rlc_scene_bridge
 {

@@ -1,15 +1,86 @@
 cmake_minimum_required(VERSION 3.8)
-project(rlc_scene_bridge)
+project(rlc_scene_bridge LANGUAGES C CXX)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+# Package level default (recommended in ROS workspaces)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+find_package(ament_cmake REQUIRED)
+
+find_package(Eigen3 REQUIRED)
+
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(moveit_msgs REQUIRED)
+find_package(shape_msgs REQUIRED)
+
+# tesseract core packages are `build_type=cmake` (exported via CMake config)
+find_package(tesseract_environment REQUIRED CONFIG)
+find_package(tesseract_geometry REQUIRED CONFIG)
+find_package(tesseract_scene_graph REQUIRED CONFIG)
+find_package(tesseract_monitoring REQUIRED CONFIG)
+
+add_library(rlc_scene_bridge_lib SHARED
+  src/moveit_tesseract_bridge.cpp
+  src/tesseract_env_sync.cpp
+  src/tesseract_scene_utils.cpp
+)
+
+# Build-tree convenience and installed/exported name
+add_library(rlc_scene_bridge::scene_bridge ALIAS rlc_scene_bridge_lib)
+set_target_properties(rlc_scene_bridge_lib PROPERTIES EXPORT_NAME scene_bridge)
+
+target_compile_features(rlc_scene_bridge_lib PUBLIC cxx_std_20)
+
+target_include_directories(rlc_scene_bridge_lib
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  target_compile_options(rlc_scene_bridge_lib PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
-find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+ament_target_dependencies(rlc_scene_bridge_lib
+  rclcpp
+  geometry_msgs
+  moveit_msgs
+  shape_msgs
+)
+
+target_link_libraries(rlc_scene_bridge_lib
+  Eigen3::Eigen
+  tesseract::tesseract_environment
+  tesseract::tesseract_geometry
+  tesseract::tesseract_scene_graph
+  tesseract_monitoring::tesseract_monitoring_environment_interface
+)
+
+install(TARGETS rlc_scene_bridge_lib
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
+
+install(DIRECTORY include/ DESTINATION include)
+
+ament_export_include_directories(include)
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET NAMESPACE rlc_scene_bridge::)
+ament_export_dependencies(
+  Eigen3
+  rclcpp
+  geometry_msgs
+  moveit_msgs
+  shape_msgs
+  tesseract_environment
+  tesseract_geometry
+  tesseract_scene_graph
+  tesseract_monitoring
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

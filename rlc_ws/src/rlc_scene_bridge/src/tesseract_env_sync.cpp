@@ -1,17 +1,20 @@
 #include <stdexcept>
 #include <utility>
 #include <tesseract_environment/environment_monitor_interface.h>
-#include "tesseract_env_sync.hpp"
+#include <rlc_scene_bridge/tesseract_env_sync.hpp>
+#include <tesseract_environment/commands/add_link_command.h>
+#include <tesseract_environment/commands/remove_link_command.h>
+#include <tesseract_environment/commands/change_joint_origin_command.h>
+#include <Eigen/Geometry>
 
 namespace rlc_scene_bridge
 {
 
 TesseractEnvSync::TesseractEnvSync(MonitorInterfaceConstPtr monitor_interface,
-                                   std::string monitor_namespace, rclcpp::Logger logger,
-                                   Options opt)
+                                   std::string monitor_namespace,
+                                   TesseractEnvSyncOptions opt)
   : monitor_interface_(std::move(monitor_interface))
   , monitor_namespace_(std::move(monitor_namespace))
-  , logger_(std::move(logger))
   , opt_(std::move(opt))
 {
   if (!monitor_interface_)
@@ -25,49 +28,70 @@ TesseractEnvSync::TesseractEnvSync(MonitorInterfaceConstPtr monitor_interface,
   }
 }
 
+TesseractEnvSync::~TesseractEnvSync() = default;
+
 TesseractEnvSync::EnvironmentUPtr TesseractEnvSync::snapshot() const
-{ return monitor_interface_->getEnvironment(monitor_namespace_); }
-
-bool TesseractEnvSync::applyFullScene(const PlanningSceneMsg& scene)
 {
-  auto commands = fromFullScene(scene);
-  if (!commands)
+  auto env = monitor_interface_->getEnvironment(monitor_namespace_);
+  if (!env)
   {
-    return false;
+    throw std::runtime_error("TesseractEnvSync: monitor returned null environment for "
+                             "namespace '" +
+                             monitor_namespace_ + "'");
   }
-  return applyCommands(commands);
+
+  return env;
 }
 
-bool TesseractEnvSync::applyDiff(const PlanningSceneMsg& scene)
+void TesseractEnvSync::applyFullScene(const PlanningSceneMsg& scene)
 {
-  auto commands = fromDiff(scene);
-  if (!commands)
-  {
-    return false;
-  }
-  return applyCommands(commands);
+  std::unordered_map<std::string, tesseract_scene::ObjectInfo> world_objects_next;
+  std::unordered_map<std::string, tesseract_scene::ObjectInfo> attached_objects_next;
+
+  auto commands = fromFullScene(scene, world_objects_next, attached_objects_next);
+  applyCommands(commands);
+
+  world_objects_ = std::move(world_objects_next);
+  attached_objects_ = std::move(attached_objects_next);
 }
 
-bool TesseractEnvSync::applyCommands(const tesseract_environment::Commands& commands) const
+void TesseractEnvSync::applyDiff(const PlanningSceneMsg& scene)
 {
-  const bool ok =
-      monitor_interface_->applyCommands(monitor_namespace_, tesseract_commands);
+  auto world_objects_next = world_objects_;
+  auto attached_objects_next = attached_objects_;
+
+  auto commands = fromDiff(scene, world_objects_next, attached_objects_next);
+  applyCommands(commands);
+
+  world_objects_ = std::move(world_objects_next);
+  attached_objects_ = std::move(attached_objects_next);
+}
+
+void TesseractEnvSync::applyCommands(const tesseract_environment::Commands& commands) const
+{
+  const bool ok = monitor_interface_->applyCommands(monitor_namespace_, commands);
   if (!ok)
   {
-    RCLCPP_ERROR(logger_, "applyCommands failed for namespace '%s'",
-                 monitor_namespace_.c_str());
+    throw std::runtime_error("TesseractEnvSync: applyCommands failed for namespace '" +
+                             monitor_namespace_ + "'");
   }
-
-  return ok;
 }
 
-bool TesseractEnvSync::fromFullScene(const PlanningSceneMsg& scene)
+tesseract_environment::Commands TesseractEnvSync::fromFullScene(
+    const PlanningSceneMsg& scene,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
+    const
 {
   tesseract_environment::Commands commands;
-  commands.reserve(scene.world.collision_objects.size() +
+  commands.reserve(world_objects_.size() + attached_objects_.size() +
+                   scene.world.collision_objects.size() +
                    scene.robot_state.attached_collision_objects.size());
 
-  // Clear existing world objects
+  world_objects_next.clear();
+  attached_objects_next.clear();
+
+  // Clear existing world objects.
   for (const auto& kv : world_objects_)
   {
     const auto& info = kv.second;
@@ -75,7 +99,7 @@ bool TesseractEnvSync::fromFullScene(const PlanningSceneMsg& scene)
         std::make_shared<tesseract_environment::RemoveLinkCommand>(info.link_name));
   }
 
-  // Clear existing attached objects
+  // Clear existing attached objects.
   for (const auto& kv : attached_objects_)
   {
     const auto& info = kv.second;
@@ -83,195 +107,184 @@ bool TesseractEnvSync::fromFullScene(const PlanningSceneMsg& scene)
         std::make_shared<tesseract_environment::RemoveLinkCommand>(info.link_name));
   }
 
-  world_objects_.clear();
-  attached_objects_.clear();
-
-  // Add all world objects
+  // Add all world objects.
   for (const auto& object : scene.world.collision_objects)
   {
-    auto cmd = makeAddWorldCommand(object);
-    if (!cmd)
-    {
-      return false;
-    }
+    auto cmd = makeAddWorldCommand(object, world_objects_next);
     commands.push_back(std::move(cmd));
   }
 
-  // Add all attached objects
+  // Add all attached objects.
   for (const auto& aco : scene.robot_state.attached_collision_objects)
   {
-    auto cmd = makeAddAttachedCommand(aco);
-    if (!cmd)
-    {
-      return false;
-    }
+    auto cmd = makeAddAttachedCommand(aco, attached_objects_next);
     commands.push_back(std::move(cmd));
   }
 
-  return true;
+  return commands;
 }
 
-bool TesseractEnvSync::fromDiff(const PlanningSceneMsg& scene)
+tesseract_environment::Commands TesseractEnvSync::fromDiff(
+    const PlanningSceneMsg& scene,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
+    const
 {
   tesseract_environment::Commands commands;
   commands.reserve(scene.world.collision_objects.size() +
-                   scene.robot_state.attached_collision_objects.size());
-  // 1) World diffs
+                   scene.robot_state.attached_collision_objects.size() * 2);
+
+  // 1) World diffs.
   for (const auto& object : scene.world.collision_objects)
   {
-    const std::string& id = object.id;
-
-    CommandPtr cmd;
+    tesseract_environment::Command::Ptr cmd{};
 
     switch (object.operation)
     {
       case moveit_msgs::msg::CollisionObject::ADD:
       {
-        cmd = makeAddWorldCommand(object);
+        cmd = makeAddWorldCommand(object, world_objects_next);
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::REMOVE:
       {
-        cmd = makeRemoveWorldCommand(object);
+        cmd = makeRemoveWorldCommand(object, world_objects_next);
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::MOVE:
       {
-        cmd = makeMoveWorldCommand(object);
+        cmd = makeMoveWorldCommand(object, world_objects_next);
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::APPEND:
       {
-        RCLCPP_ERROR(logger_, "APPEND unsupported for world objects (id='%s')",
-                     id.c_str());
-        return false;
+        throw std::domain_error("TesseractEnvSync: APPEND unsupported for world objects "
+                                "(id='" +
+                                object.id + "')");
       }
 
       default:
       {
-        RCLCPP_ERROR(logger_, "unsupported world operation %d for '%s'",
-                     static_cast<int>(object.operation), id.c_str());
-        return false;
+        throw std::domain_error("TesseractEnvSync: unsupported world operation " +
+                                std::to_string(static_cast<int>(object.operation)) +
+                                " (id='" + object.id + "')");
       }
     }
 
-    if (!cmd)
-    {
-      return false;
-    }
     commands.push_back(std::move(cmd));
   }
-  // 2) Attached diffs
+
+  // 2) Attached diffs.
   for (const auto& aco : scene.robot_state.attached_collision_objects)
   {
-    const std::string& id = aco.object.id;
-
-    CommandPtr cmd;
     switch (aco.object.operation)
     {
       case moveit_msgs::msg::CollisionObject::ADD:
       {
-        cmd = makeAddAttachedCommand(aco);
-        if (!cmd)
-        {
-          return false;
-        }
-        commands.push_back(std::move(cmd));
+        commands.push_back(makeAddAttachedCommand(aco, attached_objects_next));
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::REMOVE:
       {
-        if (!appendRemoveAttachedCommands(aco, commands))
-        {
-          return false;
-        }
+        appendRemoveAttachedCommands(aco, attached_objects_next, commands);
         break;
       }
 
       case moveit_msgs::msg::CollisionObject::MOVE:
       {
-        RCLCPP_ERROR(logger_, "MOVE unsupported for attached objects (id='%s')",
-                     aco.object.id.c_str());
-        return false;
+        throw std::domain_error("TesseractEnvSync: MOVE unsupported for attached objects "
+                                "(id='" +
+                                aco.object.id + "')");
       }
 
       default:
       {
-        RCLCPP_ERROR(logger_, "unsupported attached operation %u (id='%s')",
-                     static_cast<unsigned>(aco.object.operation), aco.object.id.c_str());
-        return false;
+        throw std::domain_error(
+            "TesseractEnvSync: unsupported attached operation " +
+            std::to_string(static_cast<unsigned>(aco.object.operation)) + " (id='" +
+            aco.object.id + "')");
       }
     }
   }
-  return true;
+
+  return commands;
 }
 
-TesseractEnvSync::CommandPtr
-TesseractEnvSync::makeAddWorldCommand(const moveit_msgs::msg::CollisionObject& object)
+tesseract_environment::Command::Ptr TesseractEnvSync::makeAddWorldCommand(
+    const moveit_msgs::msg::CollisionObject& object,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next) const
 {
+  if (object.id.empty())
+  {
+    throw std::domain_error("TesseractEnvSync: ADD world object with empty id");
+  }
+
   const auto built = tesseract_scene::buildWorldObject(object, opt_.naming_policy);
   if (!built)
   {
-    RCLCPP_ERROR(logger_, "failed to build world object '%s'", object.id.c_str());
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: failed to build world object '" +
+                            object.id + "'");
   }
 
-  world_objects_.insert_or_assign(built->info.id, std::move(built->info));
+  world_objects_next.insert_or_assign(built->info.id, built->info);
 
-  auto cmd = std::make_shared<tesseract_environment::AddLinkCommand>(
+  return std::make_shared<tesseract_environment::AddLinkCommand>(
       built->link, built->joint, opt_.allow_replace);
-
-  return cmd;
 }
 
-TesseractEnvSync::CommandPtr TesseractEnvSync::makeAddAttachedCommand(
-    const moveit_msgs::msg::AttachedCollisionObject& aco)
+tesseract_environment::Command::Ptr TesseractEnvSync::makeAddAttachedCommand(
+    const moveit_msgs::msg::AttachedCollisionObject& aco,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
+    const
 {
+  if (aco.object.id.empty())
+  {
+    throw std::domain_error("TesseractEnvSync: ADD attached object with empty id");
+  }
+
   const auto built = tesseract_scene::buildAttachedObject(aco, opt_.naming_policy);
   if (!built)
   {
-    RCLCPP_ERROR(logger_, "failed to build attached object '%s'", aco.object.id.c_str());
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: failed to build attached object '" +
+                            aco.object.id + "'");
   }
 
-  attached_objects_.insert_or_assign(built->info.id, std::move(built->info));
+  attached_objects_next.insert_or_assign(built->info.id, built->info);
 
-  auto cmd = std::make_shared<tesseract_environment::AddLinkCommand>(
+  return std::make_shared<tesseract_environment::AddLinkCommand>(
       built->link, built->joint, opt_.allow_replace);
-
-  return cmd;
 }
 
-TesseractEnvSync::CommandPtr
-TesseractEnvSync::makeMoveWorldCommand(const moveit_msgs::msg::CollisionObject& object)
+tesseract_environment::Command::Ptr TesseractEnvSync::makeMoveWorldCommand(
+    const moveit_msgs::msg::CollisionObject& object,
+    const std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next)
+    const
 {
   const std::string& id = object.id;
   if (id.empty())
   {
-    RCLCPP_ERROR(logger_, "MOVE with empty id");
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: MOVE world object with empty id");
   }
 
-  auto it = world_objects_.find(id);
-  if (it == world_objects_.end())
+  auto it = world_objects_next.find(id);
+  if (it == world_objects_next.end())
   {
-    RCLCPP_ERROR(logger_, "MOVE for unknown world object '%s'", id.c_str());
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: MOVE for unknown world object '" + id +
+                            "'");
   }
 
-  const ObjectInfo& info = it->second;
+  const tesseract_scene::ObjectInfo& info = it->second;
 
   // v1: reject frame changes (requires TF resolution / parent relinking)
   if (!object.header.frame_id.empty() && object.header.frame_id != info.frame_id)
   {
-    RCLCPP_ERROR(logger_,
-                 "MOVE for '%s' changed frame_id from '%s' to '%s' (unsupported v1)",
-                 id.c_str(), info.frame_id.c_str(), object.header.frame_id.c_str());
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: MOVE for '" + id +
+                            "' changed frame_id from '" + info.frame_id + "' to '" +
+                            object.header.frame_id + "'");
   }
 
   const Eigen::Isometry3d origin = tesseract_scene::poseToIsometry(object.pose);
@@ -280,101 +293,88 @@ TesseractEnvSync::makeMoveWorldCommand(const moveit_msgs::msg::CollisionObject& 
       info.joint_name, origin);
 }
 
-TesseractEnvSync::CommandPtr
-TesseractEnvSync::makeRemoveWorldCommand(const moveit_msgs::msg::CollisionObject& object)
+tesseract_environment::Command::Ptr TesseractEnvSync::makeRemoveWorldCommand(
+    const moveit_msgs::msg::CollisionObject& object,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& world_objects_next) const
 {
   const std::string& id = object.id;
   if (id.empty())
   {
-    RCLCPP_ERROR(logger_, "MOVE with empty id");
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: REMOVE world object with empty id");
   }
 
-  auto it = world_objects_.find(id);
-  if (it == world_objects_.end())
+  auto it = world_objects_next.find(id);
+  if (it == world_objects_next.end())
   {
-    RCLCPP_ERROR(logger_, "REMOVE for unknown world object '%s'", id.c_str());
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: REMOVE for unknown world object '" + id +
+                            "'");
   }
 
   const std::string link_name = it->second.link_name;
-  world_objects_.erase(it);
+  world_objects_next.erase(it);
 
   return std::make_shared<tesseract_environment::RemoveLinkCommand>(link_name);
 }
 
-TesseractEnvSync::CommandPtr TesseractEnvSync::makeRemoveAttachedCommand(
-    const moveit_msgs::msg::CollisionObject& object)
+tesseract_environment::Command::Ptr TesseractEnvSync::makeRemoveAttachedCommand(
+    const moveit_msgs::msg::CollisionObject& object,
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next)
+    const
 {
   const std::string& id = object.id;
   if (id.empty())
   {
-    RCLCPP_ERROR(logger_, "MOVE with empty id");
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: REMOVE attached object with empty id");
   }
 
-  auto it = attached_objects_.find(id);
-  if (it == attached_objects_.end())
+  auto it = attached_objects_next.find(id);
+  if (it == attached_objects_next.end())
   {
-    RCLCPP_ERROR(logger_, "REMOVE for unknown attached object '%s'", id.c_str());
-    return nullptr;
+    throw std::domain_error("TesseractEnvSync: REMOVE for unknown attached object '" +
+                            id + "'");
   }
 
   const std::string link_name = it->second.link_name;
-  attached_objects_.erase(it);
+  attached_objects_next.erase(it);
 
   return std::make_shared<tesseract_environment::RemoveLinkCommand>(link_name);
 }
 
-bool TesseractEnvSync::appendRemoveAttachedCommands(
+void TesseractEnvSync::appendRemoveAttachedCommands(
     const moveit_msgs::msg::AttachedCollisionObject& aco,
-    tesseract_environment::Commands& commands)
+    std::unordered_map<std::string, tesseract_scene::ObjectInfo>& attached_objects_next,
+    tesseract_environment::Commands& commands) const
 {
   if (aco.link_name.empty())
   {
-    RCLCPP_ERROR(logger_, "REMOVE attached objects with empty link_name");
-    return false;
+    throw std::domain_error(
+        "TesseractEnvSync: REMOVE attached objects with empty link_name");
   }
 
   const std::string& id = aco.object.id;
 
   if (id.empty())
   {
-    bool removed_any = false;
-
-    for (auto it = attached_objects_.begin(); it != attached_objects_.end();)
+    for (auto it = attached_objects_next.begin(); it != attached_objects_next.end();)
     {
       if (it->second.parent_link == aco.link_name)
       {
         commands.push_back(std::make_shared<tesseract_environment::RemoveLinkCommand>(
             it->second.link_name));
-        it = attached_objects_.erase(it);
-        removed_any = true;
+        it = attached_objects_next.erase(it);
       }
       else
       {
         ++it;
       }
     }
-
-    if (!removed_any)
-    {
-      RCLCPP_WARN(logger_, "REMOVE(all) found no attached objects on link '%s'",
-                  aco.link_name.c_str());
-    }
-
-    return true;
+    return;
   }
 
   // Remove single by id
-  auto cmd = makeRemoveAttachedCommand(aco.object);
-  if (!cmd)
-  {
-    return false;
-  }
+  auto cmd = makeRemoveAttachedCommand(aco.object, attached_objects_next);
 
   commands.push_back(std::move(cmd));
-  return true;
 }
 
 }  // namespace rlc_scene_bridge

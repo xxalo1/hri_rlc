@@ -9,6 +9,18 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>rclcpp</depend>
+  <depend>moveit_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>shape_msgs</depend>
+
+  <depend>tesseract_environment</depend>
+  <depend>tesseract_scene_graph</depend>
+  <depend>tesseract_geometry</depend>
+  <depend>tesseract_monitoring</depend>
+
+  <depend>eigen</depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
