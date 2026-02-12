@@ -33,6 +33,11 @@ vcs import --recursive < ./deps/manifests/dependency.lock.repos
 ### Apt packages
 ```bash
 sudo apt update
+sudo apt install -y \
+  libqt-advanced-docking-system-dev \
+  qtbase5-dev qttools5-dev libqt5svg5-dev \
+  libvtk9-dev libvtk9-qt-dev
+
 rosdep install --from-paths rlc_ws/src src --ignore-src -r -y --rosdistro jazzy
 ```
 
@@ -40,6 +45,8 @@ rosdep install --from-paths rlc_ws/src src --ignore-src -r -y --rosdistro jazzy
 ```bash
 source /opt/ros/jazzy/setup.bash
 export CMAKE_PREFIX_PATH=/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:$CMAKE_PREFIX_PATH
+
+export COLCON_DEFAULTS_FILE=$PWD/colcon.defaults.yaml
 
 colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 

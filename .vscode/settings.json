@@ -1,5 +1,8 @@
 {
   "clangd.path": "/usr/bin/clangd-22",
+  "clangd.arguments": [
+    "--query-driver=/usr/bin/c++,/usr/bin/g++"
+  ],
   "C_Cpp.hover": "disabled",
   "C_Cpp.intelliSenseEngine": "disabled",
   "python.languageServer": "Pylance",
