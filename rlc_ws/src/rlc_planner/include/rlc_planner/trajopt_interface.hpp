@@ -216,7 +216,7 @@ private:
    * @return Extracted start-state data.
    * @throws rlc_planner::PlanningError If the start state is invalid or violates bounds.
    */
-  StartData extractStart(const planning_scene::PlanningScene& scene,
+  StartData extractStart(const planning_scene::PlanningSceneConstPtr& scene,
                          const planning_interface::MotionPlanRequest& req,
                          const moveit::core::JointModelGroup& jmg) const;
 
@@ -229,7 +229,7 @@ private:
    * @return Extracted goal-state data.
    * @throws rlc_planner::PlanningError If the goal constraints are invalid or unsupported.
    */
-  GoalData extractGoal(const planning_scene::PlanningScene& scene,
+  GoalData extractGoal(const planning_scene::PlanningSceneConstPtr& scene,
                             const planning_interface::MotionPlanRequest& req,
                             const moveit::core::JointModelGroup& jmg,
                             const StartData& start) const;

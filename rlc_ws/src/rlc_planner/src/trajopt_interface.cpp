@@ -6,6 +6,7 @@
 #include <moveit/utils/logger.hpp>
 
 #include <moveit_msgs/msg/joint_constraint.hpp>
+#include <moveit/constraint_samplers/constraint_sampler_manager.h>
 
 #include <algorithm>
 #include <cmath>
@@ -176,11 +177,11 @@ void TrajOptInterface::setFeatureCosts(std::vector<rbt_planning::FeatureCost> co
 }
 
 TrajOptInterface::StartData
-TrajOptInterface::extractStart(const planning_scene::PlanningScene& scene,
+TrajOptInterface::extractStart(const planning_scene::PlanningSceneConstPtr& scene,
                                const planning_interface::MotionPlanRequest& req,
                                const moveit::core::JointModelGroup& jmg) const
 {
-  StartData out(scene.getRobotModel());
+  StartData out(scene->getRobotModel());
 
   out.variable_names = jmg.getVariableNames();
   if (out.variable_names.empty())
@@ -190,7 +191,7 @@ TrajOptInterface::extractStart(const planning_scene::PlanningScene& scene,
   }
 
   // MoveIt idiom: merge req.start_state into the planning scene state
-  const auto start_ptr = scene.getCurrentStateUpdated(req.start_state);
+  const auto start_ptr = scene->getCurrentStateUpdated(req.start_state);
   if (!start_ptr)
   {
     throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
@@ -213,7 +214,7 @@ TrajOptInterface::extractStart(const planning_scene::PlanningScene& scene,
 }
 
 TrajOptInterface::GoalData
-TrajOptInterface::extractGoal(const planning_scene::PlanningScene& scene,
+TrajOptInterface::extractGoal(const planning_scene::PlanningSceneConstPtr& scene,
                               const planning_interface::MotionPlanRequest& req,
                               const moveit::core::JointModelGroup& jmg,
                               const StartData& start) const
@@ -224,7 +225,7 @@ TrajOptInterface::extractGoal(const planning_scene::PlanningScene& scene,
                         "Request has no goal_constraints");
   }
 
-  GoalData out(start.start_state.getRobotModel());
+  GoalData out(scene->getRobotModel());
   out.goal_state = start.start_state;
   out.q_goal = start.q_start;
 
@@ -295,7 +296,7 @@ TrajOptInterface::extractGoal(const planning_scene::PlanningScene& scene,
     const auto& gc = req.goal_constraints[gi];
     moveit::core::RobotState goal_state(start.start_state);
 
-    auto sampler = sampler_manager.selectSampler(&scene, jmg.getName(), gc);
+    auto sampler = sampler_manager.selectSampler(scene, jmg.getName(), gc);
     if (sampler && sampler->sample(goal_state))
     {
       goal_state.update();
@@ -445,8 +446,8 @@ TrajOptInterface::PlanResult TrajOptInterface::plan(
                         "Unknown group_name: '" + req.group_name + "'");
   }
 
-  StartData start = extractStart(*planning_scene, req, *jmg);
-  GoalData goal = extractGoal(*planning_scene, req, *jmg, start);
+  StartData start = extractStart(planning_scene, req, *jmg);
+  GoalData goal = extractGoal(planning_scene, req, *jmg, start);
   auto seed = extractTrajectorySeed(req, *jmg);
   if (seed)
   {
