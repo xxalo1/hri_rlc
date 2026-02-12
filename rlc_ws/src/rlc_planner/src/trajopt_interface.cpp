@@ -13,7 +13,6 @@
 #include <sstream>
 
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <exception>
@@ -102,8 +101,8 @@ trajopt::TrajArray resampleByArcLength(const trajopt::TrajArray& traj_ref,
     const double s_target = u * s_end;
 
     auto it = std::upper_bound(s.begin(), s.end(), s_target);
-    const int i1 = std::clamp(static_cast<int>(std::distance(s.begin(), it)), 1,
-                              num_waypoints - 1);
+    const int i1 =
+        std::clamp(static_cast<int>(std::distance(s.begin(), it)), 1, num_waypoints - 1);
     const int i0 = i1 - 1;
 
     const double s0 = s[static_cast<std::size_t>(i0)];
@@ -129,7 +128,8 @@ toRobotTrajectory(const trajopt::TrajArray& joint_traj,
   }
 
   const auto& robot_model = start_state.getRobotModel();
-  auto out = std::make_shared<robot_trajectory::RobotTrajectory>(robot_model, jmg.getName());
+  auto out =
+      std::make_shared<robot_trajectory::RobotTrajectory>(robot_model, jmg.getName());
 
   moveit::core::RobotState state = start_state;
   std::vector<double> q(dof);
@@ -178,54 +178,26 @@ void TrajOptInterface::setFeatureCosts(std::vector<rbt_planning::FeatureCost> co
 TrajOptInterface::StartData
 TrajOptInterface::extractStart(const planning_scene::PlanningScene& scene,
                                const planning_interface::MotionPlanRequest& req,
-                               const moveit::core::RobotModelConstPtr& robot_model,
                                const moveit::core::JointModelGroup& jmg) const
 {
-  StartData out(robot_model);
-  out.joint_names = jmg.getActiveJointModelNames();
-  out.start_state = scene.getCurrentState();
+  StartData out(scene.getRobotModel());
 
-  if (!moveit::core::robotStateMsgToRobotState(scene.getTransforms(), req.start_state,
-                                               out.start_state,
-                                               true /* copy_attached_bodies */))
+  out.variable_names = jmg.getVariableNames();
+  if (out.variable_names.empty())
   {
     throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                        "Failed to apply req.start_state onto planning scene state");
+                        "JointModelGroup has no variables");
   }
 
+  // MoveIt idiom: merge req.start_state into the planning scene state
+  const auto start_ptr = scene.getCurrentStateUpdated(req.start_state);
+  if (!start_ptr)
+  {
+    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
+                        "Failed to compute current state updated with req.start_state");
+  }
+  out.start_state = *start_ptr;
   out.start_state.update();
-
-  if (out.joint_names.empty())
-  {
-    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                        "JointModelGroup has no active joints");
-  }
-
-  out.variable_names.reserve(out.joint_names.size());
-  out.q_start.resize(static_cast<long>(out.joint_names.size()));
-
-  for (std::size_t i = 0; i < out.joint_names.size(); ++i)
-  {
-    const std::string& joint_name = out.joint_names[i];
-    const auto* jm = robot_model->getJointModel(joint_name);
-    if (!jm)
-    {
-      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                          "RobotModel missing JointModel for joint '" + joint_name + "'");
-    }
-
-    const auto& vars = jm->getVariableNames();
-    if (vars.size() != 1)
-    {
-      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                          "Joint '" + joint_name + "' has " + std::to_string(vars.size()) +
-                              " variables. MVP supports only 1 DOF joints.");
-    }
-
-    out.variable_names.emplace_back(vars.front());
-    out.q_start(static_cast<long>(i)) =
-        out.start_state.getVariablePosition(out.variable_names.back());
-  }
 
   if (!out.start_state.satisfiesBounds(&jmg))
   {
@@ -234,13 +206,17 @@ TrajOptInterface::extractStart(const planning_scene::PlanningScene& scene,
                             "'");
   }
 
+  out.q_start.resize(static_cast<long>(out.variable_names.size()));
+  out.start_state.copyJointGroupPositions(&jmg, out.q_start.data());
+
   return out;
 }
 
 TrajOptInterface::GoalData
-TrajOptInterface::extractJointGoal(const planning_interface::MotionPlanRequest& req,
-                                   const moveit::core::JointModelGroup& jmg,
-                                   const StartData& start) const
+TrajOptInterface::extractGoal(const planning_scene::PlanningScene& scene,
+                              const planning_interface::MotionPlanRequest& req,
+                              const moveit::core::JointModelGroup& jmg,
+                              const StartData& start) const
 {
   if (req.goal_constraints.empty())
   {
@@ -248,100 +224,100 @@ TrajOptInterface::extractJointGoal(const planning_interface::MotionPlanRequest& 
                         "Request has no goal_constraints");
   }
 
-  auto is_joint_only_goal = [](const moveit_msgs::msg::Constraints& c) -> bool {
-    if (c.joint_constraints.empty())
-    {
-      return false;
-    }
-    if (!c.position_constraints.empty())
-    {
-      return false;
-    }
-    if (!c.orientation_constraints.empty())
-    {
-      return false;
-    }
-    if (!c.visibility_constraints.empty())
-    {
-      return false;
-    }
-    return true;
-  };
-
-  std::optional<std::size_t> chosen_idx;
-  for (std::size_t i = 0; i < req.goal_constraints.size(); ++i)
-  {
-    if (is_joint_only_goal(req.goal_constraints[i]))
-    {
-      chosen_idx = i;
-      break;
-    }
-  }
-
-  if (!chosen_idx)
-  {
-    throw PlanningError(
-        moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
-        "No supported goal constraint found. MVP supports joint_constraints only.");
-  }
-
-  const auto& goal_c = req.goal_constraints[*chosen_idx];
-
-  std::unordered_map<std::string, std::size_t> active_index;
-  active_index.reserve(start.joint_names.size());
-  for (std::size_t i = 0; i < start.joint_names.size(); ++i)
-  {
-    active_index.emplace(start.joint_names[i], i);
-  }
-
   GoalData out(start.start_state.getRobotModel());
-  out.goal_index = *chosen_idx;
-  out.goal_raw = goal_c;
-
-  // Start from start state and start vector; apply only specified goal joints.
   out.goal_state = start.start_state;
   out.q_goal = start.q_start;
 
-  std::unordered_set<std::string> seen;
-  seen.reserve(goal_c.joint_constraints.size());
+  const std::size_t dof = jmg.getVariableCount();
 
-  for (const auto& jc : goal_c.joint_constraints)
+  auto is_joint_only = [](const moveit_msgs::msg::Constraints& c) -> bool {
+    return !c.joint_constraints.empty() && c.position_constraints.empty() &&
+           c.orientation_constraints.empty() && c.visibility_constraints.empty();
+  };
+
+  // 1) Deterministic fast path: accept only "full and ordered" joint goals
+  const auto& expected_names = jmg.getActiveJointModelNames();
+
+  for (std::size_t gi = 0; gi < req.goal_constraints.size(); ++gi)
   {
-    if (jc.joint_name.empty())
+    const auto& gc = req.goal_constraints[gi];
+    if (!is_joint_only(gc))
     {
-      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
-                          "JointConstraint has empty joint_name");
+      continue;
     }
 
-    const auto it = active_index.find(jc.joint_name);
-    if (it == active_index.end())
+    if (gc.joint_constraints.size() == expected_names.size())
     {
-      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
-                          "JointConstraint '" + jc.joint_name +
-                              "' is not an active joint in group '" + jmg.getName() + "'");
-    }
+      bool ordered = true;
+      for (std::size_t j = 0; j < expected_names.size(); ++j)
+      {
+        if (gc.joint_constraints[j].joint_name != expected_names[j])
+        {
+          ordered = false;
+          break;
+        }
+      }
 
-    if (!seen.insert(jc.joint_name).second)
-    {
-      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
-                          "Duplicate JointConstraint for joint '" + jc.joint_name + "'");
-    }
+      if (ordered)
+      {
+        // Build goal_state from the constraints
+        moveit::core::RobotState goal_state(start.start_state);
+        for (std::size_t j = 0; j < expected_names.size(); ++j)
+        {
+          goal_state.setVariablePosition(expected_names[j],
+                                         gc.joint_constraints[j].position);
+        }
+        goal_state.update();
 
-    const std::size_t idx = it->second;
-    out.q_goal(static_cast<long>(idx)) = jc.position;
-    out.goal_state.setVariablePosition(start.variable_names[idx], jc.position);
+        if (!goal_state.satisfiesBounds(&jmg))
+        {
+          throw PlanningError(
+              moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
+              "Goal violates joint bounds for group '" + jmg.getName() + "'");
+        }
+
+        out.goal_index = gi;
+        out.goal_raw = gc;
+        out.goal_state = goal_state;
+
+        out.q_goal.resize(static_cast<long>(dof));
+        out.goal_state.copyJointGroupPositions(&jmg, out.q_goal.data());
+        return out;
+      }
+    }
   }
 
-  out.goal_state.update();
+  // 2) Fallback: sample a goal state from constraints (MoveIt official way)
+  constraint_samplers::ConstraintSamplerManager sampler_manager;
 
-  if (!out.goal_state.satisfiesBounds(&jmg))
+  for (std::size_t gi = 0; gi < req.goal_constraints.size(); ++gi)
   {
-    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
-                        "Goal state violates joint bounds for group '" + jmg.getName() +
-                            "'");
+    const auto& gc = req.goal_constraints[gi];
+    moveit::core::RobotState goal_state(start.start_state);
+
+    auto sampler = sampler_manager.selectSampler(&scene, jmg.getName(), gc);
+    if (sampler && sampler->sample(goal_state))
+    {
+      goal_state.update();
+
+      if (!goal_state.satisfiesBounds(&jmg))
+      {
+        continue;
+      }
+
+      out.goal_index = gi;
+      out.goal_raw = gc;
+      out.goal_state = goal_state;
+
+      out.q_goal.resize(static_cast<long>(dof));
+      out.goal_state.copyJointGroupPositions(&jmg, out.q_goal.data());
+      return out;
+    }
   }
 
-  return out;
+  throw PlanningError(
+      moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS,
+      "No goal constraint could be satisfied (neither parsed nor sampled).");
 }
 
 std::shared_ptr<const trajopt::TrajArray>
@@ -364,8 +340,9 @@ TrajOptInterface::extractTrajectorySeed(const planning_interface::MotionPlanRequ
   const std::size_t dof = joint_names.size();
   if (dof == 0)
   {
-    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-                        "trajectory_constraints seed is not supported for groups with zero DOF");
+    throw PlanningError(
+        moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+        "trajectory_constraints seed is not supported for groups with zero DOF");
   }
 
   std::unordered_map<std::string, std::size_t> joint_index;
@@ -376,8 +353,8 @@ TrajOptInterface::extractTrajectorySeed(const planning_interface::MotionPlanRequ
   }
 
   const std::size_t num_waypoints = waypoints.size();
-  auto waypoint_traj = std::make_shared<trajopt::TrajArray>(static_cast<int>(num_waypoints),
-                                                           static_cast<int>(dof));
+  auto waypoint_traj = std::make_shared<trajopt::TrajArray>(
+      static_cast<int>(num_waypoints), static_cast<int>(dof));
 
   for (std::size_t i = 0; i < num_waypoints; ++i)
   {
@@ -387,10 +364,10 @@ TrajOptInterface::extractTrajectorySeed(const planning_interface::MotionPlanRequ
         !waypoint.orientation_constraints.empty() ||
         !waypoint.visibility_constraints.empty())
     {
-      throw PlanningError(
-          moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-          "trajectory_constraints waypoint " + std::to_string(i) +
-              " contains non-joint constraints; only joint_constraints are supported as a seed");
+      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                          "trajectory_constraints waypoint " + std::to_string(i) +
+                              " contains non-joint constraints; only joint_constraints "
+                              "are supported as a seed");
     }
 
     std::vector<bool> seen(dof, false);
@@ -399,38 +376,36 @@ TrajOptInterface::extractTrajectorySeed(const planning_interface::MotionPlanRequ
     {
       if (jc.joint_name.empty())
       {
-        throw PlanningError(
-            moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-            "trajectory_constraints waypoint " + std::to_string(i) +
-                " has JointConstraint with empty joint_name");
+        throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                            "trajectory_constraints waypoint " + std::to_string(i) +
+                                " has JointConstraint with empty joint_name");
       }
 
       const auto it = joint_index.find(jc.joint_name);
       if (it == joint_index.end())
       {
-        throw PlanningError(
-            moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-            "trajectory_constraints waypoint " + std::to_string(i) +
-                " references unknown joint '" + jc.joint_name + "'");
+        throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                            "trajectory_constraints waypoint " + std::to_string(i) +
+                                " references unknown joint '" + jc.joint_name + "'");
       }
 
       const std::size_t col = it->second;
       if (seen[col])
       {
-        throw PlanningError(
-            moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-            "trajectory_constraints waypoint " + std::to_string(i) +
-                " has duplicate joint constraint for '" + jc.joint_name + "'");
+        throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                            "trajectory_constraints waypoint " + std::to_string(i) +
+                                " has duplicate joint constraint for '" + jc.joint_name +
+                                "'");
       }
       seen[col] = true;
 
       const double pos = jc.position;
       if (!std::isfinite(pos))
       {
-        throw PlanningError(
-            moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-            "trajectory_constraints waypoint " + std::to_string(i) +
-                " has non-finite position for joint '" + jc.joint_name + "'");
+        throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                            "trajectory_constraints waypoint " + std::to_string(i) +
+                                " has non-finite position for joint '" + jc.joint_name +
+                                "'");
       }
 
       (*waypoint_traj)(static_cast<int>(i), static_cast<int>(col)) = pos;
@@ -440,10 +415,10 @@ TrajOptInterface::extractTrajectorySeed(const planning_interface::MotionPlanRequ
     {
       if (!seen[col])
       {
-        throw PlanningError(
-            moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-            "trajectory_constraints waypoint " + std::to_string(i) +
-                " is missing joint constraint for '" + joint_names[col] + "'");
+        throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                            "trajectory_constraints waypoint " + std::to_string(i) +
+                                " is missing joint constraint for '" + joint_names[col] +
+                                "'");
       }
     }
   }
@@ -456,17 +431,6 @@ TrajOptInterface::PlanResult TrajOptInterface::plan(
     const planning_interface::MotionPlanRequest& req,
     const std::shared_ptr<tesseract_environment::Environment>& env_snapshot) const
 {
-  if (!planning_scene)
-  {
-    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                        "PlanningScene is null");
-  }
-  if (!env_snapshot)
-  {
-    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                        "Tesseract environment snapshot is null");
-  }
-
   const auto robot_model = planning_scene->getRobotModel();
   if (!robot_model)
   {
@@ -481,34 +445,36 @@ TrajOptInterface::PlanResult TrajOptInterface::plan(
                         "Unknown group_name: '" + req.group_name + "'");
   }
 
-  StartData start = extractStart(*planning_scene, req, robot_model, *jmg);
-  GoalData goal = extractJointGoal(req, *jmg, start);
+  StartData start = extractStart(*planning_scene, req, *jmg);
+  GoalData goal = extractGoal(*planning_scene, req, *jmg, start);
   auto seed = extractTrajectorySeed(req, *jmg);
   if (seed)
   {
     try
     {
-      seed = std::make_shared<trajopt::TrajArray>(
-          resampleByArcLength(*seed, static_cast<std::size_t>(options_.default_num_steps)));
+      seed = std::make_shared<trajopt::TrajArray>(resampleByArcLength(
+          *seed, static_cast<std::size_t>(options_.default_num_steps)));
     }
     catch (const std::exception& e)
     {
-      throw PlanningError(
-          moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
-          std::string{ "Failed to resample trajectory seed: " } + e.what());
+      throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_MOTION_PLAN,
+                          std::string{ "Failed to resample trajectory seed: " } +
+                              e.what());
     }
   }
 
-  const trajopt::TrajArray joint_traj = solveTrajOpt(req, env_snapshot, start, goal, seed);
+  const trajopt::TrajArray joint_traj =
+      solveTrajOpt(req, env_snapshot, start, goal, seed);
 
   PlanResult out;
   out.trajectory = toRobotTrajectory(joint_traj, *jmg, start.start_state);
   moveit::core::robotStateToRobotStateMsg(start.start_state, out.start_state_msg);
 
   std::vector<std::size_t> invalid_indices;
-  const bool path_valid = planning_scene->isPathValid(
-      *out.trajectory, req.path_constraints, req.goal_constraints, req.group_name,
-      false /* verbose */, &invalid_indices);
+  const bool path_valid =
+      planning_scene->isPathValid(*out.trajectory, req.path_constraints,
+                                  req.goal_constraints, req.group_name,
+                                  false /* verbose */, &invalid_indices);
   if (!path_valid)
   {
     std::string msg = "Planned trajectory is invalid";
@@ -548,24 +514,23 @@ trajopt::TrajArray TrajOptInterface::solveTrajOpt(
   }
   catch (const std::exception& e)
   {
-    throw PlanningError(
-        moveit_msgs::msg::MoveItErrorCodes::INVALID_GROUP_NAME,
-        std::string{ "Tesseract manipulator group '" } + manipulator_group +
-            "' not found: " + e.what());
+    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::INVALID_GROUP_NAME,
+                        std::string{ "Tesseract manipulator group '" } +
+                            manipulator_group + "' not found: " + e.what());
   }
 
   if (tesseract_joint_names != start.joint_names)
   {
     const std::string moveit_joint_names_str = formatJointNames(start.joint_names);
     const std::string tesseract_joint_names_str = formatJointNames(tesseract_joint_names);
-    RCLCPP_ERROR(
-        getLogger(),
-        "MoveIt/Tesseract joint order mismatch. MoveIt group '%s' joints=%s, Tesseract group '%s' joints=%s",
-        req.group_name.c_str(), moveit_joint_names_str.c_str(),
-        manipulator_group.c_str(), tesseract_joint_names_str.c_str());
+    RCLCPP_ERROR(getLogger(),
+                 "MoveIt/Tesseract joint order mismatch. MoveIt group '%s' joints=%s, "
+                 "Tesseract group '%s' joints=%s",
+                 req.group_name.c_str(), moveit_joint_names_str.c_str(),
+                 manipulator_group.c_str(), tesseract_joint_names_str.c_str());
     throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                        "MoveIt/Tesseract joint order mismatch for group '" + req.group_name +
-                            "'");
+                        "MoveIt/Tesseract joint order mismatch for group '" +
+                            req.group_name + "'");
   }
 
   try

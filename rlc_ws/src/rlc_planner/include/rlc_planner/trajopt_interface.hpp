@@ -152,7 +152,8 @@ private:
    *
    * @details
    * - `joint_names`: Joint names in MoveIt active joint order, size = dof.
-   * - `traj`: Last solution trajectory, shape = (num_waypoints, dof) matching `joint_names` order.
+   * - `traj`: Last solution trajectory, shape = (num_waypoints, dof) matching
+   * `joint_names` order.
    */
   struct SolutionCacheEntry
   {
@@ -211,25 +212,25 @@ private:
    * @brief Extracts and validates the joint-space start state for the request.
    * @param[in] scene Planning scene providing the current state.
    * @param[in] req MoveIt motion plan request.
-   * @param[in] robot_model Robot model used to construct robot states.
    * @param[in] jmg Joint model group for `req.group_name`.
    * @return Extracted start-state data.
    * @throws rlc_planner::PlanningError If the start state is invalid or violates bounds.
    */
   StartData extractStart(const planning_scene::PlanningScene& scene,
                          const planning_interface::MotionPlanRequest& req,
-                         const moveit::core::RobotModelConstPtr& robot_model,
                          const moveit::core::JointModelGroup& jmg) const;
 
   /**
    * @brief Extracts and validates a joint-only goal constraint for the request.
+   * @param[in] scene Planning scene providing the current state.
    * @param[in] req MoveIt motion plan request.
    * @param[in] jmg Joint model group for `req.group_name`.
    * @param[in] start Extracted start-state data used as a baseline for unspecified joints.
    * @return Extracted goal-state data.
    * @throws rlc_planner::PlanningError If the goal constraints are invalid or unsupported.
    */
-  GoalData extractJointGoal(const planning_interface::MotionPlanRequest& req,
+  GoalData extractGoal(const planning_scene::PlanningScene& scene,
+                            const planning_interface::MotionPlanRequest& req,
                             const moveit::core::JointModelGroup& jmg,
                             const StartData& start) const;
 
@@ -313,11 +314,14 @@ private:
   TrajOptPlannerOptions::TrajOptOptions options_;  ///< Request-invariant TrajOpt options.
 
   mutable std::mutex config_mutex_;  ///< Protects feature cost configuration.
-  std::vector<rbt_planning::FeatureCost> feature_costs_;  ///< Feature costs applied on each solve.
+  std::vector<rbt_planning::FeatureCost>
+      feature_costs_;  ///< Feature costs applied on each solve.
 
   mutable std::mutex cache_mutex_;  ///< Protects caches below.
-  mutable std::unordered_map<std::string, SeedCacheEntry> seed_cache_;  ///< Optional seed hint cache.
-  mutable std::unordered_map<std::string, SolutionCacheEntry> solution_cache_;  ///< Optional last-solution cache.
+  mutable std::unordered_map<std::string, SeedCacheEntry>
+      seed_cache_;  ///< Optional seed hint cache.
+  mutable std::unordered_map<std::string, SolutionCacheEntry>
+      solution_cache_;  ///< Optional last-solution cache.
 };
 
 }  // namespace rlc_planner
