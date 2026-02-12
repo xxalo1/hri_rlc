@@ -1,38 +1,27 @@
 #pragma once
 
+#include <memory>
 #include <moveit/planning_interface/planning_interface.hpp>
-#include <rclcpp/node.hpp>
+#include <tesseract_environment/fwd.h>
 
-#include <atomic>
 #include <string>
 
-namespace rlc_planner {
+namespace rlc_planner
+{
 
-/**
- * @brief Request-scoped planning context for the `rlc_trajopt` planner.
- *
- * @details
- * Instances are created per request by TrajOptPlannerManager::getPlanningContext().
- *
- * @par Thread safety
- * Not thread-safe. Each instance is intended to be used by a single planning
- * request.
- */
-class TrajOptPlanningContext final : public planning_interface::PlanningContext {
- public:
-  /**
-   * @brief Construct a planning context for a single request.
-   * @param[in] name Context name (typically the resolved `planner_id`).
-   * @param[in] group MoveIt joint model group name (`req.group_name`).
-   * @param[in] node ROS node used for parameters and logging; must outlive this
-   * context.
-   * @param[in] parameter_namespace Planner parameter namespace.
-   */
+class TrajOptInterface;
+
+class TrajOptPlanningContext final : public planning_interface::PlanningContext
+{
+public:
+  using EnvironmentPtr = std::shared_ptr<tesseract_environment::Environment>;
+  using TrajOptInterfacePtr = std::shared_ptr<TrajOptInterface>;
+
   TrajOptPlanningContext(const std::string& name, const std::string& group,
-                         const rclcpp::Node::SharedPtr& node,
-                         const std::string& parameter_namespace);
+                         TrajOptInterfacePtr trajopt_interface,
+                         EnvironmentPtr env_snapshot);
 
-  ~TrajOptPlanningContext() override = default;
+  ~TrajOptPlanningContext() override;
   void solve(planning_interface::MotionPlanResponse& res) override;
 
   void solve(planning_interface::MotionPlanDetailedResponse& res) override;
@@ -41,10 +30,9 @@ class TrajOptPlanningContext final : public planning_interface::PlanningContext 
 
   void clear() override;
 
- private:
-  rclcpp::Node::SharedPtr node_;
-  std::string parameter_namespace_;
-  std::atomic<bool> terminate_requested_{false};
+private:
+  TrajOptInterfacePtr trajopt_interface_;
+  EnvironmentPtr env_snapshot_;
 };
 
 }  // namespace rlc_planner
