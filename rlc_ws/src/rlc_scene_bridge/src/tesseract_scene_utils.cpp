@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 #include <Eigen/Geometry>
@@ -120,40 +121,64 @@ makeCollision(const std::string& name, const Eigen::Isometry3d& origin,
   return collision;
 }
 
-bool validateCollisionObject(const moveit_msgs::msg::CollisionObject& object)
+/**
+ * @brief Validate a MoveIt collision object prior to conversion to a fixed-joint
+ * Tesseract link.
+ * @param[in] object Collision object to validate.
+ * @throws std::domain_error If the input is invalid or uses unsupported geometry.
+ */
+void validateCollisionObject(const moveit_msgs::msg::CollisionObject& object)
 {
-  if (object.id.empty() || object.header.frame_id.empty())
+  if (object.id.empty())
   {
-    return false;
+    throw std::domain_error("CollisionObject.id is empty");
   }
   if (!object.meshes.empty())
   {
-    return false;
+    throw std::domain_error("CollisionObject '" + object.id +
+                            "' has meshes; meshes are not supported");
+  }
+  if (object.header.frame_id.empty())
+  {
+    throw std::domain_error("CollisionObject '" + object.id +
+                            "' has empty header.frame_id");
   }
   if (object.primitives.size() != object.primitive_poses.size())
   {
-    return false;
+    throw std::domain_error("CollisionObject '" + object.id +
+                            "' primitives.size() != primitive_poses.size()");
   }
   if (object.planes.size() != object.plane_poses.size())
   {
-    return false;
+    throw std::domain_error("CollisionObject '" + object.id +
+                            "' planes.size() != plane_poses.size()");
   }
   if (object.primitives.empty() && object.planes.empty())
   {
-    return false;
+    throw std::domain_error("CollisionObject '" + object.id +
+                            "' has no primitives or planes");
   }
-  return true;
 }
 
-bool fillLinkGeometry(const moveit_msgs::msg::CollisionObject& object,
-                      const std::string& link_name, tesseract_scene_graph::Link& link)
+/**
+ * @brief Append geometry from a MoveIt collision object to a Tesseract link.
+ * @param[in] object Collision object containing primitive/plane geometry.
+ * @param[in] link_name Name used to generate per-shape visual/collision names.
+ * @param[in,out] link Link to append visual and collision elements to.
+ * @throws std::domain_error If any primitive or plane is invalid or unsupported.
+ */
+void fillLinkGeometry(const moveit_msgs::msg::CollisionObject& object,
+                      const std::string& link_name,
+                      tesseract_scene_graph::Link& link)
 {
   for (std::size_t i = 0; i < object.primitives.size(); ++i)
   {
     const auto geometry = makePrimitiveGeometry(object.primitives[i]);
     if (!geometry)
     {
-      return false;
+      throw std::domain_error("CollisionObject '" + object.id +
+                              "' has invalid primitive at index " +
+                              std::to_string(i));
     }
     const Eigen::Isometry3d origin = poseToIsometry(object.primitive_poses[i]);
     const auto visual_name = link_name + "_v_" + std::to_string(i);
@@ -167,7 +192,9 @@ bool fillLinkGeometry(const moveit_msgs::msg::CollisionObject& object,
     const auto geometry = makePlaneGeometry(object.planes[i]);
     if (!geometry)
     {
-      return false;
+      throw std::domain_error("CollisionObject '" + object.id +
+                              "' has invalid plane at index " +
+                              std::to_string(i));
     }
     const Eigen::Isometry3d origin = poseToIsometry(object.plane_poses[i]);
     const auto visual_name = link_name + "_v_plane_" + std::to_string(i);
@@ -175,20 +202,15 @@ bool fillLinkGeometry(const moveit_msgs::msg::CollisionObject& object,
     link.visual.push_back(makeVisual(visual_name, origin, geometry));
     link.collision.push_back(makeCollision(collision_name, origin, geometry));
   }
-
-  return true;
 }
 
-std::optional<BuiltObject>
-buildFixedLinkObject(const moveit_msgs::msg::CollisionObject& object,
-                     const std::string& parent_link, const std::string& link_name,
-                     const std::string& joint_name)
+BuiltObject buildFixedLinkObject(const moveit_msgs::msg::CollisionObject& object,
+                                 const std::string& parent_link,
+                                 const std::string& link_name,
+                                 const std::string& joint_name)
 {
   tesseract_scene_graph::Link link(link_name);
-  if (!fillLinkGeometry(object, link_name, link))
-  {
-    return std::nullopt;
-  }
+  fillLinkGeometry(object, link_name, link);
 
   tesseract_scene_graph::Joint joint(joint_name);
   joint.parent_link_name = parent_link;
@@ -233,14 +255,10 @@ std::string attachedLinkName(const NamingPolicy& naming_policy, const std::strin
 std::string jointName(const std::string& link_name)
 { return "joint_" + link_name; }
 
-std::optional<BuiltObject>
-buildWorldObject(const moveit_msgs::msg::CollisionObject& object,
-                 const NamingPolicy& naming_policy)
+BuiltObject buildWorldObject(const moveit_msgs::msg::CollisionObject& object,
+                             const NamingPolicy& naming_policy)
 {
-  if (!validateCollisionObject(object))
-  {
-    return std::nullopt;
-  }
+  validateCollisionObject(object);
   const auto& parent_frame = object.header.frame_id;
 
   const std::string link_name = worldLinkName(naming_policy, object.id);
@@ -249,22 +267,19 @@ buildWorldObject(const moveit_msgs::msg::CollisionObject& object,
   return buildFixedLinkObject(object, parent_frame, link_name, joint_name);
 }
 
-std::optional<BuiltObject>
-buildAttachedObject(const moveit_msgs::msg::AttachedCollisionObject& aco,
-                    const NamingPolicy& naming_policy)
+BuiltObject buildAttachedObject(const moveit_msgs::msg::AttachedCollisionObject& aco,
+                                const NamingPolicy& naming_policy)
 {
   const auto& object = aco.object;
 
-  if (!validateCollisionObject(object))
-  {
-    return std::nullopt;
-  }
+  validateCollisionObject(object);
 
   const auto& parent_frame = aco.link_name;
 
   if (parent_frame.empty())
   {
-    return std::nullopt;
+    throw std::domain_error("AttachedCollisionObject has empty link_name for object '" +
+                            object.id + "'");
   }
 
   const std::string link_name = attachedLinkName(naming_policy, object.id);

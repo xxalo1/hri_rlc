@@ -1,6 +1,5 @@
 #pragma once
 
-#include <optional>
 #include <string>
 
 #include <Eigen/Geometry>
@@ -39,13 +38,27 @@ std::string worldLinkName(const NamingPolicy& naming_policy, const std::string& 
 std::string attachedLinkName(const NamingPolicy& naming_policy, const std::string& id);
 std::string jointName(const std::string& link_name);
 
-std::optional<BuiltObject>
-buildWorldObject(const moveit_msgs::msg::CollisionObject& object,
-                 const NamingPolicy& naming_policy);
+/**
+ * @brief Build a fixed-joint world object for insertion into a Tesseract scene graph.
+ * @param[in] object MoveIt collision object. Only primitives and planes are supported.
+ * @param[in] naming_policy Naming policy used to derive link and joint names.
+ * @return Built object containing resolved link/joint and metadata.
+ * @throws std::domain_error If the input message is invalid or uses unsupported
+ * geometry (e.g., meshes).
+ */
+BuiltObject buildWorldObject(const moveit_msgs::msg::CollisionObject& object,
+                             const NamingPolicy& naming_policy);
 
-std::optional<BuiltObject>
-buildAttachedObject(const moveit_msgs::msg::AttachedCollisionObject& aco,
-                    const NamingPolicy& naming_policy);
+/**
+ * @brief Build a fixed-joint attached object for insertion into a Tesseract scene graph.
+ * @param[in] aco MoveIt attached collision object. Only primitives and planes are supported.
+ * @param[in] naming_policy Naming policy used to derive link and joint names.
+ * @return Built object containing resolved link/joint and metadata.
+ * @throws std::domain_error If the input message is invalid or uses unsupported
+ * geometry (e.g., meshes) or is missing the parent link name.
+ */
+BuiltObject buildAttachedObject(const moveit_msgs::msg::AttachedCollisionObject& aco,
+                                const NamingPolicy& naming_policy);
 Eigen::Isometry3d poseToIsometry(const geometry_msgs::msg::Pose& pose);
 }  // namespace tesseract_scene
 }  // namespace rlc_scene_bridge

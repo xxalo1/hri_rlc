@@ -42,7 +42,7 @@ MoveItTesseractBridge::MoveItTesseractBridge(rclcpp::Node::SharedPtr node,
       };
   sub_opts.callback_group = cbg_;
 
-  auto scene_cb = [this](PlanningSceneMsgConstPtr msg) { onSceneUpdate(msg); };
+  auto scene_cb = [this](const PlanningSceneMsgConstPtr& msg) { onSceneUpdate(msg); };
 
   scene_sub_ = node_->create_subscription<PlanningSceneMsg>(opt_.scene_topic, qos,
                                                             scene_cb, sub_opts);
@@ -156,7 +156,7 @@ void MoveItTesseractBridge::requestSync()
   auto req = std::make_shared<GetPlanningScene::Request>();
   req->components.components = opt_.scene_components;
 
-  auto req_cb = [this](rclcpp::Client<GetPlanningScene>::SharedFuture future) {
+   rclcpp::Client<GetPlanningScene>::CallbackType req_cb = [this](const rclcpp::Client<GetPlanningScene>::SharedFuture& future) {
     onSyncResponse(future);
   };
 

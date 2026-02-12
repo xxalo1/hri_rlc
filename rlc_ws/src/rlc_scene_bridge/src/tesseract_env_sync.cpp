@@ -200,43 +200,21 @@ tesseract_environment::Commands TesseractEnvSync::fromDiff(
 tesseract_environment::Command::Ptr TesseractEnvSync::makeAddWorldCommand(
     const moveit_msgs::msg::CollisionObject& object)
 {
-  if (object.id.empty())
-  {
-    throw std::domain_error("TesseractEnvSync: ADD world object with empty id");
-  }
-
   const auto built = tesseract_scene::buildWorldObject(object, opt_.naming_policy);
-  if (!built)
-  {
-    throw std::domain_error("TesseractEnvSync: failed to build world object '" +
-                            object.id + "'");
-  }
-
-  world_objects_.insert_or_assign(built->info.id, built->info);
+  world_objects_.insert_or_assign(built.info.id, built.info);
 
   return std::make_shared<tesseract_environment::AddLinkCommand>(
-      built->link, built->joint, opt_.allow_replace);
+      built.link, built.joint, opt_.allow_replace);
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeAddAttachedCommand(
     const moveit_msgs::msg::AttachedCollisionObject& aco)
 {
-  if (aco.object.id.empty())
-  {
-    throw std::domain_error("TesseractEnvSync: ADD attached object with empty id");
-  }
-
   const auto built = tesseract_scene::buildAttachedObject(aco, opt_.naming_policy);
-  if (!built)
-  {
-    throw std::domain_error("TesseractEnvSync: failed to build attached object '" +
-                            aco.object.id + "'");
-  }
-
-  attached_objects_.insert_or_assign(built->info.id, built->info);
+  attached_objects_.insert_or_assign(built.info.id, built.info);
 
   return std::make_shared<tesseract_environment::AddLinkCommand>(
-      built->link, built->joint, opt_.allow_replace);
+      built.link, built.joint, opt_.allow_replace);
 }
 
 tesseract_environment::Command::Ptr TesseractEnvSync::makeMoveWorldCommand(
