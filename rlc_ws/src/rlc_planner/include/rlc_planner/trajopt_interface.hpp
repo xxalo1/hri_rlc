@@ -134,18 +134,43 @@ public:
   }
 
 private:
+  /**
+   * @brief Cached seed hint entry.
+   *
+   * @details
+   * - `joint_names`: Joint names in MoveIt active joint order, size = dof.
+   * - `seed`: Seed trajectory, shape = (num_waypoints, dof) matching `joint_names` order.
+   */
   struct SeedCacheEntry
   {
     std::vector<std::string> joint_names;
     trajopt::TrajArray seed;
   };
 
+  /**
+   * @brief Cached last-solution entry.
+   *
+   * @details
+   * - `joint_names`: Joint names in MoveIt active joint order, size = dof.
+   * - `traj`: Last solution trajectory, shape = (num_waypoints, dof) matching `joint_names` order.
+   */
   struct SolutionCacheEntry
   {
     std::vector<std::string> joint_names;
     trajopt::TrajArray traj;
   };
 
+  /**
+   * @brief Start-state data extracted from a MoveIt planning request.
+   *
+   * @details
+   * Joint ordering for all vectors in this struct matches MoveIt active joint order for
+   * the requested group.
+   * - `joint_names`: Active joint names, size = dof.
+   * - `variable_names`: Corresponding variable names (1-DOF joints only), size = dof.
+   * - `q_start`: Start joint positions [rad], size = dof.
+   * - `start_state`: Start MoveIt RobotState (full robot state).
+   */
   struct StartData
   {
     explicit StartData(const moveit::core::RobotModelConstPtr& robot_model)
@@ -159,6 +184,15 @@ private:
     moveit::core::RobotState start_state;
   };
 
+  /**
+   * @brief Joint-only goal data extracted from a MoveIt planning request.
+   *
+   * @details
+   * - `goal_index`: Index of the selected goal constraint in `req.goal_constraints`.
+   * - `goal_raw`: Raw MoveIt constraint message used to derive the goal.
+   * - `q_goal`: Goal joint positions [rad], size = dof (StartData.joint_names order).
+   * - `goal_state`: Goal MoveIt RobotState (full robot state).
+   */
   struct GoalData
   {
     explicit GoalData(const moveit::core::RobotModelConstPtr& robot_model)
@@ -168,53 +202,122 @@ private:
 
     std::size_t goal_index{ 0 };
     moveit_msgs::msg::Constraints goal_raw;
-    Eigen::VectorXd q_goal;  // same order as StartData.joint_names
+    Eigen::VectorXd q_goal;  ///< Goal joint positions [rad] (StartData.joint_names order).
     moveit::core::RobotState goal_state;
   };
 
 private:
+  /**
+   * @brief Extracts and validates the joint-space start state for the request.
+   * @param[in] scene Planning scene providing the current state.
+   * @param[in] req MoveIt motion plan request.
+   * @param[in] robot_model Robot model used to construct robot states.
+   * @param[in] jmg Joint model group for `req.group_name`.
+   * @return Extracted start-state data.
+   * @throws rlc_planner::PlanningError If the start state is invalid or violates bounds.
+   */
   StartData extractStart(const planning_scene::PlanningScene& scene,
                          const planning_interface::MotionPlanRequest& req,
                          const moveit::core::RobotModelConstPtr& robot_model,
                          const moveit::core::JointModelGroup& jmg) const;
 
+  /**
+   * @brief Extracts and validates a joint-only goal constraint for the request.
+   * @param[in] req MoveIt motion plan request.
+   * @param[in] jmg Joint model group for `req.group_name`.
+   * @param[in] start Extracted start-state data used as a baseline for unspecified joints.
+   * @return Extracted goal-state data.
+   * @throws rlc_planner::PlanningError If the goal constraints are invalid or unsupported.
+   */
   GoalData extractJointGoal(const planning_interface::MotionPlanRequest& req,
                             const moveit::core::JointModelGroup& jmg,
                             const StartData& start) const;
 
+  /**
+   * @brief Extracts an optional joint seed trajectory from `req.trajectory_constraints`.
+   * @param[in] req MoveIt motion plan request.
+   * @param[in] jmg Joint model group for `req.group_name`.
+   * @return Seed trajectory in MoveIt active joint order, or nullptr if not provided.
+   * @throws rlc_planner::PlanningError If the provided seed is malformed or unsupported.
+   */
   std::shared_ptr<const trajopt::TrajArray>
   extractTrajectorySeed(const planning_interface::MotionPlanRequest& req,
                         const moveit::core::JointModelGroup& jmg) const;
 
+  /**
+   * @brief Runs the TrajOpt solve for the given start/goal and optional seed.
+   * @param[in] req MoveIt motion plan request.
+   * @param[in,out] env_snapshot Tesseract environment snapshot used for planning.
+   * @param[in] start Extracted start-state data.
+   * @param[in] goal Extracted goal-state data.
+   * @param[in,out] seed Optional seed trajectory (may be nullptr).
+   * @return Joint trajectory, shape = (num_steps, dof) in MoveIt active joint order.
+   * @throws rlc_planner::PlanningError If the solve fails or joint ordering is incompatible.
+   */
   trajopt::TrajArray
   solveTrajOpt(const planning_interface::MotionPlanRequest& req,
                const std::shared_ptr<tesseract_environment::Environment>& env_snapshot,
                const StartData& start, const GoalData& goal,
                std::shared_ptr<const trajopt::TrajArray>& seed) const;
 
+  /**
+   * @brief Converts a TrajOpt joint trajectory to a MoveIt RobotTrajectory.
+   * @param[in] trajopt_traj Joint trajectory, shape = (num_waypoints, dof) in MoveIt joint order.
+   * @param[in] robot_model Robot model for the trajectory.
+   * @param[in] group_name MoveIt group name.
+   * @param[in] start Extracted start-state data.
+   * @return MoveIt RobotTrajectory (no timing).
+   */
   static robot_trajectory::RobotTrajectoryPtr
   toMoveItTrajectory(const trajopt::TrajArray& trajopt_traj,
                      const moveit::core::RobotModelConstPtr& robot_model,
                      const std::string& group_name, const StartData& start);
 
+  /**
+   * @brief Resolves the Tesseract manipulator group name used for the solve.
+   * @param[in] req MoveIt motion plan request.
+   * @return Tesseract manipulator group name.
+   */
   std::string
   resolveTesseractManipulatorGroup(const planning_interface::MotionPlanRequest& req) const;
 
+  /**
+   * @brief Returns a cached seed hint, if enabled and present.
+   * @param[in] key Cache key.
+   * @return Cached seed hint, or std::nullopt.
+   */
   std::optional<SeedCacheEntry> getSeedHint(const std::string& key) const;
+
+  /**
+   * @brief Updates the seed hint cache entry for a key, if enabled.
+   * @param[in] key Cache key.
+   * @param[in] entry Cache entry to store.
+   */
   void updateSeedHint(const std::string& key, SeedCacheEntry entry) const;
 
+  /**
+   * @brief Returns a cached last solution, if enabled and present.
+   * @param[in] key Cache key.
+   * @return Cached solution, or std::nullopt.
+   */
   std::optional<SolutionCacheEntry> getLastSolution(const std::string& key) const;
+
+  /**
+   * @brief Updates the last-solution cache entry for a key, if enabled.
+   * @param[in] key Cache key.
+   * @param[in] entry Cache entry to store.
+   */
   void updateLastSolution(const std::string& key, SolutionCacheEntry entry) const;
 
 private:
-  TrajOptPlannerOptions::TrajOptOptions options_;
+  TrajOptPlannerOptions::TrajOptOptions options_;  ///< Request-invariant TrajOpt options.
 
-  mutable std::mutex config_mutex_;
-  std::vector<rbt_planning::FeatureCost> feature_costs_;
+  mutable std::mutex config_mutex_;  ///< Protects feature cost configuration.
+  std::vector<rbt_planning::FeatureCost> feature_costs_;  ///< Feature costs applied on each solve.
 
-  mutable std::mutex cache_mutex_;
-  mutable std::unordered_map<std::string, SeedCacheEntry> seed_cache_;
-  mutable std::unordered_map<std::string, SolutionCacheEntry> solution_cache_;
+  mutable std::mutex cache_mutex_;  ///< Protects caches below.
+  mutable std::unordered_map<std::string, SeedCacheEntry> seed_cache_;  ///< Optional seed hint cache.
+  mutable std::unordered_map<std::string, SolutionCacheEntry> solution_cache_;  ///< Optional last-solution cache.
 };
 
 }  // namespace rlc_planner
