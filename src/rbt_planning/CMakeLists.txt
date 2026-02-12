@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(rbt_planning VERSION 0.1.0 LANGUAGES CXX)
+project(rbt_planning VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Dependencies (exported as part of the public interface via target_link_libraries PUBLIC)
 find_package(Eigen3 REQUIRED)
+find_package(MPI REQUIRED COMPONENTS C)
 find_package(tesseract_environment REQUIRED)
 find_package(trajopt REQUIRED)
 
