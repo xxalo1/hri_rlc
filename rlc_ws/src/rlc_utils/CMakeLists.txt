@@ -15,9 +15,6 @@ find_package(control_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
-find_package(rlc_interfaces REQUIRED)
-
-ament_python_install_package(rlc_utils)
 
 # C++ library
 add_library(rlc_utils_lib
@@ -51,7 +48,6 @@ ament_target_dependencies(rlc_utils_lib
   geometry_msgs
   sensor_msgs
   trajectory_msgs
-  rlc_interfaces
 )
 
 target_link_libraries(rlc_utils_lib Eigen3::Eigen)
@@ -75,7 +71,6 @@ ament_export_dependencies(
   geometry_msgs
   sensor_msgs
   trajectory_msgs
-  rlc_interfaces
 )
 
 if(BUILD_TESTING)

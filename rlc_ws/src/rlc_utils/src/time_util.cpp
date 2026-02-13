@@ -12,15 +12,21 @@ namespace
 
 template <typename IntT>
 constexpr IntT Clamp(IntT v, IntT lo, IntT hi) noexcept
-{ return (v < lo) ? lo : (v > hi) ? hi : v; }
+{
+  return (v < lo) ? lo : (v > hi) ? hi : v;
+}
 
 }  // namespace
 
 double from_ros_time(const builtin_interfaces::msg::Time& t) noexcept
-{ return static_cast<double>(t.sec) + 1e-9 * static_cast<double>(t.nanosec); }
+{
+  return static_cast<double>(t.sec) + 1e-9 * static_cast<double>(t.nanosec);
+}
 
 double from_ros_duration(const builtin_interfaces::msg::Duration& d) noexcept
-{ return static_cast<double>(d.sec) + 1e-9 * static_cast<double>(d.nanosec); }
+{
+  return static_cast<double>(d.sec) + 1e-9 * static_cast<double>(d.nanosec);
+}
 
 builtin_interfaces::msg::Time to_ros_time(double sec) noexcept
 {

@@ -11,7 +11,8 @@
 #include <string>
 #include <vector>
 
-namespace rlc_utils::types {
+namespace rlc_utils::types
+{
 
 /**
  * @brief Preallocated joint state container matching
@@ -27,9 +28,10 @@ namespace rlc_utils::types {
  * Timestamp:
  * - `stamp_sec`: Message stamp [s], typically derived from `header.stamp`.
  */
-struct JointStateMsgData {
+struct JointStateMsgData
+{
   std::vector<std::string> name;
-  double stamp_sec{0.0};
+  double stamp_sec{ 0.0 };
 
   Eigen::VectorXd position;
   Eigen::VectorXd velocity;
@@ -43,15 +45,20 @@ struct JointStateMsgData {
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  explicit JointStateMsgData(Eigen::Index n) { resize(n); }
+  explicit JointStateMsgData(Eigen::Index n)
+  {
+    resize(n);
+  }
 
   /**
    * @brief Resizes the container for `n` joints and zeros numeric fields.
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  void resize(Eigen::Index n) {
-    if (n < 0) throw std::invalid_argument("JointStateMsgData::resize: n < 0");
+  void resize(Eigen::Index n)
+  {
+    if (n < 0)
+      throw std::invalid_argument("JointStateMsgData::resize: n < 0");
     name.resize(static_cast<std::size_t>(n));
 
     position.setZero(n);
@@ -63,11 +70,14 @@ struct JointStateMsgData {
    * @brief Returns the number of joints in this container.
    * @return Joint count, equal to `position.size()`.
    */
-  Eigen::Index size() const noexcept { return position.size(); }
+  Eigen::Index size() const noexcept
+  {
+    return position.size();
+  }
 };
 
 /**
- * @brief Preallocated joint effort command container matching
+ * @brief (deprecated) Preallocated joint effort command container matching
  * `rlc_interfaces::msg::JointEffortCmd`.
  *
  * @details
@@ -78,9 +88,10 @@ struct JointStateMsgData {
  * Timestamp:
  * - `stamp_sec`: Message stamp [s], typically derived from `header.stamp`.
  */
-struct JointEffortCmdMsgData {
+struct JointEffortCmdMsgData
+{
   std::vector<std::string> name;
-  double stamp_sec{0.0};
+  double stamp_sec{ 0.0 };
   Eigen::VectorXd effort;
 
   JointEffortCmdMsgData() = default;
@@ -91,14 +102,18 @@ struct JointEffortCmdMsgData {
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  explicit JointEffortCmdMsgData(Eigen::Index n) { resize(n); }
+  explicit JointEffortCmdMsgData(Eigen::Index n)
+  {
+    resize(n);
+  }
 
   /**
    * @brief Resizes the container for `n` joints and zeros numeric fields.
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  void resize(Eigen::Index n) {
+  void resize(Eigen::Index n)
+  {
     if (n < 0)
       throw std::invalid_argument("JointEffortCmdMsgData::resize: n < 0");
     name.resize(static_cast<std::size_t>(n));
@@ -109,7 +124,10 @@ struct JointEffortCmdMsgData {
    * @brief Returns the number of joints in this container.
    * @return Joint count, equal to `effort.size()`.
    */
-  Eigen::Index size() const noexcept { return effort.size(); }
+  Eigen::Index size() const noexcept
+  {
+    return effort.size();
+  }
 };
 
 /**
@@ -129,9 +147,10 @@ struct JointEffortCmdMsgData {
  * Timestamp:
  * - `stamp_sec`: Message stamp [s], typically derived from `header.stamp`.
  */
-struct JointControllerStateMsgData {
+struct JointControllerStateMsgData
+{
   std::vector<std::string> joint_names;
-  double stamp_sec{0.0};
+  double stamp_sec{ 0.0 };
 
   Eigen::VectorXd position;
   Eigen::VectorXd velocity;
@@ -154,14 +173,18 @@ struct JointControllerStateMsgData {
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  explicit JointControllerStateMsgData(Eigen::Index n) { resize(n); }
+  explicit JointControllerStateMsgData(Eigen::Index n)
+  {
+    resize(n);
+  }
 
   /**
    * @brief Resizes the container for `n` joints and zeros numeric fields.
    * @param[in] n Joint count.
    * @throws std::invalid_argument If `n < 0`.
    */
-  void resize(Eigen::Index n) {
+  void resize(Eigen::Index n)
+  {
     if (n < 0)
       throw std::invalid_argument("JointControllerStateMsgData::resize: n < 0");
     joint_names.resize(static_cast<std::size_t>(n));
@@ -181,7 +204,10 @@ struct JointControllerStateMsgData {
    * @brief Returns the number of joints in this container.
    * @return Joint count, equal to `position.size()`.
    */
-  Eigen::Index size() const noexcept { return position.size(); }
+  Eigen::Index size() const noexcept
+  {
+    return position.size();
+  }
 
   /**
    * @brief Recomputes `position_error` and `velocity_error` from current and
@@ -190,7 +216,8 @@ struct JointControllerStateMsgData {
    * - `position_error = position_des - position`
    * - `velocity_error = velocity_des - velocity`
    */
-  void recompute_errors() {
+  void recompute_errors()
+  {
     position_error.noalias() = position_des - position;
     velocity_error.noalias() = velocity_des - velocity;
   }
@@ -223,12 +250,12 @@ struct JointControllerStateMsgData {
  *   - leave the corresponding matrix sized and filled with zeros, or
  *   - size it to (0, 0) if you prefer sparse storage (not recommended for RT).
  */
-struct JointTrajectoryMsgData {
-  using MatTraj =
-      Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+struct JointTrajectoryMsgData
+{
+  using MatTraj = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
   std::vector<std::string> joint_names;
-  uint64_t seq{0}; 
+  uint64_t seq{ 0 };
 
   Eigen::VectorXd t;
 
@@ -246,7 +273,8 @@ struct JointTrajectoryMsgData {
    * @param[in] n Number of joints.
    * @throws std::invalid_argument If `N < 0` or `n < 0`.
    */
-  void resize(std::size_t N, std::size_t n) {
+  void resize(std::size_t N, std::size_t n)
+  {
     t.setZero(N);
     q.setZero(N, n);
     qd.setZero(N, n);
@@ -258,10 +286,12 @@ struct JointTrajectoryMsgData {
    * @brief Returns the number of trajectory samples.
    * @return Sample count `N`.
    */
-  std::size_t length() const noexcept {
+  std::size_t length() const noexcept
+  {
     return static_cast<std::size_t>(t.size());
   }
-  std::size_t ndof() const noexcept {
+  std::size_t ndof() const noexcept
+  {
     return static_cast<std::size_t>(joint_names.size());
   }
 };

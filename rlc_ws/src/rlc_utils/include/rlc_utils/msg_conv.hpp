@@ -7,13 +7,13 @@
  */
 
 #include <control_msgs/msg/joint_trajectory_controller_state.hpp>
-#include <rlc_interfaces/msg/joint_effort_cmd.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 #include "rlc_utils/types.hpp"
 
-namespace rlc_utils::msg_conv {
+namespace rlc_utils::msg_conv
+{
 
 /**
  * @brief Creates a `sensor_msgs::msg::JointState` message with arrays sized for
@@ -28,23 +28,10 @@ namespace rlc_utils::msg_conv {
  * @note This function does not validate `names.size()`; pass `names` empty or
  * length = `n`.
  */
-sensor_msgs::msg::JointState make_joint_state_msg(
-    std::size_t n, double stamp_sec = 0.0,
-    const std::vector<std::string>& names = {}, bool include_effort = true);
-
-/**
- * @brief Creates a `rlc_interfaces::msg::JointEffortCmd` message with arrays
- * sized for `n` joints.
- * @param[in] n Joint count (array length).
- * @param[in] stamp_sec Message stamp [s].
- * @param[in] names Optional joint names, length = `n`; may be empty.
- * @return JointEffortCmd message with `effort` length = `n`.
- * @note This function does not validate `names.size()`; pass `names` empty or
- * length = `n`.
- */
-rlc_interfaces::msg::JointEffortCmd make_joint_effort_cmd_msg(
-    std::size_t n, double stamp_sec = 0.0,
-    const std::vector<std::string>& names = {});
+sensor_msgs::msg::JointState
+make_joint_state_msg(std::size_t n, double stamp_sec = 0.0,
+                     const std::vector<std::string>& names = {},
+                     bool include_effort = true);
 
 /**
  * @brief Creates a `control_msgs::msg::JointTrajectoryControllerState` message
@@ -59,10 +46,10 @@ rlc_interfaces::msg::JointEffortCmd make_joint_effort_cmd_msg(
  * @note This function does not validate `names.size()`; pass `names` empty or
  * length = `n`.
  */
-control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
-    std::size_t n, double stamp_sec = 0.0,
-    const std::vector<std::string>& names = {},
-    bool include_feedback_acceleration = false);
+control_msgs::msg::JointTrajectoryControllerState
+make_joint_ctrl_state_msg(std::size_t n, double stamp_sec = 0.0,
+                          const std::vector<std::string>& names = {},
+                          bool include_feedback_acceleration = false);
 
 /**
  * @brief Copies a ROS `JointState` message into a preallocated data container.
@@ -87,31 +74,8 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
  * @note Allocation-free; O(n) in the number of joints (copies via
  * `std::memcpy`).
  */
-[[nodiscard]] bool from_joint_state_msg(
-    const sensor_msgs::msg::JointState& msg,
-    types::JointStateMsgData& data) noexcept;
-
-/**
- * @brief Copies a ROS `JointEffortCmd` message into a preallocated data
- * container.
- * @param[in] msg Source message.
- * @param[out] data Destination container (preallocated).
- * @return True on success; false if any required/optional field violates the
- * size contract.
- *
- * @details
- * Contract (with `n = data.size()`):
- * - `msg.effort.size()` must equal `n`.
- * - `msg.name` may be empty; if non-empty, it must have length = `n`.
- *
- * Sets `data.stamp_sec` from `msg.header.stamp`. Joint names are not copied.
- *
- * @note Allocation-free; O(n) in the number of joints (copies via
- * `std::memcpy`).
- */
-[[nodiscard]] bool from_joint_effort_cmd_msg(
-    const rlc_interfaces::msg::JointEffortCmd& msg,
-    types::JointEffortCmdMsgData& data) noexcept;
+[[nodiscard]] bool from_joint_state_msg(const sensor_msgs::msg::JointState& msg,
+                                        types::JointStateMsgData& data) noexcept;
 
 /**
  * @brief Copies a ROS `JointTrajectoryControllerState` message into a
@@ -135,10 +99,9 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
  * @note Allocation-free; O(n) in the number of joints (copies via
  * `std::memcpy`).
  */
-[[nodiscard]] bool from_joint_ctrl_state_msg(
-    const control_msgs::msg::JointTrajectoryControllerState& msg,
-    types::JointControllerStateMsgData& data) noexcept;
-
+[[nodiscard]] bool
+from_joint_ctrl_state_msg(const control_msgs::msg::JointTrajectoryControllerState& msg,
+                          types::JointControllerStateMsgData& data) noexcept;
 
 /**
  * @brief Copies a ROS `JointTrajectory` message into a preallocated data
@@ -162,9 +125,9 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
  * @note Allocation-free; O(N·n) in the number of trajectory points and joints
  * (copies via `std::memcpy`).
  */
-[[nodiscard]] bool from_joint_trajectory_msg(
-    const trajectory_msgs::msg::JointTrajectory& msg,
-    types::JointTrajectoryMsgData& data) noexcept;
+[[nodiscard]] bool
+from_joint_trajectory_msg(const trajectory_msgs::msg::JointTrajectory& msg,
+                          types::JointTrajectoryMsgData& data) noexcept;
 
 /**
  * @brief Copies a preallocated data container into a ROS `JointState` message.
@@ -189,35 +152,8 @@ control_msgs::msg::JointTrajectoryControllerState make_joint_ctrl_state_msg(
  * @note Allocation-free; O(n) in the number of joints (copies via
  * `std::memcpy`).
  */
-bool to_joint_state_msg(
-    const types::JointStateMsgData& data,
-    sensor_msgs::msg::JointState& msg) noexcept;
-
-/**
- * @brief Copies a preallocated data container into a ROS `JointEffortCmd`
- * message.
- * @param[in] data Source container.
- * @param[out] msg Destination message (preallocated arrays).
- * @return True.
- *
- * @pre `msg.effort.size() == data.size()`
- *
- * Sets `msg.header.stamp` from `data.stamp_sec`.
- *
- * @details
- * This function does not resize `msg` fields; it performs allocation-free
- * copies via `std::memcpy`. Use `make_joint_effort_cmd_msg()` to construct a
- * correctly sized `msg`.
- *
- * @note `msg.name` is not modified; if non-empty, keep it aligned with the
- * effort array.
- *
- * @note Allocation-free; O(n) in the number of joints (copies via
- * `std::memcpy`).
- */
-bool to_joint_effort_cmd_msg(
-    const types::JointEffortCmdMsgData& data,
-    rlc_interfaces::msg::JointEffortCmd& msg) noexcept;
+bool to_joint_state_msg(const types::JointStateMsgData& data,
+                        sensor_msgs::msg::JointState& msg) noexcept;
 
 /**
  * @brief Copies a preallocated data container into a ROS
