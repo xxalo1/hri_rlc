@@ -19,8 +19,6 @@
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
   <depend>rbt_core_cpp</depend>
-  <depend>rlc_interfaces</depend>
-  <depend>rlc_common</depend>
   <depend>rlc_utils</depend>
 
   <depend>pinocchio</depend>

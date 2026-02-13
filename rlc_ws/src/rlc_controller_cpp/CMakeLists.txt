@@ -20,8 +20,6 @@ find_package(control_msgs REQUIRED)
 
 find_package(rbt_core_cpp REQUIRED CONFIG)
 
-find_package(rlc_interfaces REQUIRED)
-find_package(rlc_common REQUIRED)
 find_package(rlc_utils REQUIRED)
 
 option(BUILD_LEGACY_NODE "Build legacy rclcpp controller node" OFF)
