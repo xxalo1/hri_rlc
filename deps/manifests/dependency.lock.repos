@@ -2,11 +2,7 @@ repositories:
   vendor/boost_plugin_loader:
     type: git
     url: https://github.com/tesseract-robotics/boost_plugin_loader.git
-    version: 0.4.3
-  vendor/cereal:
-    type: git
-    url: https://github.com/Levi-Armstrong/cereal.git
-    version: catkin
+    version: 0.4.2
   vendor/descartes_light:
     type: git
     url: https://github.com/swri-robotics/descartes_light.git
@@ -14,11 +10,11 @@ repositories:
   vendor/franka_description:
     type: git
     url: https://github.com/frankarobotics/franka_description.git
-    version: 2.3.0
+    version: 2.1.0
   vendor/franka_ros2:
     type: git
     url: https://github.com/frankarobotics/franka_ros2.git
-    version: jazzy
+    version: v3.1.1
   vendor/ifopt:
     type: git
     url: https://github.com/ethz-adrl/ifopt.git
@@ -26,7 +22,7 @@ repositories:
   vendor/libfranka:
     type: git
     url: https://github.com/frankarobotics/libfranka.git
-    version: 0.19.0
+    version: 0.18.0
   vendor/octomap:
     type: git
     url: https://github.com/OctoMap/octomap.git
@@ -62,7 +58,7 @@ repositories:
   vendor/tesseract_ros2:
     type: git
     url: https://github.com/tesseract-robotics/tesseract_ros2.git
-    version: master
+    version: 0.33.0
   vendor/trajopt:
     type: git
     url: https://github.com/tesseract-robotics/trajopt.git
