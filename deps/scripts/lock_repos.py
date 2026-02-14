@@ -16,7 +16,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 MAIN = ROOT / "deps/manifests/dependency.repos"
 OUT = ROOT / "deps/manifests/dependency.lock.repos"
-NESTED = ("dependency.repos", "dependencies.repos")
+NESTED = ("dependency.repos", "dependencies.repos", "franka.repos")
 
 
 def parse_manifest_repos(data: Any) -> dict[str, dict[str, Any]]:
