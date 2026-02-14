@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import Enum
 import os
 from typing import Any
 
@@ -23,6 +24,12 @@ DEFAULT_RESPONSE_ADAPTERS: list[str] = [
     "default_planning_response_adapters/ValidateSolution",
     "default_planning_response_adapters/DisplayMotionPath",
 ]
+
+
+class Planner(Enum):
+    """Enum for supported planners."""
+    OMPL = "ompl"
+    RLC_TRAJOPT = "rlc_trajopt"
 
 
 def load_yaml(package_name: str, relative_path: str) -> dict[str, Any]:
@@ -65,7 +72,7 @@ def load_yaml(package_name: str, relative_path: str) -> dict[str, Any]:
     return data
 
 
-def planning_plugins_for(planner: str) -> list[str]:
+def planning_plugins_for(planner: Planner) -> list[str]:
     """
     Map a high-level planner selection to MoveIt planner plugin class names.
 
@@ -98,22 +105,21 @@ def planning_plugins_for(planner: str) -> list[str]:
 
 def make_planning_pipeline_config(
     *,
-    planning_plugins: list[str],
-    ompl_planning: dict[str, Any],
+    planner: Planner,
+    planning_configs: dict[Planner, Any],
     request_adapters: list[str] | None = None,
     response_adapters: list[str] | None = None,
     start_state_max_bounds_error: float = 0.1,
-    extra_params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Build the MoveIt planning pipeline parameter mapping for `move_group`.
 
     Parameters
     ----------
-    planning_plugins : list[str]
-        Planner plugin class names.
-    ompl_planning : dict
-        Contents of the OMPL planning YAML (planner configs and group settings).
+    planner : Planner
+        Planner selection enum.
+    planning_configs : dict[Planner, Any]
+        Contents of the planning YAML (planner configs and group settings).
     request_adapters : list[str], optional
         Request adapter plugins. If None, uses package defaults.
     response_adapters : list[str], optional
@@ -129,19 +135,25 @@ def make_planning_pipeline_config(
     dict
         A mapping suitable for passing to `launch_ros.actions.Node(parameters=...)`.
     """
+    if not request_adapters:
+        request_adapters = list(DEFAULT_REQUEST_ADAPTERS)
+        
+    if not response_adapters:
+        response_adapters = list(DEFAULT_RESPONSE_ADAPTERS)
+    
+    planning_plugins = planning_plugins_for(planner=planner)
+
     pipeline = {
         "move_group": {
             "planning_plugins": planning_plugins,
-            "request_adapters": request_adapters or list(DEFAULT_REQUEST_ADAPTERS),
-            "response_adapters": response_adapters or list(DEFAULT_RESPONSE_ADAPTERS),
+            "request_adapters": request_adapters,
+            "response_adapters": response_adapters,
             "start_state_max_bounds_error": start_state_max_bounds_error,
         }
     }
-
-    pipeline["move_group"].update(ompl_planning)
-    if extra_params:
-        pipeline["move_group"].update(extra_params)
-
+    
+    for config in planning_configs.values():
+        pipeline["move_group"].update(config)
     return pipeline
 
 
@@ -154,9 +166,8 @@ def make_move_group_node(
     kinematics: dict[str, Any],
     joint_limits: dict[str, Any],
     controllers: dict[str, Any],
-    ompl_planning: dict[str, Any],
-    planning_plugins: list[str],
-    extra_pipeline_params: dict[str, Any] | None = None,
+    planning_configs: dict[Planner, Any],
+    planner: Planner,
 ) -> Node:
     """
     Create the `move_group` node action.
@@ -177,12 +188,10 @@ def make_move_group_node(
         MoveIt joint limits YAML contents.
     controllers : dict
         MoveIt simple controller manager YAML contents.
-    ompl_planning : dict
-        OMPL planning YAML contents.
-    planning_plugins : list[str]
-        Planner plugin class names.
-    extra_pipeline_params : dict, optional
-        Extra parameters merged into the `move_group` planning pipeline mapping.
+    planning_configs : dict[Planner, Any]
+        Planning YAML contents.
+    planner : Planner
+        Planner selection enum.
 
     Returns
     -------
@@ -193,9 +202,8 @@ def make_move_group_node(
     joint_limits_config: dict[str, Any] = {"robot_description_planning": joint_limits}
 
     planning_pipeline_config = make_planning_pipeline_config(
-        planning_plugins=planning_plugins,
-        ompl_planning=ompl_planning,
-        extra_params=extra_pipeline_params,
+        planner=planner,
+        planning_configs=planning_configs,
     )
 
     moveit_controllers: dict[str, Any] = {

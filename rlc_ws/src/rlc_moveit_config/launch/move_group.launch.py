@@ -25,6 +25,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.actions import Node
 
 _THIS_DIR = os.path.dirname(__file__)
 if _THIS_DIR not in sys.path:
@@ -35,6 +36,7 @@ from move_group_utils import (
     make_move_group_node,
     make_tesseract_environment_monitor_node,
     planning_plugins_for,
+    Planner,
 )
 
 
@@ -59,7 +61,7 @@ def generate_launch_description() -> LaunchDescription:
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
     fake_sensor_commands = LaunchConfiguration("fake_sensor_commands")
     namespace = LaunchConfiguration("namespace")
-    planner = LaunchConfiguration("planner")
+    planner = LaunchConfiguration("planner_plugin")
     tesseract_monitor_namespace = LaunchConfiguration("tesseract_monitor_namespace")
     tesseract_joint_state_topic = LaunchConfiguration("tesseract_joint_state_topic")
 
@@ -71,7 +73,9 @@ def generate_launch_description() -> LaunchDescription:
     trajopt_planning_yaml = LaunchConfiguration("trajopt_planning_yaml")
 
     declared_arguments = [
-        DeclareLaunchArgument("db", default_value="false", description="Database flag."),
+        DeclareLaunchArgument(
+            "db", default_value="false", description="Database flag."
+        ),
         DeclareLaunchArgument(
             "use_sim_time",
             default_value="false",
@@ -213,43 +217,68 @@ def generate_launch_description() -> LaunchDescription:
         planner_value = planner.perform(context)
         moveit_config_package_value = moveit_config_package.perform(context)
 
-        kinematics = load_yaml(moveit_config_package_value, kinematics_yaml.perform(context))
+        kinematics = load_yaml(
+            moveit_config_package_value, kinematics_yaml.perform(context)
+        )
         joint_limits = load_yaml(
             moveit_config_package_value, joint_limits_yaml.perform(context)
         )
         controllers = load_yaml(
             moveit_config_package_value, controllers_yaml.perform(context)
         )
-        ompl_planning = load_yaml(
-            moveit_config_package_value, ompl_planning_yaml.perform(context)
-        )
 
-        planning_plugins = planning_plugins_for(planner_value)
+        planning_configs = {}
+        tesseract_monitor_env = None
+        match planner_value:
+            case Planner.OMPL:
+                planning_configs = {
+                    Planner.OMPL: load_yaml(
+                        moveit_config_package_value, ompl_planning_yaml.perform(context)
+                    )
+                }
 
-        extra_pipeline_params = {}
-        tesseract_node = None
-        if planner_value == "rlc_trajopt":
-            extra_pipeline_params = load_yaml(
-                moveit_config_package_value, trajopt_planning_yaml.perform(context)
-            )
-            scene_bridge_params = extra_pipeline_params.setdefault("scene_bridge", {})
-            if not isinstance(scene_bridge_params, dict):
-                raise RuntimeError(
-                    "Expected 'scene_bridge' to be a mapping in trajopt_planning_yaml."
+            case Planner.RLC_TRAJOPT:
+                planning_configs = {
+                    Planner.OMPL: load_yaml(
+                        moveit_config_package_value, ompl_planning_yaml.perform(context)
+                    ),
+                    Planner.RLC_TRAJOPT: load_yaml(
+                        moveit_config_package_value,
+                        trajopt_planning_yaml.perform(context),
+                    ),
+                }
+
+                scene_bridge_params = planning_configs.get(Planner.RLC_TRAJOPT, {}).get(
+                    "scene_bridge", {}
                 )
-            scene_bridge_params["monitor_namespace"] = tesseract_monitor_namespace.perform(
-                context
-            )
 
-            tesseract_node = make_tesseract_environment_monitor_node(
-                namespace=namespace,
-                use_sim_time=use_sim_time,
-                robot_description=robot_description,
-                robot_description_semantic=robot_description_semantic,
-                monitor_namespace=tesseract_monitor_namespace,
-                joint_state_topic=tesseract_joint_state_topic.perform(context),
-            )
+                scene_bridge_params["monitor_namespace"] = (
+                    tesseract_monitor_namespace.perform(context)
+                )
 
+                tesseract_monitor_env = Node(
+                    package="tesseract_monitoring",
+                    executable="tesseract_monitoring_environment_node",
+                    name="tesseract_environment_monitor",
+                    namespace=namespace,
+                    output="screen",
+                    parameters=[
+                        {"use_sim_time": use_sim_time},
+                        robot_description,
+                        robot_description_semantic,
+                        {
+                            "monitor_namespace": tesseract_monitor_namespace.perform(
+                                context
+                            ),
+                            "monitored_namespace": "",
+                            "joint_state_topic": tesseract_joint_state_topic.perform(
+                                context
+                            ),
+                            "publish_environment": False,
+                        },
+                    ],
+                )
+                
         move_group_node = make_move_group_node(
             namespace=namespace,
             use_sim_time=use_sim_time,
@@ -258,15 +287,16 @@ def generate_launch_description() -> LaunchDescription:
             kinematics=kinematics,
             joint_limits=joint_limits,
             controllers=controllers,
-            ompl_planning=ompl_planning,
-            planning_plugins=planning_plugins,
-            extra_pipeline_params=extra_pipeline_params,
+            planner=planner_value,
+            planning_configs=planning_configs,
         )
 
         actions = [move_group_node]
-        if tesseract_node is not None:
-            actions.append(tesseract_node)
+        if tesseract_monitor_env is not None:
+            actions.append(tesseract_monitor_env)
 
         return actions
 
-    return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
+    return LaunchDescription(
+        declared_arguments + [OpaqueFunction(function=launch_setup)]
+    )
