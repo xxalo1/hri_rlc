@@ -78,10 +78,8 @@ def planning_plugins_for(planner: Planner) -> list[str]:
 
     Parameters
     ----------
-    planner : str
-        Planner selection string. Supported values:
-        - ``ompl``
-        - ``rlc_trajopt``
+    planner : Planner
+        Planner selection.
 
     Returns
     -------
@@ -93,9 +91,9 @@ def planning_plugins_for(planner: Planner) -> list[str]:
     ValueError
         If `planner` is unsupported.
     """
-    if planner == "ompl":
+    if planner is Planner.OMPL:
         return ["ompl_interface/OMPLPlanner"]
-    if planner == "rlc_trajopt":
+    if planner is Planner.RLC_TRAJOPT:
         return [
             "ompl_interface/OMPLPlanner",
             "rlc_planner/TrajOptPlannerManager",
@@ -119,29 +117,28 @@ def make_planning_pipeline_config(
     planner : Planner
         Planner selection enum.
     planning_configs : dict[Planner, Any]
-        Contents of the planning YAML (planner configs and group settings).
+        Planning parameter mappings that will be merged into the `move_group`
+        namespace. Values are merged in iteration order, and later keys override
+        earlier keys.
     request_adapters : list[str], optional
         Request adapter plugins. If None, uses package defaults.
     response_adapters : list[str], optional
         Response adapter plugins. If None, uses package defaults.
     start_state_max_bounds_error : float, optional
         Max start-state bounds error.
-    extra_params : dict, optional
-        Extra pipeline parameters merged into the `move_group` mapping. This is
-        typically used for planner-specific plugin parameters.
 
     Returns
     -------
     dict
         A mapping suitable for passing to `launch_ros.actions.Node(parameters=...)`.
     """
-    if not request_adapters:
+    if request_adapters is None:
         request_adapters = list(DEFAULT_REQUEST_ADAPTERS)
         
-    if not response_adapters:
+    if response_adapters is None:
         response_adapters = list(DEFAULT_RESPONSE_ADAPTERS)
     
-    planning_plugins = planning_plugins_for(planner=planner)
+    planning_plugins = planning_plugins_for(planner)
 
     pipeline = {
         "move_group": {
