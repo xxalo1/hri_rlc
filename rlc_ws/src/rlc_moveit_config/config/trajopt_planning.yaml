@@ -1,0 +1,33 @@
+# `rlc_planner/TrajOptPlannerManager` parameters.
+#
+# These mappings are merged into the MoveIt planning pipeline namespace (usually
+# `move_group.*`) by `launch/move_group.launch.py` when `planner:=rlc_trajopt`.
+scene_bridge:
+  # Namespace used for Tesseract monitor services/topics, e.g.:
+  #   /<monitor_namespace>/get_tesseract_information
+  #
+  # This is typically overridden by the launch argument `tesseract_monitor_namespace`.
+  monitor_namespace: tesseract_monitor
+  env_name: default
+  scene_topic: /move_group/monitored_planning_scene
+  get_scene_srv: /get_planning_scene
+
+  # MoveIt PlanningSceneComponents bitmask:
+  #   ROBOT_STATE (2) | ROBOT_STATE_ATTACHED_OBJECTS (4) | WORLD_OBJECT_GEOMETRY (16) = 22
+  scene_components: 22
+
+  # Wait time for GetPlanningScene service [ms].
+  srv_wait_ms: 500
+
+  # Subscription QoS depth for PlanningScene updates.
+  scene_qos_depth: 25
+
+  env_sync:
+    allow_replace: true
+
+trajopt:
+  default_num_steps: 20
+  use_moveit_group_as_tesseract_manipulator: true
+  fixed_tesseract_manipulator_group: manipulator
+  enable_seed_cache: false
+  enable_last_solution_cache: false

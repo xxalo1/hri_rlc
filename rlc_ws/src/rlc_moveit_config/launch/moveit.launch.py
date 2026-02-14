@@ -54,12 +54,21 @@ def load_yaml(package_name, file_path):
 
 
 def generate_launch_description():
+    """Launch MoveIt + ros2_control for FR3 (derived from franka_ros2).
+
+    Notes
+    -----
+    This launch also starts a `tesseract_monitoring_environment_node` so that
+    `rlc_planner` can synchronize MoveIt’s planning scene into a Tesseract
+    environment via the monitor services.
+    """
     robot_ip_parameter_name = 'robot_ip'
     use_fake_hardware_parameter_name = 'use_fake_hardware'
     fake_sensor_commands_parameter_name = 'fake_sensor_commands'
     namespace_parameter_name = 'namespace'
     load_gripper_parameter_name = 'load_gripper'
     ee_id_parameter_name = 'ee_id'
+    tesseract_monitor_namespace_parameter_name = 'tesseract_monitor_namespace'
 
     robot_ip = LaunchConfiguration(robot_ip_parameter_name)
     use_fake_hardware = LaunchConfiguration(use_fake_hardware_parameter_name)
@@ -68,6 +77,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration(namespace_parameter_name)
     load_gripper = LaunchConfiguration(load_gripper_parameter_name)
     ee_id = LaunchConfiguration(ee_id_parameter_name)
+    tesseract_monitor_namespace = LaunchConfiguration(
+        tesseract_monitor_namespace_parameter_name
+    )
 
     # Command-line arguments
 
@@ -103,7 +115,7 @@ def generate_launch_description():
         robot_description_semantic_config, value_type=str)}
 
     kinematics_yaml = load_yaml(
-        'franka_fr3_moveit_config', 'config/kinematics.yaml'
+        'rlc_moveit_config', 'config/fr3/kinematics.yaml'
     )
 
     kinematics_config = {
@@ -111,7 +123,7 @@ def generate_launch_description():
     }
 
     joint_limits_yaml = load_yaml(
-        'franka_fr3_moveit_config', 'config/fr3_joint_limits.yaml'
+        'rlc_moveit_config', 'config/fr3/joint_limits.yaml'
     )
 
     joint_limits_config = {
@@ -137,13 +149,13 @@ def generate_launch_description():
         }
     }
     ompl_planning_yaml = load_yaml(
-        'franka_fr3_moveit_config', 'config/ompl_planning.yaml'
+        'rlc_moveit_config', 'config/fr3/ompl_planning.yaml'
     )
     ompl_planning_pipeline_config['move_group'].update(ompl_planning_yaml)
 
     # Trajectory Execution Functionality
     moveit_simple_controllers_yaml = load_yaml(
-        'franka_fr3_moveit_config', 'config/fr3_controllers.yaml'
+        'rlc_moveit_config', 'config/fr3/controllers.yaml'
     )
     moveit_controllers = {
         'moveit_simple_controller_manager': moveit_simple_controllers_yaml,
@@ -183,9 +195,27 @@ def generate_launch_description():
         ],
     )
 
+    tesseract_env_monitor_node = Node(
+        package='tesseract_monitoring',
+        executable='tesseract_monitoring_environment_node',
+        name='tesseract_environment_monitor',
+        namespace=namespace,
+        output='screen',
+        parameters=[
+            robot_description,
+            robot_description_semantic,
+            {
+                'monitor_namespace': tesseract_monitor_namespace,
+                'monitored_namespace': '',
+                'joint_state_topic': 'joint_states',
+                'publish_environment': False,
+            },
+        ],
+    )
+
     # RViz
     rviz_base = os.path.join(get_package_share_directory(
-        'franka_fr3_moveit_config'), 'rviz')
+        'rlc_moveit_config'), 'rviz')
     rviz_full_config = os.path.join(rviz_base, 'moveit.rviz')
 
     rviz_node = Node(
@@ -213,9 +243,9 @@ def generate_launch_description():
     )
 
     ros2_controllers_path = os.path.join(
-        get_package_share_directory('franka_fr3_moveit_config'),
+        get_package_share_directory('rlc_moveit_config'),
         'config',
-        'fr3_ros_controllers.yaml',
+        'fr3/ros2_controllers.yaml',
     )
     ros2_control_node = Node(
         package='controller_manager',
@@ -291,6 +321,15 @@ def generate_launch_description():
         default_value='false',
         description="Fake sensor commands. Only valid when '{}' is true".format(
             use_fake_hardware_parameter_name))
+    tesseract_monitor_namespace_arg = DeclareLaunchArgument(
+        tesseract_monitor_namespace_parameter_name,
+        default_value='tesseract_monitor',
+        description=(
+            'Tesseract monitor namespace used for services/topics (e.g., '
+            '"/<ns>/get_tesseract_information"). If you use a non-empty ROS '
+            '`namespace`, consider setting this to "<namespace>/tesseract_monitor".'
+        ),
+    )
     gripper_launch_file = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([PathJoinSubstitution(
             [FindPackageShare('franka_gripper'), 'launch', 'gripper.launch.py'])]),
@@ -305,9 +344,11 @@ def generate_launch_description():
          ee_id_arg,
          use_fake_hardware_arg,
          fake_sensor_commands_arg,
+         tesseract_monitor_namespace_arg,
          db_arg,
          rviz_node,
          robot_state_publisher,
+         tesseract_env_monitor_node,
          run_move_group_node,
          ros2_control_node,
          joint_state_publisher,
