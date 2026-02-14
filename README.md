@@ -27,7 +27,7 @@ python3 -m pip install -e .
 
 ```bash
 python3 deps/scripts/lock_repos.py
-vcs import --recursive < ./deps/manifests/dependency.lock.repos
+vcs import --recursive --skip-existing < ./deps/manifests/dependency.lock.repos
 ```
 
 ### Apt packages
