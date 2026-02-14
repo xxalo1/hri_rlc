@@ -25,7 +25,6 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration
 from launch_ros.parameter_descriptions import ParameterValue
-from launch_ros.actions import Node
 
 _THIS_DIR = os.path.dirname(__file__)
 if _THIS_DIR not in sys.path:
@@ -35,7 +34,6 @@ from move_group_utils import (
     load_yaml,
     make_move_group_node,
     make_tesseract_environment_monitor_node,
-    planning_plugins_for,
     Planner,
 )
 
@@ -215,6 +213,14 @@ def generate_launch_description() -> LaunchDescription:
     def launch_setup(context, *args, **kwargs):  # noqa: ANN001, ARG001
         """Create actions after resolving launch configurations."""
         planner_value = planner.perform(context)
+        try:
+            planner_enum = Planner(planner_value)
+        except ValueError as ex:
+            raise RuntimeError(
+                f"Invalid planner selection: '{planner_value}'. "
+                f"Valid options are: {[p.value for p in Planner]}"
+            ) from ex
+            
         moveit_config_package_value = moveit_config_package.perform(context)
 
         kinematics = load_yaml(
@@ -229,7 +235,8 @@ def generate_launch_description() -> LaunchDescription:
 
         planning_configs = {}
         tesseract_monitor_env = None
-        match planner_value:
+
+        match planner_enum:
             case Planner.OMPL:
                 planning_configs = {
                     Planner.OMPL: load_yaml(
@@ -248,35 +255,23 @@ def generate_launch_description() -> LaunchDescription:
                     ),
                 }
 
-                scene_bridge_params = planning_configs.get(Planner.RLC_TRAJOPT, {}).get(
-                    "scene_bridge", {}
-                )
-
+                trajopt_params = planning_configs[Planner.RLC_TRAJOPT]
+                scene_bridge_params = trajopt_params.setdefault("scene_bridge", {})
+                if not isinstance(scene_bridge_params, dict):
+                    raise RuntimeError(
+                        "Expected 'scene_bridge' to be a mapping in trajopt_planning_yaml."
+                    )
                 scene_bridge_params["monitor_namespace"] = (
                     tesseract_monitor_namespace.perform(context)
                 )
 
-                tesseract_monitor_env = Node(
-                    package="tesseract_monitoring",
-                    executable="tesseract_monitoring_environment_node",
-                    name="tesseract_environment_monitor",
+                tesseract_monitor_env = make_tesseract_environment_monitor_node(
                     namespace=namespace,
-                    output="screen",
-                    parameters=[
-                        {"use_sim_time": use_sim_time},
-                        robot_description,
-                        robot_description_semantic,
-                        {
-                            "monitor_namespace": tesseract_monitor_namespace.perform(
-                                context
-                            ),
-                            "monitored_namespace": "",
-                            "joint_state_topic": tesseract_joint_state_topic.perform(
-                                context
-                            ),
-                            "publish_environment": False,
-                        },
-                    ],
+                    use_sim_time=use_sim_time,
+                    robot_description=robot_description,
+                    robot_description_semantic=robot_description_semantic,
+                    monitor_namespace=tesseract_monitor_namespace,
+                    joint_state_topic=tesseract_joint_state_topic.perform(context),
                 )
                 
         move_group_node = make_move_group_node(
@@ -287,13 +282,14 @@ def generate_launch_description() -> LaunchDescription:
             kinematics=kinematics,
             joint_limits=joint_limits,
             controllers=controllers,
-            planner=planner_value,
+            planner=planner_enum,
             planning_configs=planning_configs,
         )
 
-        actions = [move_group_node]
+        actions = []
         if tesseract_monitor_env is not None:
             actions.append(tesseract_monitor_env)
+        actions.append(move_group_node)
 
         return actions
 
