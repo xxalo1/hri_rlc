@@ -1,6 +1,8 @@
-# rlc_fr3_moveit_config
+# rlc_moveit_config
 
-Project-specific MoveIt 2 configuration for the Franka FR3, used by the `hri_rlc` workspace.
+MoveIt 2 configuration package used by the `hri_rlc` workspace.
+
+Robot-specific configuration lives under `config/<robot>/` (e.g., `config/fr3/`).
 
 ## Upstream provenance
 

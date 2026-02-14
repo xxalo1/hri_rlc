@@ -2,9 +2,9 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <!-- NOTE: Modified from upstream franka_ros2 by hri_rlc. -->
 <package format="3">
-  <name>rlc_fr3_moveit_config</name>
+  <name>rlc_moveit_config</name>
   <version>3.2.0</version>
-  <description>MoveIt 2 configuration files for the Franka FR3 (derived from franka_ros2).</description>
+  <description>MoveIt 2 configuration files for RLC robots (derived from franka_ros2).</description>
   <maintainer email="asme.kfupm.website@gmail.com">g201951870</maintainer>
   <license>Apache-2.0</license>
 

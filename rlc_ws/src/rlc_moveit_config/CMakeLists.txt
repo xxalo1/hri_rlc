@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.5)
 option(CHECK_TIDY "Enable clang-tidy checks" OFF)
 option(CMAKE_EXPORT_COMPILE_COMMANDS "Enable compile commands export" OFF)
 
-project(rlc_fr3_moveit_config)
+project(rlc_moveit_config)
 
 find_package(ament_cmake REQUIRED)
 
