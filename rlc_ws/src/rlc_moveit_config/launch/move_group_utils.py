@@ -28,6 +28,7 @@ DEFAULT_RESPONSE_ADAPTERS: list[str] = [
 
 class Planner(Enum):
     """Enum for supported planners."""
+
     OMPL = "ompl"
     RLC_TRAJOPT = "rlc_trajopt"
 
@@ -134,10 +135,10 @@ def make_planning_pipeline_config(
     """
     if request_adapters is None:
         request_adapters = list(DEFAULT_REQUEST_ADAPTERS)
-        
+
     if response_adapters is None:
         response_adapters = list(DEFAULT_RESPONSE_ADAPTERS)
-    
+
     planning_plugins = planning_plugins_for(planner)
 
     pipeline = {
@@ -148,7 +149,7 @@ def make_planning_pipeline_config(
             "start_state_max_bounds_error": start_state_max_bounds_error,
         }
     }
-    
+
     for config in planning_configs.values():
         pipeline["move_group"].update(config)
     return pipeline
@@ -242,55 +243,3 @@ def make_move_group_node(
         ],
     )
 
-
-def make_tesseract_environment_monitor_node(
-    *,
-    namespace: LaunchConfiguration,
-    use_sim_time: bool | LaunchConfiguration = False,
-    robot_description: dict[str, Any],
-    robot_description_semantic: dict[str, Any],
-    monitor_namespace: LaunchConfiguration,
-    joint_state_topic: str = "",
-) -> Node:
-    """
-    Create a Tesseract environment monitoring node action.
-
-    Parameters
-    ----------
-    namespace : LaunchConfiguration
-        ROS namespace for the node.
-    use_sim_time : bool or LaunchConfiguration, optional
-        Whether to use simulation time for the monitor node.
-    robot_description : dict[str, Any]
-        `robot_description` parameter mapping.
-    robot_description_semantic : dict[str, Any]
-        `robot_description_semantic` parameter mapping.
-    monitor_namespace : LaunchConfiguration
-        Tesseract monitor namespace used in service/topic names.
-    joint_state_topic : str, optional
-        Joint states topic name. If empty, the monitor uses its internal default
-        (typically `/joint_states`).
-
-    Returns
-    -------
-    Node
-        A configured `tesseract_monitoring_environment_node` action.
-    """
-    return Node(
-        package="tesseract_monitoring",
-        executable="tesseract_monitoring_environment_node",
-        name="tesseract_environment_monitor",
-        namespace=namespace,
-        output="screen",
-        parameters=[
-            {"use_sim_time": use_sim_time},
-            robot_description,
-            robot_description_semantic,
-            {
-                "monitor_namespace": monitor_namespace,
-                "monitored_namespace": "",
-                "joint_state_topic": joint_state_topic,
-                "publish_environment": False,
-            },
-        ],
-    )

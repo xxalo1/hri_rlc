@@ -20,8 +20,13 @@ controller_manager:
     gripper_controller:
       type: parallel_gripper_action_controller/GripperActionController
 
+joint_state_broadcaster:
+  ros__parameters:
+    type: joint_state_broadcaster/JointStateBroadcaster
+
 arm_controller:
   ros__parameters:
+    type: joint_trajectory_controller/JointTrajectoryController
     command_interfaces:
       - effort
     state_interfaces:
@@ -46,6 +51,7 @@ arm_controller:
 
 arm_joint_position_controller:
   ros__parameters:
+    type: forward_command_controller/ForwardCommandController
     joints:
       - fr3_joint1
       - fr3_joint2
@@ -58,6 +64,7 @@ arm_joint_position_controller:
 
 arm_joint_velocity_controller:
   ros__parameters:
+    type: forward_command_controller/ForwardCommandController
     joints:
       - fr3_joint1
       - fr3_joint2
@@ -70,6 +77,7 @@ arm_joint_velocity_controller:
 
 arm_joint_effort_controller:
   ros__parameters:
+    type: forward_command_controller/ForwardCommandController
     joints:
       - fr3_joint1
       - fr3_joint2
@@ -82,4 +90,5 @@ arm_joint_effort_controller:
 
 gripper_controller:
   ros__parameters:
+    type: parallel_gripper_action_controller/GripperActionController
     joint: fr3_finger_joint1

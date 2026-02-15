@@ -39,6 +39,8 @@ def generate_launch_description() -> LaunchDescription:
     moveit_trajopt_planning_yaml = LaunchConfiguration("trajopt_planning_yaml")
     tesseract_monitor_namespace = LaunchConfiguration("tesseract_monitor_namespace")
     tesseract_joint_state_topic = LaunchConfiguration("tesseract_joint_state_topic")
+    use_rviz = LaunchConfiguration("use_rviz")
+    rviz_config = LaunchConfiguration("rviz_config")
 
     gz_control_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -81,12 +83,14 @@ def generate_launch_description() -> LaunchDescription:
             "moveit_config_package": moveit_config_package,
             "kinematics_yaml": moveit_kinematics_yaml,
             "joint_limits_yaml": moveit_joint_limits_yaml,
-            "controllers_yaml": moveit_controllers_yaml,
+            "moveit_controllers_yaml": moveit_controllers_yaml,
             "ompl_planning_yaml": moveit_ompl_planning_yaml,
             "trajopt_planning_yaml": moveit_trajopt_planning_yaml,
             "tesseract_monitor_namespace": tesseract_monitor_namespace,
             "tesseract_joint_state_topic": tesseract_joint_state_topic,
             "load_gripper": load_gripper,
+            "use_rviz": use_rviz,
+            "rviz_config": rviz_config,
         }.items(),
     )
 
@@ -166,6 +170,19 @@ def generate_launch_description() -> LaunchDescription:
                 description="Planner pipeline selection (ompl | rlc_trajopt).",
             ),
             DeclareLaunchArgument(
+                "use_rviz",
+                default_value="true",
+                description="Start RViz if true.",
+            ),
+            DeclareLaunchArgument(
+                "rviz_config",
+                default_value="rviz/moveit.rviz",
+                description=(
+                    "RViz config file path. If relative, it is resolved relative to "
+                    "`moveit_config_package`."
+                ),
+            ),
+            DeclareLaunchArgument(
                 "moveit_config_package",
                 default_value="rlc_moveit_config",
                 description="Package that provides the MoveIt config YAML files.",
@@ -215,4 +232,3 @@ def generate_launch_description() -> LaunchDescription:
             move_group_launch,
         ]
     )
-

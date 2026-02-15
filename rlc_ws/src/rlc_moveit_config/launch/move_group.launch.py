@@ -23,7 +23,9 @@ import sys
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration
+from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 _THIS_DIR = os.path.dirname(__file__)
@@ -33,14 +35,14 @@ if _THIS_DIR not in sys.path:
 from move_group_utils import (
     load_yaml,
     make_move_group_node,
-    make_tesseract_environment_monitor_node,
+    make_planning_pipeline_config,
     Planner,
 )
 
 
 def generate_launch_description() -> LaunchDescription:
     """
-    Launch the MoveIt `move_group` node (and optional Tesseract monitor).
+    Launch the MoveIt `move_group` node (and optional Tesseract monitor / RViz).
 
     Parameters are declared as launch arguments so another launch file can
     include this launch file and override:
@@ -59,16 +61,18 @@ def generate_launch_description() -> LaunchDescription:
     use_fake_hardware = LaunchConfiguration("use_fake_hardware")
     fake_sensor_commands = LaunchConfiguration("fake_sensor_commands")
     namespace = LaunchConfiguration("namespace")
-    planner = LaunchConfiguration("planner_plugin")
+    planner = LaunchConfiguration("planner")
     tesseract_monitor_namespace = LaunchConfiguration("tesseract_monitor_namespace")
     tesseract_joint_state_topic = LaunchConfiguration("tesseract_joint_state_topic")
 
     moveit_config_package = LaunchConfiguration("moveit_config_package")
     kinematics_yaml = LaunchConfiguration("kinematics_yaml")
     joint_limits_yaml = LaunchConfiguration("joint_limits_yaml")
-    controllers_yaml = LaunchConfiguration("controllers_yaml")
+    moveit_controllers_yaml = LaunchConfiguration("moveit_controllers_yaml")
     ompl_planning_yaml = LaunchConfiguration("ompl_planning_yaml")
     trajopt_planning_yaml = LaunchConfiguration("trajopt_planning_yaml")
+    use_rviz = LaunchConfiguration("use_rviz")
+    rviz_config = LaunchConfiguration("rviz_config")
 
     declared_arguments = [
         DeclareLaunchArgument(
@@ -122,9 +126,11 @@ def generate_launch_description() -> LaunchDescription:
             description="Path to joint limits YAML relative to moveit_config_package.",
         ),
         DeclareLaunchArgument(
-            "controllers_yaml",
+            "moveit_controllers_yaml",
             default_value="config/fr3/controllers.yaml",
-            description="Path to MoveIt controllers YAML relative to moveit_config_package.",
+            description=(
+                "Path to MoveIt controllers YAML relative to `moveit_config_package`."
+            ),
         ),
         DeclareLaunchArgument(
             "ompl_planning_yaml",
@@ -136,6 +142,19 @@ def generate_launch_description() -> LaunchDescription:
             default_value="config/fr3/trajopt_planning.yaml",
             description=(
                 "Path to TrajOpt plugin parameters YAML relative to moveit_config_package."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "use_rviz",
+            default_value="true",
+            description="Start RViz if true.",
+        ),
+        DeclareLaunchArgument(
+            "rviz_config",
+            default_value="rviz/moveit.rviz",
+            description=(
+                "RViz config file path. If relative, it is resolved relative to "
+                "`moveit_config_package`."
             ),
         ),
         DeclareLaunchArgument(
@@ -220,7 +239,7 @@ def generate_launch_description() -> LaunchDescription:
                 f"Invalid planner selection: '{planner_value}'. "
                 f"Valid options are: {[p.value for p in Planner]}"
             ) from ex
-            
+
         moveit_config_package_value = moveit_config_package.perform(context)
 
         kinematics = load_yaml(
@@ -230,7 +249,7 @@ def generate_launch_description() -> LaunchDescription:
             moveit_config_package_value, joint_limits_yaml.perform(context)
         )
         controllers = load_yaml(
-            moveit_config_package_value, controllers_yaml.perform(context)
+            moveit_config_package_value, moveit_controllers_yaml.perform(context)
         )
 
         planning_configs = {}
@@ -265,15 +284,25 @@ def generate_launch_description() -> LaunchDescription:
                     tesseract_monitor_namespace.perform(context)
                 )
 
-                tesseract_monitor_env = make_tesseract_environment_monitor_node(
+                tesseract_monitor_env = Node(
+                    package="tesseract_monitoring",
+                    executable="tesseract_monitoring_environment_node",
+                    name="tesseract_environment_monitor",
                     namespace=namespace,
-                    use_sim_time=use_sim_time,
-                    robot_description=robot_description,
-                    robot_description_semantic=robot_description_semantic,
-                    monitor_namespace=tesseract_monitor_namespace,
-                    joint_state_topic=tesseract_joint_state_topic.perform(context),
+                    output="screen",
+                    parameters=[
+                        {"use_sim_time": use_sim_time},
+                        robot_description,
+                        robot_description_semantic,
+                        {
+                            "monitor_namespace": tesseract_monitor_namespace,
+                            "monitored_namespace": "",
+                            "joint_state_topic": tesseract_joint_state_topic,
+                            "publish_environment": False,
+                        },
+                    ],
                 )
-                
+
         move_group_node = make_move_group_node(
             namespace=namespace,
             use_sim_time=use_sim_time,
@@ -286,10 +315,49 @@ def generate_launch_description() -> LaunchDescription:
             planning_configs=planning_configs,
         )
 
+        rviz_config_value = rviz_config.perform(context)
+        if os.path.isabs(rviz_config_value):
+            rviz_config_path = rviz_config_value
+        else:
+            rviz_config_path = os.path.join(
+                get_package_share_directory(moveit_config_package_value),
+                rviz_config_value,
+            )
+        if not os.path.exists(rviz_config_path):
+            raise RuntimeError(
+                f"RViz config file not found: '{rviz_config_path}' "
+                f"(from rviz_config:='{rviz_config_value}', "
+                f"moveit_config_package:='{moveit_config_package_value}')"
+            )
+
+        rviz_planning_pipeline_config = make_planning_pipeline_config(
+            planner=planner_enum,
+            planning_configs=planning_configs,
+        )
+        rviz_kinematics_config = {"robot_description_kinematics": kinematics}
+
+        rviz_node = Node(
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            namespace=namespace,
+            output="log",
+            arguments=["-d", rviz_config_path],
+            parameters=[
+                {"use_sim_time": use_sim_time},
+                robot_description,
+                robot_description_semantic,
+                rviz_planning_pipeline_config,
+                rviz_kinematics_config,
+            ],
+            condition=IfCondition(use_rviz),
+        )
+
         actions = []
         if tesseract_monitor_env is not None:
             actions.append(tesseract_monitor_env)
         actions.append(move_group_node)
+        actions.append(rviz_node)
 
         return actions
 

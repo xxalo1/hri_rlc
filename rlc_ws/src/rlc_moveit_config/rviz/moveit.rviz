@@ -231,7 +231,7 @@ Visualization Manager:
       Value: true
     - Acceleration_Scaling_Factor: 0.1
       Class: moveit_rviz_plugin/MotionPlanning
-      Enabled: false
+      Enabled: true
       Move Group Namespace: ""
       MoveIt_Allow_Approximate_IK: false
       MoveIt_Allow_External_Program: false
@@ -284,7 +284,7 @@ Visualization Manager:
         Goal State Color: 250; 128; 0
         Interactive Marker Size: 0
         Joint Violation Color: 255; 0; 255
-        Planning Group: fr3_manipulator
+        Planning Group: fr3_arm
         Query Goal State: true
         Query Start State: false
         Show Workspace: false
@@ -310,7 +310,7 @@ Visualization Manager:
         Robot Alpha: 1
         Show Robot Collision: false
         Show Robot Visual: true
-      Value: false
+      Value: true
       Velocity_Scaling_Factor: 0.1
   Enabled: true
   Global Options:
@@ -380,7 +380,7 @@ Window Geometry:
     collapsed: false
   Height: 1043
   Hide Left Dock: false
-  Hide Right Dock: true
+  Hide Right Dock: false
   MotionPlanning:
     collapsed: false
   MotionPlanning - Trajectory Slider:

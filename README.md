@@ -54,3 +54,11 @@ export GZ_SIM_SYSTEM_PLUGIN_PATH="$(ros2 pkg prefix gz_ros2_control)/lib:${GZ_SI
 export GZ_SIM_RESOURCE_PATH="$(ros2 pkg prefix kortex_description)/share:${GZ_SIM_RESOURCE_PATH}"
 
 ```
+
+## Launch
+```bash
+. install/setup.bash
+
+ros2 launch rlc_bringup fr3_gz_moveit.launch.py planner:=ompl
+
+```
