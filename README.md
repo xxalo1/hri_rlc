@@ -60,5 +60,5 @@ export GZ_SIM_RESOURCE_PATH="$(ros2 pkg prefix kortex_description)/share:${GZ_SI
 . install/setup.bash
 
 ros2 launch rlc_bringup fr3_gz_moveit.launch.py planner:=ompl
-
+ros2 launch rlc_bringup fr3_gz_moveit.launch.py planner:=rlc_trajopt
 ```
