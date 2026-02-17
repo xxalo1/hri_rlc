@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <memory>
+#include <rclcpp/exceptions/exceptions.hpp>
 
 namespace rlc_planner
 {
@@ -33,6 +34,28 @@ void setError(moveit_msgs::msg::MoveItErrorCodes& ec, int32_t error_val, std::st
 rclcpp::Logger getLogger()
 {
   return moveit::getLogger("rlc_planner.trajopt_planner_manager");
+}
+
+template <typename T>
+T declareOrGetParameter(rclcpp::Node& node, const std::string& name,
+                        const T& default_value)
+{
+  if (!node.has_parameter(name))
+  {
+    try
+    {
+      return node.declare_parameter<T>(name, default_value);
+    }
+    catch (const rclcpp::exceptions::ParameterAlreadyDeclaredException&)
+    {
+      // Fall through: parameter was declared by another component (e.g., automatic
+      // declaration from overrides).
+    }
+  }
+
+  T value = default_value;
+  (void)node.get_parameter(name, value);
+  return value;
 }
 }  // namespace
 
@@ -95,17 +118,20 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
   const auto srv_wait_ms_param = pfx + "scene_bridge.srv_wait_ms";
   const auto scene_qos_depth_param = pfx + "scene_bridge.scene_qos_depth";
 
-  opt.scene_bridge.monitor_namespace = node_->declare_parameter<std::string>(
-      monitor_namespace_param, opt.scene_bridge.monitor_namespace);
+  opt.scene_bridge.monitor_namespace =
+      declareOrGetParameter<std::string>(*node_, monitor_namespace_param,
+                                         opt.scene_bridge.monitor_namespace);
   opt.scene_bridge.env_name =
-      node_->declare_parameter<std::string>(env_name_param, opt.scene_bridge.env_name);
-  opt.scene_bridge.scene_topic = node_->declare_parameter<std::string>(
-      scene_topic_param, opt.scene_bridge.scene_topic);
-  opt.scene_bridge.get_scene_srv = node_->declare_parameter<std::string>(
-      get_scene_srv_param, opt.scene_bridge.get_scene_srv);
+      declareOrGetParameter<std::string>(*node_, env_name_param, opt.scene_bridge.env_name);
+  opt.scene_bridge.scene_topic =
+      declareOrGetParameter<std::string>(*node_, scene_topic_param, opt.scene_bridge.scene_topic);
+  opt.scene_bridge.get_scene_srv =
+      declareOrGetParameter<std::string>(*node_, get_scene_srv_param,
+                                         opt.scene_bridge.get_scene_srv);
 
-  const int scene_components = node_->declare_parameter<int>(
-      scene_components_param, static_cast<int>(opt.scene_bridge.scene_components));
+  const int scene_components = declareOrGetParameter<int>(
+      *node_, scene_components_param,
+      static_cast<int>(opt.scene_bridge.scene_components));
   if (scene_components >= 0)
   {
     opt.scene_bridge.scene_components = static_cast<uint32_t>(scene_components);
@@ -117,8 +143,8 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
                 scene_components, opt.scene_bridge.scene_components);
   }
 
-  const int srv_wait_ms = node_->declare_parameter<int>(
-      srv_wait_ms_param, static_cast<int>(opt.scene_bridge.srv_wait.count()));
+  const int srv_wait_ms = declareOrGetParameter<int>(
+      *node_, srv_wait_ms_param, static_cast<int>(opt.scene_bridge.srv_wait.count()));
   if (srv_wait_ms >= 0)
   {
     opt.scene_bridge.srv_wait = std::chrono::milliseconds{ srv_wait_ms };
@@ -129,8 +155,8 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
                 srv_wait_ms, static_cast<long>(opt.scene_bridge.srv_wait.count()));
   }
 
-  const int scene_qos_depth = node_->declare_parameter<int>(
-      scene_qos_depth_param, static_cast<int>(opt.scene_bridge.scene_qos_depth));
+  const int scene_qos_depth = declareOrGetParameter<int>(
+      *node_, scene_qos_depth_param, static_cast<int>(opt.scene_bridge.scene_qos_depth));
   if (scene_qos_depth > 0)
   {
     opt.scene_bridge.scene_qos_depth = static_cast<std::size_t>(scene_qos_depth);
@@ -145,8 +171,8 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
   // Scene bridge environment sync options
   const auto allow_replace_param = pfx + "scene_bridge.env_sync.allow_replace";
 
-  opt.scene_bridge.env_sync.allow_replace = node_->declare_parameter<bool>(
-      allow_replace_param, opt.scene_bridge.env_sync.allow_replace);
+  opt.scene_bridge.env_sync.allow_replace = declareOrGetParameter<bool>(
+      *node_, allow_replace_param, opt.scene_bridge.env_sync.allow_replace);
 
   // TrajOpt interface options
   const auto default_num_steps_param = pfx + "trajopt.default_num_steps";
@@ -158,18 +184,18 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
   const auto enable_last_solution_cache_param =
       pfx + "trajopt.enable_last_solution_cache";
 
-  opt.trajopt.default_num_steps = node_->declare_parameter<int>(
-      default_num_steps_param, opt.trajopt.default_num_steps);
-  opt.trajopt.use_moveit_group_as_tesseract_manipulator = node_->declare_parameter<bool>(
-      use_moveit_group_as_tesseract_manipulator_param,
+  opt.trajopt.default_num_steps = declareOrGetParameter<int>(
+      *node_, default_num_steps_param, opt.trajopt.default_num_steps);
+  opt.trajopt.use_moveit_group_as_tesseract_manipulator = declareOrGetParameter<bool>(
+      *node_, use_moveit_group_as_tesseract_manipulator_param,
       opt.trajopt.use_moveit_group_as_tesseract_manipulator);
-  opt.trajopt.fixed_tesseract_manipulator_group = node_->declare_parameter<std::string>(
-      fixed_tesseract_manipulator_group_param,
+  opt.trajopt.fixed_tesseract_manipulator_group = declareOrGetParameter<std::string>(
+      *node_, fixed_tesseract_manipulator_group_param,
       opt.trajopt.fixed_tesseract_manipulator_group);
-  opt.trajopt.enable_seed_cache = node_->declare_parameter<bool>(
-      enable_seed_cache_param, opt.trajopt.enable_seed_cache);
-  opt.trajopt.enable_last_solution_cache = node_->declare_parameter<bool>(
-      enable_last_solution_cache_param, opt.trajopt.enable_last_solution_cache);
+  opt.trajopt.enable_seed_cache = declareOrGetParameter<bool>(
+      *node_, enable_seed_cache_param, opt.trajopt.enable_seed_cache);
+  opt.trajopt.enable_last_solution_cache = declareOrGetParameter<bool>(
+      *node_, enable_last_solution_cache_param, opt.trajopt.enable_last_solution_cache);
 
   return opt;
 }
