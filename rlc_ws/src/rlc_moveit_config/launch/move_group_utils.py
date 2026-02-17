@@ -32,6 +32,63 @@ class Planner(Enum):
     OMPL = "ompl"
     RLC_TRAJOPT = "rlc_trajopt"
 
+_TESSERACT_XMLNS = "https://github.com/tesseract-robotics/tesseract"
+
+
+def ensure_tesseract_make_convex_attribute(urdf_xml: str, *, make_convex: bool = True) -> str:
+    """
+    Ensure a URDF has the global `tesseract:make_convex` attribute on `<robot>`.
+
+    Tesseract's URDF parser requires the global attribute `tesseract:make_convex` on
+    the `<robot>` element (see `tesseract_urdf::parseURDFString`). The attribute
+    indicates whether collision meshes should be globally converted to convex hulls.
+
+    This helper performs a minimal string-level injection on the first `<robot ...>`
+    start tag so the attribute name is exactly `tesseract:make_convex` (Tesseract
+    queries it by name, not by namespace-aware parsing).
+
+    Parameters
+    ----------
+    urdf_xml : str
+        URDF XML string.
+    make_convex : bool, optional
+        Value to inject for `tesseract:make_convex` if missing.
+
+    Returns
+    -------
+    str
+        URDF XML string with `xmlns:tesseract` and `tesseract:make_convex` added to
+        the `<robot>` start tag if they were missing.
+
+    Raises
+    ------
+    RuntimeError
+        If the `<robot>` element cannot be found in `urdf_xml`.
+    """
+    robot_open_idx = urdf_xml.find("<robot")
+    if robot_open_idx < 0:
+        raise RuntimeError("URDF XML does not contain a '<robot' element.")
+
+    robot_tag_end_idx = urdf_xml.find(">", robot_open_idx)
+    if robot_tag_end_idx < 0:
+        raise RuntimeError(
+            "URDF XML contains '<robot' but no closing '>' for the start tag."
+        )
+
+    robot_start_tag = urdf_xml[robot_open_idx:robot_tag_end_idx]
+    insert = ""
+
+    if "xmlns:tesseract=" not in robot_start_tag:
+        insert += f' xmlns:tesseract="{_TESSERACT_XMLNS}"'
+
+    if "tesseract:make_convex=" not in robot_start_tag:
+        insert += f' tesseract:make_convex="{"true" if make_convex else "false"}"'
+
+    if not insert:
+        return urdf_xml
+
+    return urdf_xml[:robot_tag_end_idx] + insert + urdf_xml[robot_tag_end_idx:]
+
 
 def load_yaml(package_name: str, relative_path: str) -> dict[str, Any]:
     """
@@ -242,4 +299,3 @@ def make_move_group_node(
             planning_scene_monitor_parameters,
         ],
     )
-

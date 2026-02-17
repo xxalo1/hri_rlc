@@ -37,6 +37,7 @@ from move_group_utils import (
     make_move_group_node,
     make_planning_pipeline_config,
     Planner,
+    ensure_tesseract_make_convex_attribute,
 )
 
 
@@ -284,6 +285,13 @@ def generate_launch_description() -> LaunchDescription:
                     tesseract_monitor_namespace.perform(context)
                 )
 
+                tesseract_urdf_xml = robot_description_command.perform(context)
+                tesseract_robot_description = {
+                    "robot_description": ensure_tesseract_make_convex_attribute(
+                        tesseract_urdf_xml, make_convex=True
+                    )
+                }
+
                 tesseract_monitor_env = Node(
                     package="tesseract_monitoring",
                     executable="tesseract_monitoring_environment_node",
@@ -292,7 +300,7 @@ def generate_launch_description() -> LaunchDescription:
                     output="screen",
                     parameters=[
                         {"use_sim_time": use_sim_time},
-                        robot_description,
+                        tesseract_robot_description,
                         robot_description_semantic,
                         {
                             "monitor_namespace": tesseract_monitor_namespace,
