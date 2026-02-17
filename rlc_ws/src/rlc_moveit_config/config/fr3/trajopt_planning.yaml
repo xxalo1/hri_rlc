@@ -1,7 +1,7 @@
 scene_bridge:
   monitor_namespace: tesseract_monitor
   env_name: fr3
-  scene_topic: /move_group/monitored_planning_scene
+  scene_topic: /monitored_planning_scene
   get_scene_srv: /get_planning_scene
 
   # MoveIt PlanningSceneComponents bitmask:

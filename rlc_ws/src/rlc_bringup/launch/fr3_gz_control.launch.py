@@ -30,6 +30,8 @@ def generate_launch_description() -> LaunchDescription:
 
     - Spawns FR3 using `franka_description` with `gazebo_effort:=true` so effort command
       interfaces are available.
+    - Publishes a static TF frame `base` (identity w.r.t. `fr3_link0`) to match the
+      MoveIt SRDF virtual joint (MoveIt expects the planning frame `base`).
     - Starts `joint_state_broadcaster` and `arm_controller`
       (`joint_trajectory_controller/JointTrajectoryController`) so MoveIt can later
       execute trajectories via `FollowJointTrajectory`.
@@ -118,6 +120,15 @@ def generate_launch_description() -> LaunchDescription:
         executable="robot_state_publisher",
         output="screen",
         parameters=[robot_description, {"use_sim_time": use_sim_time}],
+    )
+
+    base_frame_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="fr3_base_frame_tf",
+        output="screen",
+        arguments=["--frame-id", "fr3_link0", "--child-frame-id", "base"],
+        parameters=[{"use_sim_time": use_sim_time}],
     )
 
     spawn = Node(
@@ -255,6 +266,7 @@ def generate_launch_description() -> LaunchDescription:
             gz,
             clock_bridge,
             robot_state_publisher,
+            base_frame_tf,
             spawn,
             start_jsb_after_spawn,
             start_arm_after_jsb,
