@@ -1,14 +1,6 @@
-# `rlc_planner/TrajOptPlannerManager` parameters.
-#
-# These mappings are merged into the MoveIt planning pipeline namespace (usually
-# `move_group.*`) by `launch/move_group.launch.py` when `planner:=rlc_trajopt`.
 scene_bridge:
-  # Namespace used for Tesseract monitor services/topics, e.g.:
-  #   /<monitor_namespace>/get_tesseract_information
-  #
-  # This is typically overridden by the launch argument `tesseract_monitor_namespace`.
   monitor_namespace: tesseract_monitor
-  env_name: default
+  env_name: fr3
   scene_topic: /move_group/monitored_planning_scene
   get_scene_srv: /get_planning_scene
 
