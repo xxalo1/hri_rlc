@@ -121,8 +121,10 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
   opt.scene_bridge.monitor_namespace =
       declareOrGetParameter<std::string>(*node_, monitor_namespace_param,
                                          opt.scene_bridge.monitor_namespace);
-  opt.scene_bridge.env_name =
-      declareOrGetParameter<std::string>(*node_, env_name_param, opt.scene_bridge.env_name);
+  // Tesseract environment name must match the environment monitor's ID (usually the
+  // URDF robot name). Default to the MoveIt robot model name for convenience.
+  opt.scene_bridge.env_name = declareOrGetParameter<std::string>(
+      *node_, env_name_param, model_->getName());
   opt.scene_bridge.scene_topic =
       declareOrGetParameter<std::string>(*node_, scene_topic_param, opt.scene_bridge.scene_topic);
   opt.scene_bridge.get_scene_srv =
