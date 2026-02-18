@@ -10,7 +10,9 @@
 
 #include <pluginlib/class_list_macros.hpp>
 
+#include <tesseract_monitoring/constants.h>
 #include <tesseract_monitoring/environment_monitor_interface.h>
+#include <tesseract_msgs/srv/get_environment_information.hpp>
 
 #include <chrono>
 #include <memory>
@@ -206,6 +208,20 @@ bool TrajOptPlannerManager::initializeTesseractBridge(
     const rclcpp::Node::SharedPtr& node,
     const rlc_scene_bridge::MoveItTesseractBridgeOptions& opt)
 {
+  const std::string info_srv =
+      "/" + opt.monitor_namespace +
+      tesseract_monitoring::DEFAULT_GET_ENVIRONMENT_INFORMATION_SERVICE;
+  auto info_client =
+      node->create_client<tesseract_msgs::srv::GetEnvironmentInformation>(info_srv);
+
+  if (!info_client->wait_for_service(std::chrono::seconds{ 3 }))
+  {
+    RCLCPP_ERROR(getLogger(),
+                 "Tesseract monitor info service '%s' not available after 3 seconds",
+                 info_srv.c_str());
+    return false;
+  }
+
   auto mon = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitorInterface>(
       node, opt.env_name);
   mon->addNamespace(opt.monitor_namespace);
