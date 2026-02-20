@@ -183,6 +183,13 @@ TrajOptInterface::extractStart(const planning_scene::PlanningSceneConstPtr& scen
 {
   StartData out(scene->getRobotModel());
 
+  out.joint_names = jmg.getActiveJointModelNames();
+  if (out.joint_names.empty())
+  {
+    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
+                        "MoveIt group '" + req.group_name + "' has no active joints");
+  }
+
   out.variable_names = jmg.getVariableNames();
   if (out.variable_names.empty())
   {
