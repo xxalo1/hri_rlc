@@ -33,6 +33,7 @@ TesseractEnvSync::~TesseractEnvSync() = default;
 
 TesseractEnvSync::EnvironmentUPtr TesseractEnvSync::snapshot() const
 {
+  std::scoped_lock lk(monitor_mutex_);
   auto env = monitor_interface_->getEnvironment(monitor_namespace_);
   if (!env)
   {
@@ -58,6 +59,7 @@ void TesseractEnvSync::applyDiff(const PlanningSceneMsg& scene)
 
 void TesseractEnvSync::applyCommands(const tesseract_environment::Commands& commands) const
 {
+  std::scoped_lock lk(monitor_mutex_);
   const bool ok = monitor_interface_->applyCommands(monitor_namespace_, commands);
   if (!ok)
   {

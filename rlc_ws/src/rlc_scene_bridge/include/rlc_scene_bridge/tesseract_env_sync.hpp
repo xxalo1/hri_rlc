@@ -1,4 +1,5 @@
 #pragma once
+#include <mutex>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -74,6 +75,8 @@ private:
 
   std::unordered_map<std::string, tesseract_scene::ObjectInfo> world_objects_;
   std::unordered_map<std::string, tesseract_scene::ObjectInfo> attached_objects_;
+
+  mutable std::mutex monitor_mutex_;
 };
 
 }  // namespace rlc_scene_bridge
