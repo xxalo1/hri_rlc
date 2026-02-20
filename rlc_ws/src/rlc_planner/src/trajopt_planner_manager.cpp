@@ -120,22 +120,20 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
   const auto srv_wait_ms_param = pfx + "scene_bridge.srv_wait_ms";
   const auto scene_qos_depth_param = pfx + "scene_bridge.scene_qos_depth";
 
-  opt.scene_bridge.monitor_namespace =
-      declareOrGetParameter<std::string>(*node_, monitor_namespace_param,
-                                         opt.scene_bridge.monitor_namespace);
+  opt.scene_bridge.monitor_namespace = declareOrGetParameter<std::string>(
+      *node_, monitor_namespace_param, opt.scene_bridge.monitor_namespace);
   // Tesseract environment name must match the environment monitor's ID (usually the
   // URDF robot name). Default to the MoveIt robot model name for convenience.
-  opt.scene_bridge.env_name = declareOrGetParameter<std::string>(
-      *node_, env_name_param, model_->getName());
-  opt.scene_bridge.scene_topic =
-      declareOrGetParameter<std::string>(*node_, scene_topic_param, opt.scene_bridge.scene_topic);
-  opt.scene_bridge.get_scene_srv =
-      declareOrGetParameter<std::string>(*node_, get_scene_srv_param,
-                                         opt.scene_bridge.get_scene_srv);
+  opt.scene_bridge.env_name =
+      declareOrGetParameter<std::string>(*node_, env_name_param, model_->getName());
+  opt.scene_bridge.scene_topic = declareOrGetParameter<std::string>(
+      *node_, scene_topic_param, opt.scene_bridge.scene_topic);
+  opt.scene_bridge.get_scene_srv = declareOrGetParameter<std::string>(
+      *node_, get_scene_srv_param, opt.scene_bridge.get_scene_srv);
 
-  const int scene_components = declareOrGetParameter<int>(
-      *node_, scene_components_param,
-      static_cast<int>(opt.scene_bridge.scene_components));
+  const int scene_components =
+      declareOrGetParameter<int>(*node_, scene_components_param,
+                                 static_cast<int>(opt.scene_bridge.scene_components));
   if (scene_components >= 0)
   {
     opt.scene_bridge.scene_components = static_cast<uint32_t>(scene_components);
@@ -190,12 +188,12 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
 
   opt.trajopt.default_num_steps = declareOrGetParameter<int>(
       *node_, default_num_steps_param, opt.trajopt.default_num_steps);
-  opt.trajopt.use_moveit_group_as_tesseract_manipulator = declareOrGetParameter<bool>(
-      *node_, use_moveit_group_as_tesseract_manipulator_param,
-      opt.trajopt.use_moveit_group_as_tesseract_manipulator);
-  opt.trajopt.fixed_tesseract_manipulator_group = declareOrGetParameter<std::string>(
-      *node_, fixed_tesseract_manipulator_group_param,
-      opt.trajopt.fixed_tesseract_manipulator_group);
+  opt.trajopt.use_moveit_group_as_tesseract_manipulator =
+      declareOrGetParameter<bool>(*node_, use_moveit_group_as_tesseract_manipulator_param,
+                                  opt.trajopt.use_moveit_group_as_tesseract_manipulator);
+  opt.trajopt.fixed_tesseract_manipulator_group =
+      declareOrGetParameter<std::string>(*node_, fixed_tesseract_manipulator_group_param,
+                                         opt.trajopt.fixed_tesseract_manipulator_group);
   opt.trajopt.enable_seed_cache = declareOrGetParameter<bool>(
       *node_, enable_seed_cache_param, opt.trajopt.enable_seed_cache);
   opt.trajopt.enable_last_solution_cache = declareOrGetParameter<bool>(
@@ -208,11 +206,22 @@ bool TrajOptPlannerManager::initializeTesseractBridge(
     const rclcpp::Node::SharedPtr& node,
     const rlc_scene_bridge::MoveItTesseractBridgeOptions& opt)
 {
+  rclcpp::NodeOptions node_opt;
+  node_opt.context(node->get_node_base_interface()->get_context());
+  node_opt.start_parameter_services(false);
+  node_opt.start_parameter_event_publisher(false);
+
+  const std::string client_node_name =
+      node->get_name() + std::string{ "_tesseract_monitor_client" };
+  tesseract_monitor_client_node_ =
+      std::make_shared<rclcpp::Node>(client_node_name, node->get_namespace(), node_opt);
+
   const std::string info_srv =
       "/" + opt.monitor_namespace +
       tesseract_monitoring::DEFAULT_GET_ENVIRONMENT_INFORMATION_SERVICE;
   auto info_client =
-      node->create_client<tesseract_msgs::srv::GetEnvironmentInformation>(info_srv);
+      tesseract_monitor_client_node_
+          ->create_client<tesseract_msgs::srv::GetEnvironmentInformation>(info_srv);
 
   if (!info_client->wait_for_service(std::chrono::seconds{ 3 }))
   {
@@ -223,10 +232,10 @@ bool TrajOptPlannerManager::initializeTesseractBridge(
   }
 
   auto mon = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitorInterface>(
-      node, opt.env_name);
+      tesseract_monitor_client_node_, opt.env_name);
   mon->addNamespace(opt.monitor_namespace);
 
-  if (!mon->wait(std::chrono::seconds{ 3 }))
+  if (!mon->waitForNamespace(opt.monitor_namespace, std::chrono::seconds{ 3 }))
   {
     RCLCPP_ERROR(getLogger(), "Tesseract monitor not reachable under namespace '%s'",
                  opt.monitor_namespace.c_str());
@@ -263,10 +272,29 @@ bool TrajOptPlannerManager::canServiceRequest(
 {
   if (!model_)
   {
+    RCLCPP_ERROR(getLogger(), "Robot model is not initialized");
     return false;
   }
   if (!model_->hasJointModelGroup(req.group_name))
   {
+    RCLCPP_ERROR(getLogger(),
+                 "Joint model group '%s' is not available in the robot model",
+                 req.group_name.c_str());
+    return false;
+  }
+  if (!env_bridge_)
+  {
+    RCLCPP_ERROR(getLogger(), "Tesseract bridge is not initialized");
+    return false;
+  }
+  if (!env_bridge_->isSynchronized())
+  {
+    RCLCPP_ERROR(getLogger(), "Tesseract environment is not synchronized");
+    return false;
+  }
+  if (!trajopt_interface_)
+  {
+    RCLCPP_ERROR(getLogger(), "TrajOpt interface is not initialized");
     return false;
   }
 
@@ -280,18 +308,10 @@ planning_interface::PlanningContextPtr TrajOptPlannerManager::getPlanningContext
     const planning_interface::MotionPlanRequest& req,
     moveit_msgs::msg::MoveItErrorCodes& error_code) const
 {
-  try
+  if (!planning_scene)
   {
-    validateRequest(planning_scene, req);
-  }
-  catch (const PlanningError& ex)
-  {
-    setError(error_code, ex.code(), ex.what());
-    return nullptr;
-  }
-  catch (const std::exception& ex)
-  {
-    setError(error_code, moveit_msgs::msg::MoveItErrorCodes::FAILURE, ex.what());
+    setError(error_code, moveit_msgs::msg::MoveItErrorCodes::FAILURE,
+             "PlanningScene is null");
     return nullptr;
   }
 

@@ -133,6 +133,8 @@ private:
   std::string parameter_namespace_;         ///< Parameter namespace prefix for this plugin.
   TrajOptPlannerOptions options_{};         ///< Loaded options used for initialization.
 
+  rclcpp::Node::SharedPtr tesseract_monitor_client_node_;  ///< Dedicated node for Tesseract monitor service calls.
+
   std::shared_ptr<rlc_scene_bridge::MoveItTesseractBridge>
       env_bridge_;  ///< Scene bridge providing synchronized Tesseract snapshots.
   std::shared_ptr<TrajOptInterface> trajopt_interface_;  ///< Shared TrajOpt interface.
