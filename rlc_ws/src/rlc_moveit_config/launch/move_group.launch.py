@@ -295,7 +295,6 @@ def generate_launch_description() -> LaunchDescription:
                 tesseract_monitor_env = Node(
                     package="tesseract_monitoring",
                     executable="tesseract_monitoring_environment_node",
-                    name="tesseract_environment_monitor",
                     namespace=namespace,
                     output="screen",
                     parameters=[

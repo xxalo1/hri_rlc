@@ -198,7 +198,6 @@ def generate_launch_description():
     tesseract_env_monitor_node = Node(
         package='tesseract_monitoring',
         executable='tesseract_monitoring_environment_node',
-        name='tesseract_environment_monitor',
         namespace=namespace,
         output='screen',
         parameters=[
