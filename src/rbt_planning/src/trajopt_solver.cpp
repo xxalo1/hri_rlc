@@ -133,6 +133,8 @@ void TrajOptSolver::constructProblem()
   pci.basic_info.fixed_timesteps = trajopt::IntVec{ 0 };
   pci.basic_info.use_time = false;
 
+  pci.kin = env_->getJointGroup(manipulator_group_);
+
   pci.init_info.type = trajopt::InitInfo::GIVEN_TRAJ;
   if (traj_seed_)
   {
