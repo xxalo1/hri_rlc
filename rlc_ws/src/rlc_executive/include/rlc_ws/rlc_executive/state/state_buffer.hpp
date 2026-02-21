@@ -34,7 +34,7 @@ public:
                      const std::string& source_frame) const;
 
 private:
-  void onJointState(const sensor_msgs::msg::JointState::SharedPtr msg);
+  void onJointState(const sensor_msgs::msg::JointState::ConstSharedPtr& msg);
 
   rclcpp::Node* node_ = nullptr;     // non-owning
   const ExecConfig* cfg_ = nullptr;  // non-owning
