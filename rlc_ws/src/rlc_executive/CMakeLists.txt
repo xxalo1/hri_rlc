@@ -14,11 +14,14 @@ find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/core/config_loader.cpp
+  src/state/state_buffer.cpp
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
@@ -38,6 +41,8 @@ ament_target_dependencies(${PROJECT_NAME}
     rclcpp
     rclcpp_action
     sensor_msgs
+    tf2
+    tf2_ros
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp)
@@ -62,6 +67,8 @@ ament_export_dependencies(
   rclcpp
   rclcpp_action
   sensor_msgs
+  tf2
+  tf2_ros
   yaml-cpp
 )
 
