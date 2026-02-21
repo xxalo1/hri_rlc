@@ -1,7 +1,9 @@
 #pragma once
 
-#include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
+#include <cstdint>
 
 #include <rclcpp/node.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
@@ -25,19 +27,47 @@ public:
 
   MoveItExecutor(rclcpp::Node& node, const ExecConfig& cfg);
 
-  ExecResult execute(const moveit_msgs::msg::RobotTrajectory& traj,
-                     const PlanningProfile& profile) override;
+  bool start(const moveit_msgs::msg::RobotTrajectory& traj,
+             const PlanningProfile& profile, std::string* error_msg = nullptr) override;
 
-  void cancel() override;
+  bool preemptAndStart(const moveit_msgs::msg::RobotTrajectory& traj,
+                       const PlanningProfile& profile,
+                       std::string* error_msg = nullptr) override;
+
+  void requestCancel() override;
+
+  bool isActive() const override;
+  bool hasResult() const override;
+
+  std::optional<ExecResult> peekResult() const override;
+  std::optional<ExecResult> takeResult() override;
+
+  ExecutionFeedback latestFeedback() const override;
 
 private:
-  rclcpp::Node* node_ = nullptr;     // non-owning
-  const ExecConfig* cfg_ = nullptr;  // non-owning
+  void setImmediateFailure(ExecResult out);
+
+  void handleGoalResponse(std::uint64_t seq, const GoalHandle::SharedPtr& gh);
+  void handleFeedback(std::uint64_t seq);
+  void handleResult(std::uint64_t seq, const GoalHandle::WrappedResult& wrapped);
+
+  rclcpp::Node* node_ = nullptr;
+  const ExecConfig* cfg_ = nullptr;
 
   Client::SharedPtr client_;
 
-  // Track the active goal so cancel() can cancel it.
+  mutable std::mutex mtx_;
+
+  std::uint64_t active_seq_ = 0;
+  bool active_ = false;
+
   GoalHandle::SharedPtr active_goal_;
+
+  rclcpp::Time start_time_{ 0, 0, RCL_ROS_TIME };
+  rclcpp::Time last_feedback_time_{ 0, 0, RCL_ROS_TIME };
+  std::string last_feedback_text_;
+
+  std::optional<ExecResult> result_;
 };
 
 }  // namespace rlc_executive
