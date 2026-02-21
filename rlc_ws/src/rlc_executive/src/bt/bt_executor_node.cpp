@@ -53,8 +53,8 @@ void BtExecutorNode::start()
   const std::string plugins_path = makePath(plugins_param);
   const std::string tree_xml_path = makePath(tree_param);
 
-  cfg_ = ConfigLoader::loadExecConfigFromFile(exec_cfg_path);
-  ConfigLoader::loadPlanningProfilesInto(cfg_, profiles_cfg_path);
+  cfg_ = config::loadExecConfigFromFile(exec_cfg_path);
+  config::loadPlanningProfilesInto(cfg_, profiles_cfg_path);
 
   ctx_ = std::make_shared<RuntimeContext>(*this, cfg_);
 
