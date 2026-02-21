@@ -1,7 +1,5 @@
 #include "rlc_executive/state/state_buffer.hpp"
 
-#include <chrono>
-
 #include <rclcpp/qos.hpp>
 #include <tf2/exceptions.h>
 
@@ -11,12 +9,14 @@ namespace rlc_executive
 StateBuffer::StateBuffer(rclcpp::Node& node, const ExecConfig& cfg)
   : node_(&node), cfg_(&cfg), tf_buffer_(node.get_clock()), tf_listener_(tf_buffer_)
 {
+  auto joint_state_cb = [this](const sensor_msgs::msg::JointState::ConstSharedPtr& msg) {
+    onJointState(msg);
+  };
   joint_state_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
-      cfg_->joint_states_topic, cfg_->joint_state_qos,
-      std::bind(&StateBuffer::onJointState, this, std::placeholders::_1));
+      cfg_->joint_states_topic, cfg_->joint_state_qos, joint_state_cb);
 }
 
-void StateBuffer::onJointState(const sensor_msgs::msg::JointState::SharedPtr msg)
+void StateBuffer::onJointState(const sensor_msgs::msg::JointState::ConstSharedPtr& msg)
 {
   std::lock_guard<std::mutex> lock(mtx_);
   latest_joint_state_ = *msg;
