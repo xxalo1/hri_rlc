@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <mutex>
+#include <optional>
 #include <string>
 
 #include <rclcpp/node.hpp>
@@ -14,6 +17,12 @@
 namespace rlc_executive
 {
 
+struct PlanningFeedback
+{
+  std::string text;
+  double elapsed_sec = 0.0;
+};
+
 class MoveGroupClient final
 {
 public:
@@ -21,16 +30,49 @@ public:
   using Client = rclcpp_action::Client<MoveGroup>;
   using GoalHandle = rclcpp_action::ClientGoalHandle<MoveGroup>;
 
-  explicit MoveGroupClient(rclcpp::Node::SharedPtr& node, const ExecConfig& cfg);
+  MoveGroupClient(rclcpp::Node& node, const ExecConfig& cfg);
 
-  PlanResult plan(const moveit_msgs::msg::MotionPlanRequest& req,
-                  const PlanningProfile& profile);
+  // Non-blocking: send plan request and return immediately.
+  bool start(const moveit_msgs::msg::MotionPlanRequest& req,
+             const PlanningProfile& profile, std::string* error_msg = nullptr);
+
+  // Best-effort cancel any active planning goal, then start new one.
+  bool preemptAndStart(const moveit_msgs::msg::MotionPlanRequest& req,
+                       const PlanningProfile& profile, std::string* error_msg = nullptr);
+
+  // Best-effort cancel request (non-blocking).
+  void requestCancel();
+
+  bool isActive() const;
+  bool hasResult() const;
+
+  std::optional<PlanResult> peekResult() const;
+  std::optional<PlanResult> takeResult();
+
+  PlanningFeedback latestFeedback() const;
 
 private:
-  rclcpp::Node::SharedPtr node_ = nullptr;     // non-owning
-  const ExecConfig* cfg_ = nullptr;  // non-owning
+  void handleGoalResponse(std::uint64_t seq, const GoalHandle::SharedPtr& goal_handle);
+  void handleFeedback(std::uint64_t seq);
+  void handleResult(std::uint64_t seq, const GoalHandle::WrappedResult& wrapped);
+
+  rclcpp::Node* node_ = nullptr;
+  const ExecConfig* cfg_ = nullptr;
 
   Client::SharedPtr client_;
+
+  mutable std::mutex mtx_;
+
+  std::uint64_t active_seq_ = 0;
+  bool active_ = false;
+
+  GoalHandle::SharedPtr active_goal_;
+
+  rclcpp::Time start_time_{ 0, 0, RCL_ROS_TIME };
+  rclcpp::Time last_feedback_time_{ 0, 0, RCL_ROS_TIME };
+  std::string last_feedback_text_;
+
+  std::optional<PlanResult> result_;
 };
 
 }  // namespace rlc_executive
