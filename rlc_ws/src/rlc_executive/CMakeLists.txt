@@ -16,6 +16,7 @@ find_package(moveit_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(behaviortree_cpp REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
@@ -35,6 +36,7 @@ target_include_directories(${PROJECT_NAME}
 ament_target_dependencies(${PROJECT_NAME}
   PUBLIC
     ament_index_cpp
+    behaviortree_cpp
     builtin_interfaces
     geometry_msgs
     moveit_msgs
@@ -61,6 +63,7 @@ install(DIRECTORY include/
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   ament_index_cpp
+  behaviortree_cpp
   builtin_interfaces
   geometry_msgs
   moveit_msgs

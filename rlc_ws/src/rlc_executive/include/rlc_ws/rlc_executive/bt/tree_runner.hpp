@@ -3,8 +3,7 @@
 #include <memory>
 #include <string>
 
-#include <behaviortree_cpp_v3/bt_factory.h>
-#include <behaviortree_cpp_v3/tree.h>
+#include <behaviortree_cpp/bt_factory.h>
 
 #include "rlc_executive/core/types.hpp"
 

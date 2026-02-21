@@ -25,7 +25,7 @@
   <depend>control_msgs</depend>
 
   <!-- BT engine -->
-  <depend>behaviortree_cpp_v3</depend>
+  <depend>behaviortree_cpp</depend>
 
   <!-- YAML config -->
   <depend>yaml_cpp_vendor</depend>
