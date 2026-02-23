@@ -22,6 +22,11 @@ find_package(yaml-cpp REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/core/config_loader.cpp
+  src/core/runtime_context.cpp
+  src/bt/bt_executor_node.cpp
+  src/bt/tree_runner.cpp
+  src/execution/moveit_executor.cpp
+  src/moveit/move_group_client.cpp
   src/state/state_buffer.cpp
 )
 
@@ -29,8 +34,8 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/rlc_ws>
-    $<INSTALL_INTERFACE:include/rlc_ws>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
 ament_target_dependencies(${PROJECT_NAME}
@@ -49,6 +54,26 @@ ament_target_dependencies(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp)
 
+add_executable(rlc_bt_executor
+  src/bt/main.cpp
+)
+
+ament_target_dependencies(rlc_bt_executor
+  rclcpp
+)
+
+target_link_libraries(rlc_bt_executor ${PROJECT_NAME})
+
+add_library(rlc_executive_nodes SHARED
+  src/skills/testing/always_success.cpp
+)
+
+ament_target_dependencies(rlc_executive_nodes
+  behaviortree_cpp
+)
+
+target_compile_definitions(rlc_executive_nodes PRIVATE BT_PLUGIN_EXPORT)
+
 install(TARGETS ${PROJECT_NAME}
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
@@ -56,8 +81,36 @@ install(TARGETS ${PROJECT_NAME}
   RUNTIME DESTINATION bin
 )
 
+install(TARGETS rlc_bt_executor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(TARGETS rlc_executive_nodes
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
 install(DIRECTORY include/
   DESTINATION include
+)
+
+install(DIRECTORY bt_trees/
+  DESTINATION share/${PROJECT_NAME}/bt_trees
+)
+
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
+
+install(DIRECTORY plugins/
+  DESTINATION share/${PROJECT_NAME}/plugins
+)
+
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
 )
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)

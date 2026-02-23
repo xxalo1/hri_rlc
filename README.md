@@ -58,7 +58,22 @@ export GZ_SIM_RESOURCE_PATH="$(ros2 pkg prefix kortex_description)/share:${GZ_SI
 ## Launch
 ```bash
 . install/setup.bash
+```
 
+### Launch fr3 gazebo sim with movegroup and planner plgin 
+```bash
 ros2 launch rlc_bringup fr3_gz_moveit.launch.py planner:=ompl
 ros2 launch rlc_bringup fr3_gz_moveit.launch.py planner:=rlc_trajopt
+```
+
+### Launch BehaviorTree executive
+```bash
+ros2 launch rlc_executive bt.launch.py
+
+ros2 launch rlc_executive bt.launch.py default_tree:=reactive_core.xml
+
+ros2 launch rlc_executive bt.launch.py log_level:=info
+
+ros2 launch rlc_executive bt.launch.py exit_on_completion:=true
+
 ```

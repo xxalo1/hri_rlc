@@ -19,19 +19,36 @@ class RuntimeContext final
 public:
   RuntimeContext(rclcpp::Node& node, ExecConfig cfg);
 
-  rclcpp::Node& node() const;
-
-  const ExecConfig& config() const;
-
-  StateBuffer& stateBuffer() const;
-  MoveGroupClient& moveGroupClient() const;
-  TrajectoryExecutor& trajectoryExecutor() const;
-
   // Returns nullptr if not found.
   const PlanningProfile* getPlanningProfile(const std::string& name) const noexcept;
 
   // Convenience: returns default profile if set, otherwise nullptr.
   const PlanningProfile* getDefaultPlanningProfile() const noexcept;
+
+  rclcpp::Node& node() const
+  {
+    return *node_;
+  }
+
+  const ExecConfig& config() const
+  {
+    return cfg_;
+  }
+
+  StateBuffer& stateBuffer() const
+  {
+    return *state_buffer_;
+  }
+
+  MoveGroupClient& moveGroupClient() const
+  {
+    return *move_group_client_;
+  }
+
+  TrajectoryExecutor& trajectoryExecutor() const
+  {
+    return *trajectory_executor_;
+  }
 
 private:
   rclcpp::Node* node_ = nullptr;  // non-owning

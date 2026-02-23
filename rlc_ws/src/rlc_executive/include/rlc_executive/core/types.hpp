@@ -4,7 +4,6 @@
 #include <map>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include <builtin_interfaces/msg/time.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -115,4 +114,4 @@ struct PlanningRequest
   PlanningProfile profile;
 };
 
-}  // namespace rlc_executive_bt
+}  // namespace rlc_executive

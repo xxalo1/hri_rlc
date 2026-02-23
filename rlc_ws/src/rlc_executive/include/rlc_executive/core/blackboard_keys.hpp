@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rlc_executive_bt
+namespace rlc_executive
 {
 namespace bb
 {
@@ -25,4 +25,4 @@ inline constexpr const char* INTERACTION_EVENT = "interaction_event";
 // Metrics accumulator for logging and reward.
 inline constexpr const char* METRICS = "metrics";
 }  // namespace bb
-}  // namespace rlc_executive_bt
+}  // namespace rlc_executive

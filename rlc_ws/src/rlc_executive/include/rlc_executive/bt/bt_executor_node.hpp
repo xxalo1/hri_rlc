@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
@@ -21,9 +22,8 @@ public:
   void start();
 
 private:
-  void tickOnce();
+  void tick();
 
-  // Resolve a file under share/<package>/<subdir>/<filename>
   std::string resolveSharePath(const std::string& subdir,
                                const std::string& filename) const;
 
@@ -32,6 +32,10 @@ private:
   TreeRunner tree_runner_;
 
   rclcpp::TimerBase::SharedPtr tick_timer_;
+
+  std::optional<BT::NodeStatus> last_tick_status_;
+
+  bool exit_on_completion_{ false };
 };
 
 }  // namespace rlc_executive

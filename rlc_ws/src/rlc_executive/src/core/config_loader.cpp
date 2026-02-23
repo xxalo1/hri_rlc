@@ -1,5 +1,7 @@
 #include "rlc_executive/core/config_loader.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <stdexcept>
 #include <string>
 
@@ -62,6 +64,12 @@ void validateConfig(const ExecConfig& cfg)
     throw std::runtime_error("Executor config: 'tick_rate_hz' must be > 0");
   }
 
+  if (cfg.tick_while_running_max_block.count() < 0)
+  {
+    throw std::runtime_error(
+        "Executor config: 'tick_while_running_max_block_ms' must be >= 0");
+  }
+
   if (cfg.tf_timeout_sec < 0.0)
   {
     throw std::runtime_error("Executor config: 'tf_timeout_sec' must be >= 0");
@@ -72,6 +80,29 @@ void validateConfig(const ExecConfig& cfg)
     throw std::runtime_error("Executor config: 'state_stale_sec' must be >= 0");
   }
   return;
+}
+
+TickOption parseTickMode(const std::string& tick_mode)
+{
+  std::string normalized = tick_mode;
+  std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+
+  if (normalized == "ONCE_UNLESS_WOKEN_UP")
+  {
+    return TickOption::ONCE_UNLESS_WOKEN_UP;
+  }
+  if (normalized == "WHILE_RUNNING")
+  {
+    return TickOption::WHILE_RUNNING;
+  }
+  if (normalized == "EXACTLY_ONCE")
+  {
+    return TickOption::EXACTLY_ONCE;
+  }
+
+  throw std::runtime_error("Executor config: 'tick_mode' must be one of: "
+                           "ONCE_UNLESS_WOKEN_UP, WHILE_RUNNING, EXACTLY_ONCE");
 }
 }  // namespace
 
@@ -112,6 +143,21 @@ ExecConfig loadExecConfigFromFile(const std::string& yaml_path)
 
   cfg.default_planning_profile =
       getOr<std::string>(root, "default_planning_profile", cfg.default_planning_profile);
+
+  const std::string tick_mode = getOr<std::string>(root, "tick_mode", std::string{});
+  if (!tick_mode.empty())
+  {
+    cfg.tick_option = parseTickMode(tick_mode);
+  }
+
+  const std::int64_t max_block_ms = getOr<std::int64_t>(
+      root, "tick_while_running_max_block_ms", cfg.tick_while_running_max_block.count());
+  if (max_block_ms < 0)
+  {
+    throw std::runtime_error(
+        "Executor config: 'tick_while_running_max_block_ms' must be >= 0");
+  }
+  cfg.tick_while_running_max_block = std::chrono::milliseconds(max_block_ms);
 
   validateConfig(cfg);
 

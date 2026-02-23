@@ -1,0 +1,23 @@
+tick_rate_hz: 30.0
+
+default_tree_xml: "bt_trees/reactive_core.xml"
+
+# State wiring
+joint_states_topic: "/joint_states"
+base_frame: "base_link"
+ee_frame: "tool0"
+
+# Timing
+tf_timeout_sec: 0.05
+state_stale_sec: 0.2
+
+# MoveIt endpoints
+move_group_action_name: "/move_action"
+execute_traj_action_name: "/execute_trajectory"
+get_planning_scene_service_name: "/get_planning_scene"
+
+# Planning profiles
+default_planning_profile: "ompl_default"
+
+tick_mode: "ONCE_UNLESS_WOKEN_UP"
+tick_while_running_max_block_ms: 100

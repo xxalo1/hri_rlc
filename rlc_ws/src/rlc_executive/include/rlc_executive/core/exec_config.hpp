@@ -1,15 +1,22 @@
 #pragma once
 
-#include <chrono>
 #include <map>
 #include <string>
 
 #include <rclcpp/qos.hpp>
 
 #include "rlc_executive/core/types.hpp"
+#include <chrono>
 
 namespace rlc_executive
 {
+
+enum class TickOption : std::uint8_t
+{
+  ONCE_UNLESS_WOKEN_UP = 0,
+  WHILE_RUNNING = 1,
+  EXACTLY_ONCE = 2
+};
 
 struct ExecConfig
 {
@@ -32,6 +39,9 @@ struct ExecConfig
   std::map<std::string, PlanningProfile> planning_profiles;
 
   rclcpp::QoS joint_state_qos = rclcpp::SensorDataQoS();
+
+  TickOption tick_option = TickOption::ONCE_UNLESS_WOKEN_UP;
+  std::chrono::milliseconds tick_while_running_max_block{ 100 };
 };
 
 }  // namespace rlc_executive
