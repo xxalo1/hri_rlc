@@ -132,7 +132,7 @@ bool MoveItExecutor::start(const moveit_msgs::msg::RobotTrajectory& traj,
     return false;
   }
 
-  if (!client_->wait_for_action_server(std::chrono::milliseconds(0)))
+  if (!client_->wait_for_action_server(std::chrono::milliseconds(1000)))
   {
     if (error_msg)
     {

@@ -126,7 +126,7 @@ bool MoveGroupClient::start(const moveit_msgs::msg::MotionPlanRequest& req,
   }
 
   // Non-blocking readiness check.
-  if (!client_->wait_for_action_server(std::chrono::milliseconds(0)))
+  if (!client_->wait_for_action_server(std::chrono::milliseconds(1000)))
   {
     if (error_msg)
     {
