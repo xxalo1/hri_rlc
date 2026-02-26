@@ -2,7 +2,7 @@ import os
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, SetLaunchConfiguration
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -100,7 +100,10 @@ def generate_launch_description():
                         "profiles_config": profiles_config,
                         "plugins": plugins,
                         "default_tree": default_tree_resolved,
-                    }
+                    },
+                    PathJoinSubstitution(
+                        [FindPackageShare("rlc_executive"), "config", "target_goal.yaml"]
+                    ),
                 ],
             ),
         ]
