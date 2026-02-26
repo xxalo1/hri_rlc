@@ -70,6 +70,8 @@ def generate_launch_description():
     plugins = LaunchConfiguration("plugins_resolved")
     default_tree_resolved = LaunchConfiguration("default_tree_resolved")
     log_level = LaunchConfiguration("log_level")
+    enable_groot2 = LaunchConfiguration("enable_groot2")
+    groot2_port = LaunchConfiguration("groot2_port")
 
     return LaunchDescription(
         [
@@ -87,6 +89,8 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("default_tree", default_value="reactive_core.xml"),
             DeclareLaunchArgument("log_level", default_value="info"),
+            DeclareLaunchArgument("enable_groot2", default_value="false"),
+            DeclareLaunchArgument("groot2_port", default_value="1667"),
             OpaqueFunction(function=_resolve_paths),
             Node(
                 package="rlc_executive",
@@ -100,6 +104,8 @@ def generate_launch_description():
                         "profiles_config": profiles_config,
                         "plugins": plugins,
                         "default_tree": default_tree_resolved,
+                        "enable_groot2": ParameterValue(enable_groot2, value_type=bool),
+                        "groot2_port": ParameterValue(groot2_port, value_type=int),
                     },
                     PathJoinSubstitution(
                         [FindPackageShare("rlc_executive"), "config", "target_goal.yaml"]
