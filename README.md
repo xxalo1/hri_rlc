@@ -76,4 +76,8 @@ ros2 launch rlc_executive bt.launch.py log_level:=info
 
 ros2 launch rlc_executive bt.launch.py exit_on_completion:=true
 
+# Live monitoring with Groot2 (BT.CPP v4)
+ros2 launch rlc_executive bt.launch.py enable_groot2:=true
+ros2 launch rlc_executive bt.launch.py enable_groot2:=true groot2_port:=1667
+
 ```
