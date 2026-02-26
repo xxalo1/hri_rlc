@@ -25,7 +25,12 @@ public:
 
 }  // namespace rlc_executive
 
-BT_REGISTER_NODES(factory)
+namespace rlc_executive
 {
-  factory.registerNodeType<rlc_executive::RlcAlwaysSuccess>("RlcAlwaysSuccess");
+
+void registerAlwaysSuccessNode(BT::BehaviorTreeFactory& factory)
+{
+  factory.registerNodeType<RlcAlwaysSuccess>("RlcAlwaysSuccess");
 }
+
+}  // namespace rlc_executive
