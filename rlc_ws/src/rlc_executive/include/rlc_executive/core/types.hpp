@@ -85,6 +85,38 @@ struct StateSnapshot
   bool tf_valid = false;
 };
 
+/**
+ * @brief Summary of a motion planning attempt for BT outputs.
+ *
+ * @details
+ * This type intentionally excludes the planned trajectory to keep BehaviorTree
+ * blackboard values small. Publish the trajectory separately (e.g. via a BT output
+ * port of type `std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>`).
+ *
+ * Fields:
+ * - `status`: Planning status.
+ * - `moveit_error_code`: MoveIt error code (`moveit_msgs::msg::MoveItErrorCodes::val`).
+ * - `message`: Human-readable message.
+ * - `planning_time_sec`: Planning time [s].
+ */
+struct PlanSummary
+{
+  PlanStatus status = PlanStatus::UNKNOWN;
+
+  int32_t moveit_error_code = 0;
+  std::string message;
+
+  double planning_time_sec = 0.0;
+};
+
+/**
+ * @brief Result of a MoveIt planning attempt (internal).
+ *
+ * @details
+ * This type contains the full planned trajectory by value for convenience inside
+ * planning clients. BT nodes should prefer publishing a lightweight summary
+ * (`PlanSummary`) and publishing the trajectory separately via a shared pointer.
+ */
 struct PlanResult
 {
   PlanStatus status = PlanStatus::UNKNOWN;
