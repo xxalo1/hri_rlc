@@ -1,8 +1,11 @@
 #include "rlc_executive/bt/bt_executor_node.hpp"
 
 #include <behaviortree_cpp/basic_types.h>
+#include <behaviortree_cpp/loggers/groot2_publisher.h>
 
 #include <chrono>
+#include <cstdint>
+#include <memory>
 #include <string>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -21,7 +24,11 @@ BtExecutorNode::BtExecutorNode(const rclcpp::NodeOptions& options)
                                        "config/planning_profiles.yaml");
   this->declare_parameter<std::string>("plugins", "plugins/bt_plugins.txt");
   this->declare_parameter<std::string>("default_tree", "bt_trees/reactive_core.xml");
+  this->declare_parameter<bool>("enable_groot2", false);
+  this->declare_parameter<int>("groot2_port", 1667);
 }
+
+BtExecutorNode::~BtExecutorNode() = default;
 
 std::string BtExecutorNode::resolveSharePath(const std::string& subdir,
                                              const std::string& filename) const
@@ -74,6 +81,37 @@ void BtExecutorNode::start()
   tree_runner_.configure(plugins_path);
   tree_runner_.loadTreeFromXmlFile(tree_xml_path, ctx_);
 
+  const bool enable_groot2 = this->get_parameter("enable_groot2").as_bool();
+  const std::int64_t groot2_port_param = this->get_parameter("groot2_port").as_int();
+
+  if (enable_groot2)
+  {
+    if (groot2_port_param <= 0 || groot2_port_param > 65535)
+    {
+      RCLCPP_ERROR(get_logger(),
+                   "enable_groot2=true but groot2_port=%ld is invalid; "
+                   "disabling Groot2Publisher",
+                   groot2_port_param);
+    }
+    else
+    {
+      const unsigned port = static_cast<unsigned>(groot2_port_param);
+      try
+      {
+        groot2_publisher_ =
+            std::make_unique<BT::Groot2Publisher>(tree_runner_.tree(), port);
+        RCLCPP_INFO(get_logger(), "Groot2Publisher listening on tcp://0.0.0.0:%u", port);
+      }
+      catch (const std::exception& e)
+      {
+        RCLCPP_ERROR(get_logger(),
+                     "Failed to start Groot2Publisher on port %u: %s (continuing "
+                     "without Groot2)",
+                     port, e.what());
+      }
+    }
+  }
+
   const auto period = std::chrono::duration<double>(1.0 / cfg_.tick_rate_hz);
   tick_timer_ = this->create_wall_timer(
       std::chrono::duration_cast<std::chrono::nanoseconds>(period), [this]() { tick(); });
@@ -81,8 +119,54 @@ void BtExecutorNode::start()
 
 void BtExecutorNode::tick()
 {
-  const BT::NodeStatus status = tree_runner_.tick();
-  RCLCPP_INFO(get_logger(), "BT status: %s", BT::toStr(status, false).c_str());
+  if (completed_)
+  {
+    return;
+  }
+
+  BT::NodeStatus status = BT::NodeStatus::IDLE;
+  try
+  {
+    status = tree_runner_.tick();
+  }
+  catch (const std::exception& e)
+  {
+    RCLCPP_ERROR(get_logger(), "BT tick threw exception: %s", e.what());
+    onTreeCompleted(BT::NodeStatus::FAILURE);
+    return;
+  }
+
+  if (status != BT::NodeStatus::RUNNING)
+  {
+    onTreeCompleted(status);
+  }
 }
 
+void BtExecutorNode::onTreeCompleted(BT::NodeStatus status)
+{
+  if (completed_)
+  {
+    return;
+  }
+  completed_ = true;
+
+  if (tick_timer_)
+  {
+    tick_timer_->cancel();  // prevent further ticks ASAP
+  }
+
+  try
+  {
+    tree_runner_.haltTree();
+  }
+  catch (const std::exception& e)
+  {
+    RCLCPP_WARN(get_logger(), "haltTree threw: %s", e.what());
+  }
+
+  RCLCPP_INFO(get_logger(), "BT completed with status: %s",
+              BT::toStr(status, false).c_str());
+
+  rclcpp::shutdown();
+}
 }  // namespace rlc_executive
