@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="4">
+
+    <BehaviorTree ID="PlanExecute">
+        <Sequence name="plan_then_execute">
+            <LoadPose
+                param_prefix="default_goal"
+                target_pose="{target_pose}"
+            />
+            <BuildMotionPlanRequest
+                target_pose="{target_pose}"
+                request="{plan.request}"
+            />
+            <MoveItPlan
+                request="{plan.request}"
+                planning_profile="trajopt_default"
+                trajectory="{plan.trajectory}"
+                plan_result="{plan.plan_result}"
+            />
+            <ExecuteTrajectory
+                trajectory="{plan.trajectory}"
+                planning_profile="trajopt_default"
+                exec_result="{plan.exec_result}"
+                error="{plan.exec_error}"
+                feedback="{plan.exec_feedback}"
+                elapsed_sec="{plan.exec_elapsed_sec}"
+            />
+        </Sequence>
+    </BehaviorTree>
+
+</root>
