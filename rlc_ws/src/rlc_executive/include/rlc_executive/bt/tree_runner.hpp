@@ -42,6 +42,19 @@ public:
   }
 
   /**
+   * @brief Returns the currently loaded behavior tree.
+   *
+   * @return Reference to the tree instance.
+   *
+   * @note This reference is valid after loadTreeFromXmlFile() has been called and
+   * remains valid until the tree is reloaded or reset.
+   */
+  const BT::Tree& tree() const
+  {
+    return tree_;
+  }
+
+  /**
    * @brief Returns the tick scheduling mode used by tick().
    * @return Tick scheduling mode.
    */
