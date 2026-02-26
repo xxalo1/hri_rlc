@@ -10,6 +10,9 @@
             <BuildMotionPlanRequest
                 target_pose="{target_pose}"
                 request="{plan.request}"
+                feedback="{motion_plan.feedback}"
+                elapsed_sec="{motion_plan.elapsed_sec}"
+                error="{motion_plan.error}"
             />
             <MoveItPlan
                 request="{plan.request}"
