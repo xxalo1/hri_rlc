@@ -32,10 +32,13 @@ class Planner(Enum):
     OMPL = "ompl"
     RLC_TRAJOPT = "rlc_trajopt"
 
+
 _TESSERACT_XMLNS = "https://github.com/tesseract-robotics/tesseract"
 
 
-def ensure_tesseract_make_convex_attribute(urdf_xml: str, *, make_convex: bool = True) -> str:
+def ensure_tesseract_make_convex_attribute(
+    urdf_xml: str, *, make_convex: bool = True
+) -> str:
     """
     Ensure a URDF has the global `tesseract:make_convex` attribute on `<robot>`.
 
@@ -159,6 +162,32 @@ def planning_plugins_for(planner: Planner) -> list[str]:
     raise ValueError(f"Unsupported planner selection: '{planner}'")
 
 
+def planning_pipelines_for(planner: Planner) -> list[str]:
+    """
+    Map a high-level planner selection to MoveIt planning pipeline names.
+
+    Parameters
+    ----------
+    planner : Planner
+        Planner selection.
+
+    Returns
+    -------
+    list[str]
+        Planning pipeline names in the order they are registered.
+
+    Raises
+    ------
+    ValueError
+        If `planner` is unsupported.
+    """
+    if planner is Planner.OMPL:
+        return ["ompl"]
+    if planner is Planner.RLC_TRAJOPT:
+        return ["ompl", "rlc_trajopt"]
+    raise ValueError(f"Unsupported planner selection: '{planner}'")
+
+
 def make_planning_pipeline_config(
     *,
     planner: Planner,
@@ -175,9 +204,12 @@ def make_planning_pipeline_config(
     planner : Planner
         Planner selection enum.
     planning_configs : dict[Planner, Any]
-        Planning parameter mappings that will be merged into the `move_group`
-        namespace. Values are merged in iteration order, and later keys override
-        earlier keys.
+        Planning parameter mappings keyed by `Planner`.
+
+        The returned mapping follows MoveIt's multi-pipeline layout:
+        - `move_group.planning_pipelines` and `move_group.default_planning_pipeline`
+        - one top-level parameter namespace per pipeline name (e.g. `ompl`,
+          `rlc_trajopt`)
     request_adapters : list[str], optional
         Request adapter plugins. If None, uses package defaults.
     response_adapters : list[str], optional
@@ -192,24 +224,38 @@ def make_planning_pipeline_config(
     """
     if request_adapters is None:
         request_adapters = list(DEFAULT_REQUEST_ADAPTERS)
-
     if response_adapters is None:
         response_adapters = list(DEFAULT_RESPONSE_ADAPTERS)
 
-    planning_plugins = planning_plugins_for(planner)
+    pipelines = planning_pipelines_for(planner)
+    default_pipeline = pipelines[-1]
 
-    pipeline = {
-        "move_group": {
-            "planning_plugins": planning_plugins,
-            "request_adapters": request_adapters,
-            "response_adapters": response_adapters,
-            "start_state_max_bounds_error": start_state_max_bounds_error,
-        }
+    common: dict[str, Any] = {
+        "request_adapters": request_adapters,
+        "response_adapters": response_adapters,
+        "start_state_max_bounds_error": start_state_max_bounds_error,
     }
 
-    for config in planning_configs.values():
-        pipeline["move_group"].update(config)
-    return pipeline
+    params: dict[str, Any] = {
+        "planning_pipelines": pipelines,
+        "default_planning_pipeline": default_pipeline,
+        "ompl": {
+            "planning_plugins": planning_plugins_for(Planner.OMPL),
+            **common,
+            **planning_configs.get(Planner.OMPL, {}),
+        },
+    }
+
+    if planner is Planner.RLC_TRAJOPT:
+        params["rlc_trajopt"] = {
+            "planning_plugins": planning_plugins_for(Planner.RLC_TRAJOPT),
+            **common,
+            # include OMPL params too, because OMPL is stage 1 in this chained pipeline
+            **planning_configs.get(Planner.OMPL, {}),
+            **planning_configs.get(Planner.RLC_TRAJOPT, {}),
+        }
+
+    return params
 
 
 def make_move_group_node(
@@ -271,7 +317,7 @@ def make_move_group_node(
     trajectory_execution: dict[str, Any] = {
         "moveit_manage_controllers": True,
         "trajectory_execution.allowed_execution_duration_scaling": 1.2,
-        "trajectory_execution.allowed_goal_duration_margin": 0.5,
+        "trajectory_execution.allowed_goal_duration_margin": 1.0,
         "trajectory_execution.allowed_start_tolerance": 0.01,
     }
 
