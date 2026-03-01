@@ -210,6 +210,12 @@ void loadPlanningProfilesInto(ExecConfig& cfg, const std::string& yaml_path)
     profile.num_planning_attempts =
         getOr<int>(p, "num_planning_attempts", profile.num_planning_attempts);
 
+    profile.max_velocity_scaling_factor = getOr<double>(
+        p, "max_velocity_scaling_factor", profile.max_velocity_scaling_factor);
+
+    profile.max_acceleration_scaling_factor = getOr<double>(
+        p, "max_acceleration_scaling_factor", profile.max_acceleration_scaling_factor);
+
     profile.executor_mode = getOr<std::string>(p, "executor_mode", profile.executor_mode);
 
     profile.fjt_action_name =
@@ -225,6 +231,20 @@ void loadPlanningProfilesInto(ExecConfig& cfg, const std::string& yaml_path)
     if (profile.num_planning_attempts < 1)
     {
       throw std::runtime_error("profiles." + name + ".num_planning_attempts must be >= 1");
+    }
+
+    if (profile.max_velocity_scaling_factor <= 0.0 ||
+        profile.max_velocity_scaling_factor > 1.0)
+    {
+      throw std::runtime_error("profiles." + name +
+                               ".max_velocity_scaling_factor must be in (0, 1]");
+    }
+
+    if (profile.max_acceleration_scaling_factor <= 0.0 ||
+        profile.max_acceleration_scaling_factor > 1.0)
+    {
+      throw std::runtime_error("profiles." + name +
+                               ".max_acceleration_scaling_factor must be in (0, 1]");
     }
 
     // Validate executor mode
