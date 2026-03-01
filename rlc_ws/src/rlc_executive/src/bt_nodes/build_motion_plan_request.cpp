@@ -100,6 +100,8 @@ BT::NodeStatus BuildMotionPlanRequest::tick()
     auto req = std::make_shared<moveit_msgs::msg::MotionPlanRequest>();
 
     req->group_name = bt_utils::requireInput<std::string>(*this, PortKeys::GROUP_NAME);
+    // Use the current state as the start state unless the caller provides a diff.
+    req->start_state.is_diff = true;
 
     const double v_scale =
         bt_utils::requireInput<double>(*this, PortKeys::MAX_VELOCITY_SCALING_FACTOR);

@@ -25,7 +25,7 @@ class RuntimeContext;
  *
  * Defaults:
  * - `group_name`: `"fr3_arm"`.
- * - `link_name`: `"fr3_hand_tcp"` (used only for pose goals).
+ * - `link_name`: `"fr3_link8"` (used only for pose goals).
  */
 class BuildMotionPlanRequest final : public BT::SyncActionNode
 {
@@ -36,10 +36,10 @@ public:
   {
     return {
       // Optional (defaults are FR3-specific)
-      BT::InputPort<std::string>(PortKeys::GROUP_NAME, "fr3_arm", ""),
+      BT::InputPort<std::string>(PortKeys::GROUP_NAME),
 
       BT::InputPort<geometry_msgs::msg::PoseStamped>(PortKeys::TARGET_POSE),
-      BT::InputPort<std::string>(PortKeys::LINK_NAME, "fr3_hand_tcp", ""),
+      BT::InputPort<std::string>(PortKeys::LINK_NAME),
 
       // Joint goal (useful for direct joint targets)
       BT::InputPort<std::vector<std::string>>(PortKeys::JOINT_NAMES),
@@ -60,8 +60,6 @@ public:
 
       // Optional: debugging string
       BT::OutputPort<std::string>(PortKeys::ERROR),
-      BT::OutputPort<std::string>(PortKeys::FEEDBACK),
-      BT::OutputPort<double>(PortKeys::ELAPSED_SEC),
     };
   }
 
