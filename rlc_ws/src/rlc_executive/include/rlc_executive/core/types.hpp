@@ -37,6 +37,22 @@ enum class PlanStatus : std::uint8_t
   TIMEOUT = 3
 };
 
+/**
+ * @brief Planning and execution parameters loaded from `planning_profiles.yaml`.
+ *
+ * @details
+ * MoveIt planning request fields:
+ * - `pipeline_id`: Planning pipeline id (e.g. `"ompl"`).
+ * - `planner_id`: Planner id (e.g. `"ompl"`).
+ * - `allowed_planning_time_sec`: Allowed planning time [s].
+ * - `num_planning_attempts`: Number of planning attempts.
+ * - `max_velocity_scaling_factor`: Velocity scaling factor (0, 1].
+ * - `max_acceleration_scaling_factor`: Acceleration scaling factor (0, 1].
+ *
+ * Execution fields:
+ * - `executor_mode`: Execution backend (see `consts::EXECUTOR_MODE_*`).
+ * - `fjt_action_name`: FollowJointTrajectory action name if `executor_mode` is direct.
+ */
 struct PlanningProfile
 {
   std::string name;
@@ -48,6 +64,8 @@ struct PlanningProfile
   // Common request knobs
   double allowed_planning_time_sec = 5.0;
   int num_planning_attempts = 1;
+  double max_velocity_scaling_factor = 1.0;
+  double max_acceleration_scaling_factor = 1.0;
 
   // Execution backend preference: consts::EXECUTOR_MODE_*
   std::string executor_mode = consts::EXECUTOR_MODE_MOVEIT;
