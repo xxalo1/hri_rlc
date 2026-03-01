@@ -4,6 +4,8 @@ profiles:
     planner_id: "ompl"
     allowed_planning_time_sec: 5.0
     num_planning_attempts: 10
+    max_velocity_scaling_factor: 1.0
+    max_acceleration_scaling_factor: 1.0
     executor_mode: "moveit"
 
   trajopt_default:
@@ -11,4 +13,6 @@ profiles:
     planner_id: "rlc_trajopt"
     allowed_planning_time_sec: 20.0
     num_planning_attempts: 10
+    max_velocity_scaling_factor: 0.3
+    max_acceleration_scaling_factor: 0.3
     executor_mode: "moveit"
