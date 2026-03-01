@@ -9,9 +9,8 @@
             />
             <BuildMotionPlanRequest
                 target_pose="{target_pose}"
+                link_name="fr3_link8"
                 request="{plan.request}"
-                feedback="{motion_plan.feedback}"
-                elapsed_sec="{motion_plan.elapsed_sec}"
                 error="{motion_plan.error}"
             />
             <MoveItPlan
