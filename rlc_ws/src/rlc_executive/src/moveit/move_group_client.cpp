@@ -126,7 +126,7 @@ bool MoveGroupClient::start(const moveit_msgs::msg::MotionPlanRequest& req,
   }
 
   // Non-blocking readiness check.
-  if (!client_->wait_for_action_server(std::chrono::milliseconds(1000)))
+  if (!client_->wait_for_action_server(std::chrono::seconds(3)))
   {
     if (error_msg)
     {
@@ -142,6 +142,8 @@ bool MoveGroupClient::start(const moveit_msgs::msg::MotionPlanRequest& req,
   req_mut.planner_id = profile.planner_id;
   req_mut.allowed_planning_time = profile.allowed_planning_time_sec;
   req_mut.num_planning_attempts = profile.num_planning_attempts;
+  req_mut.max_velocity_scaling_factor = profile.max_velocity_scaling_factor;
+  req_mut.max_acceleration_scaling_factor = profile.max_acceleration_scaling_factor;
 
   MoveGroup::Goal goal;
   goal.request = req_mut;
