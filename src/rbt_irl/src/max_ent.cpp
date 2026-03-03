@@ -61,9 +61,9 @@ MaxEntIRL::sampleUnderTheta(const TrajectoryEndpointsSet& demo_endpoints,
   TrajectorySet sampled_trajs;
   sampled_trajs.reserve(demo_endpoints.size());
 
-  for (const auto& sgs : demo_endpoints)
+  for (const TrajectoryEndpoints& sgs : demo_endpoints)
   {
-    auto traj = sampler_(sgs, rewards);
+    Trajectory traj = sampler_(sgs, rewards);
     sampled_trajs.push_back(std::move(traj));
   }
   return sampled_trajs;
@@ -72,8 +72,8 @@ MaxEntIRL::sampleUnderTheta(const TrajectoryEndpointsSet& demo_endpoints,
 MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
                                     const WeightVec& theta0)
 {
-  validate(demo_trajs);
-
+  validateConfiguration();
+  validateDemos(demo_trajs);
   initializeTheta(theta0);
 
   const TrajectoryEndpointsSet demo_endpoints =
@@ -84,7 +84,7 @@ MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
   for (int it = 0; it < opt_.max_iters; ++it)
   {
     const WeightVec theta_prev = theta_;
-    
+
     const TrajectorySet sampled_trajs = sampleUnderTheta(demo_endpoints, theta_);
     const FeatureVec exp_feat_mean = computeFeatureMean(sampled_trajs);
     const WeightVec grad = estimateGradient(emp_feat_mean, exp_feat_mean);
@@ -100,23 +100,6 @@ MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
   return theta_;
 }
 
-void MaxEntIRL::initializeTheta(const WeightVec& theta0)
-{
-  const Eigen::Index k = static_cast<Eigen::Index>(featureDim());
-  if (theta0.size() == 0)
-  {
-    theta_ = WeightVec::Ones(k);
-  }
-  else if (theta0.size() != k)
-  {
-    throw std::invalid_argument("theta0 wrong size");
-  }
-  else
-  {
-    theta_ = theta0;
-  }
-}
-
 MaxEntIRL::WeightVec MaxEntIRL::estimateGradient(const FeatureVec& emp_mean,
                                                  const FeatureVec& exp_mean) const
 {
@@ -128,25 +111,52 @@ bool MaxEntIRL::hasConverged(const WeightVec& theta_prev, const WeightVec& theta
   return (theta - theta_prev).norm() < opt_.convergence_tol;
 }
 
-void MaxEntIRL::validate(const TrajectorySet& demos) const
+void MaxEntIRL::validateConfiguration() const
 {
   if (features_.empty())
   {
     throw std::invalid_argument("MaxEntIRL: features list is empty.");
   }
-  if (demos.empty())
-  {
-    throw std::invalid_argument("MaxEntIRL: demonstrations set is empty.");
-  }
   if (!sampler_)
   {
     throw std::invalid_argument("MaxEntIRL: sampler is not set.");
   }
-
-  const Eigen::Index k = static_cast<Eigen::Index>(featureDim());
-  if (theta_.size() != k)
+  if (!(opt_.learning_rate > 0.0))
   {
-    throw std::invalid_argument("MaxEntIRL: theta has wrong dimension.");
+    throw std::invalid_argument("MaxEntIRL: learning_rate must be > 0.");
+  }
+  if (opt_.max_iters <= 0)
+  {
+    throw std::invalid_argument("MaxEntIRL: max_iters must be > 0.");
+  }
+  if (!(opt_.convergence_tol > 0.0))
+  {
+    throw std::invalid_argument("MaxEntIRL: convergence_tol must be > 0.");
+  }
+}
+
+void MaxEntIRL::validateDemos(const TrajectorySet& demos)
+{
+  if (demos.empty())
+  {
+    throw std::invalid_argument("MaxEntIRL: demonstrations set is empty.");
+  }
+}
+
+void MaxEntIRL::initializeTheta(const WeightVec& theta0)
+{
+  const Eigen::Index k = static_cast<Eigen::Index>(featureDim());
+  if (theta0.size() == 0)
+  {
+    theta_ = WeightVec::Ones(k);
+  }
+  else if (theta0.size() != k)
+  {
+    throw std::invalid_argument("MaxEntIRL: theta0 has wrong dimension.");
+  }
+  else
+  {
+    theta_ = theta0;
   }
 }
 

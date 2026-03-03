@@ -51,7 +51,6 @@ public:
    * @brief Constructs a solver with default options.
    * @param[in] features List of feature functions.
    * @param[in] sampler Trajectory sampler used to generate trajectories under the current weights.
-   * @param[in] theta0 Initial weights, size = features.size(); may be empty (treated as zeros).
    */
   MaxEntIRL(const FeatureList& features, const SamplerFn& sampler);
 
@@ -60,13 +59,13 @@ public:
    * @param[in] features List of feature functions used to compute the feature vector.
    * @param[in] sampler Trajectory sampler used to generate trajectories under the current weights.
    * @param[in] opt Optimization options.
-   * @param[in] theta0 Initial weights, size = features.size(); may be empty (treated as zeros).
    */
   MaxEntIRL(const FeatureList& features, const SamplerFn& sampler, const Options& opt);
 
   /**
    * @brief Learns weights from demonstration trajectories.
    * @param[in] demos Demonstration trajectories, length >= 1.
+   * @param[in] theta0 Optional initial weights; if empty, initializes to `Ones(features.size())`.
    * @return Learned weights `theta`, size = features.size().
    */
   WeightVec fit(const TrajectorySet& demo_trajs, const WeightVec& theta0 = WeightVec{});
@@ -102,7 +101,8 @@ private:
 
   bool hasConverged(const WeightVec& theta_prev, const WeightVec& theta) const;
 
-  void validate(const TrajectorySet& demos) const;
+  void validateConfiguration() const;
+  static void validateDemos(const TrajectorySet& demos);
 
   void initializeTheta(const WeightVec& theta0);
 
