@@ -21,9 +21,9 @@ void TrajOptSolver::setEnvironment(std::shared_ptr<tesseract_environment::Enviro
   env_ = std::move(env);
 }
 
-void TrajOptSolver::setManipulatorGroup(std::string group)
+void TrajOptSolver::setManipulatorGroup(const std::string& group)
 {
-  manipulator_group_ = std::move(group);
+  manipulator_group_ = group;
 }
 
 void TrajOptSolver::setNumSteps(int n_steps)
@@ -91,13 +91,21 @@ void TrajOptSolver::setTrajSeed(std::shared_ptr<const trajopt::TrajArray> traj)
   traj_seed_ = std::move(traj);
 }
 
-void TrajOptSolver::addFeatureCost(FeatureCost cost)
+void TrajOptSolver::addCost(const CostTerm& cost)
 {
-  if (!cost.phi)
+  if (!cost)
   {
-    throw std::invalid_argument("add_feature_cost: phi is empty");
+    throw std::invalid_argument("addCost: cost is invalid");
   }
-  feature_costs_.push_back(std::move(cost));
+  cost_terms_.push_back(std::move(cost));
+}
+
+void TrajOptSolver::addCost(const CostTerms& costs)
+{
+  for (const auto& cost : costs)
+  {
+    addCost(cost);
+  }
 }
 
 trajopt::TrajArray TrajOptSolver::solve()
@@ -162,7 +170,7 @@ void TrajOptSolver::constructProblem()
   pci.cnt_infos.push_back(goal);
 
   prob_ = trajopt::ConstructProblem(pci);
-  attachFeatureCosts(*prob_);
+  attachCosts(*prob_);
 }
 
 sco::VarVector TrajOptSolver::getVars(trajopt::TrajOptProb& prob)
@@ -179,20 +187,18 @@ sco::VarVector TrajOptSolver::getVars(trajopt::TrajOptProb& prob)
   return vars;
 }
 
-void TrajOptSolver::attachFeatureCosts(trajopt::TrajOptProb& prob) const
+void TrajOptSolver::attachCosts(trajopt::TrajOptProb& prob) const
 {
   const int num_steps = prob.GetNumSteps();
   const int dof = prob.GetNumDOF();
   auto vars = getVars(prob);
 
-  for (const auto& cost : feature_costs_)
+  for (const auto& cost : cost_terms_)
   {
-    auto f =
-        sco::ScalarOfVector::construct([num_steps, dof, w = cost.weight, phi = cost.phi](
-                                           const Eigen::VectorXd& x) -> double {
-          Eigen::Map<const trajopt::TrajArray> traj(x.data(), num_steps,
-                                                    dof);  // view, no copy
-          return w * phi(traj);
+    auto f = sco::ScalarOfVector::construct(
+        [num_steps, dof, c = cost](const Eigen::VectorXd& x) -> double {
+          Eigen::Map<const trajopt::TrajArray> traj(x.data(), num_steps, dof);
+          return c.weight * c.feature->evaluate(traj);
         });
 
     auto cost_term = std::make_shared<sco::CostFromFunc>(f, vars, cost.name);

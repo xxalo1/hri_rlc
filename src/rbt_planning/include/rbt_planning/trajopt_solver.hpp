@@ -16,33 +16,11 @@
 #include <trajopt_sco/optimizers.hpp>
 #include <trajopt_sco/sco_common.hpp>
 #include <vector>
+
+#include "rbt_types/objective_term.hpp"
+
 namespace rbt_planning
 {
-
-/**
- * @brief User-defined cost evaluated on the full trajectory.
- *
- * @details
- * The callback `phi` is evaluated on the current trajectory iterate and scaled by
- * `weight`. The trajectory is represented as a matrix with:
- * - rows = timesteps (`n_steps`)
- * - cols = joint DOF (`ndof`)
- *
- * Joint ordering must be consistent with the active TrajOpt problem (i.e., the configured
- * manipulator group).
- *
- * @note `grad` is currently not used by `TrajOptSolver`; it is provided for future
- * analytic-gradient support.
- */
-struct FeatureCost
-{
-  std::string name;  ///< Cost term name (used for TrajOpt/SCO bookkeeping and debugging).
-  double weight;     ///< Scalar multiplier applied to `phi(traj)`.
-  std::function<double(const trajopt::TrajArray&)>
-      phi;  ///< Cost function evaluated on `traj`.
-  std::function<Eigen::VectorXd(const trajopt::TrajArray&)>
-      grad;  ///< Optional analytic gradient (unused).
-};
 
 /**
  * @brief Stateful TrajOpt solver for joint-space trajectory optimization.
@@ -74,6 +52,9 @@ struct FeatureCost
  */
 class TrajOptSolver
 {
+  using CostTerm = rbt_types::CostTerm;
+  using CostTerms = rbt_types::CostTerms;
+
 public:
   /**
    * @brief Constructs a solver with an optional environment.
@@ -110,7 +91,7 @@ public:
    * @brief Sets the manipulator group used by TrajOpt.
    * @param[in] group Manipulator group name (must exist in the environment).
    */
-  void setManipulatorGroup(std::string group);
+  void setManipulatorGroup(const std::string& group);
 
   /**
    * @brief Sets the number of timesteps in the optimized trajectory.
@@ -151,9 +132,16 @@ public:
   /**
    * @brief Adds a user-defined cost term to the TrajOpt problem.
    * @param[in] cost Cost definition (stored internally by value).
-   * @throws std::invalid_argument If `cost.phi` is empty.
+   * @throws std::invalid_argument If cost is invalid.
    */
-  void addFeatureCost(FeatureCost cost);
+  void addCost(CostTerm cost);
+
+  /**
+   * @brief Adds multiple user-defined cost terms to the TrajOpt problem.
+   * @param[in] costs Vector of cost definitions (stored internally by value).
+   * @throws std::invalid_argument If any cost term is invalid.
+   */
+  void addCost(const CostTerms& costs);
 
   /**
    * @brief Constructs and solves the TrajOpt problem.
@@ -170,7 +158,7 @@ private:
   trajopt::TrajArray makeLinearSeed(const Eigen::VectorXd& q0, const Eigen::VectorXd& q1,
                                     int n_steps) const;
   static sco::VarVector getVars(trajopt::TrajOptProb& prob);
-  void attachFeatureCosts(trajopt::TrajOptProb& prob) const;
+  void attachCosts(trajopt::TrajOptProb& prob) const;
 
 private:
   std::shared_ptr<tesseract_environment::Environment> env_;
@@ -185,7 +173,7 @@ private:
 
   std::shared_ptr<trajopt::TrajOptProb> prob_;
   sco::OptStatus last_status_{ sco::OptStatus::INVALID };
-  std::vector<FeatureCost> feature_costs_;
+  CostTerms cost_terms_;
 };
 
 }  // namespace rbt_planning
