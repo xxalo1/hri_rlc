@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <stop_token>
 
 #include "rbt_types/feature.hpp"
 #include "rbt_types/math.hpp"
@@ -66,9 +67,11 @@ public:
    * @brief Learns weights from demonstration trajectories.
    * @param[in] demos Demonstration trajectories, length >= 1.
    * @param[in] theta0 Optional initial weights; if empty, initializes to `Ones(features.size())`.
+   * @param[in] st Stop token to allow early termination of the optimization.
    * @return Learned weights `theta`, size = features.size().
    */
-  WeightVec fit(const TrajectorySet& demo_trajs, const WeightVec& theta0 = WeightVec{});
+  WeightVec fit(const TrajectorySet& demo_trajs, const WeightVec& theta0 = WeightVec{},
+                std::stop_token st = {});
 
   const WeightVec& theta() const
   {

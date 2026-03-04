@@ -1,4 +1,4 @@
-#include "rbt_irl/max_ent.hpp"
+#include "rbt_irl/max_ent_irl.hpp"
 
 #include <stdexcept>
 
@@ -70,7 +70,7 @@ MaxEntIRL::sampleUnderTheta(const TrajectoryEndpointsSet& demo_endpoints,
 }
 
 MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
-                                    const WeightVec& theta0)
+                                    const WeightVec& theta0, std::stop_token st)
 {
   validateConfiguration();
   validateDemos(demo_trajs);
@@ -92,6 +92,11 @@ MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
     theta_ -= opt_.learning_rate * grad;
 
     if (hasConverged(theta_prev, theta_))
+    {
+      break;
+    }
+
+    if (st.stop_requested())
     {
       break;
     }
