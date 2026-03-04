@@ -14,6 +14,7 @@ find_package(Eigen3 REQUIRED)
 find_package(MPI REQUIRED COMPONENTS C)
 find_package(tesseract_environment REQUIRED)
 find_package(trajopt REQUIRED)
+find_package(rbt_types REQUIRED)
 
 add_library(rbt_planning
   src/trajopt_solver.cpp
@@ -34,6 +35,7 @@ target_link_libraries(rbt_planning
     trajopt::trajopt
     tesseract::tesseract_environment
     Eigen3::Eigen
+    rbt_types::rbt_types
 )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
