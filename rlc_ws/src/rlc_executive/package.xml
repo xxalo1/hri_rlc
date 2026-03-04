@@ -3,7 +3,8 @@
 <package format="3">
   <name>rlc_executive</name>
   <version>0.0.0</version>
-  <description>BehaviorTree-based executive layer for rlc: orchestrates state, planning via MoveIt, and execution.</description>
+  <description>BehaviorTree-based executive layer for rlc: orchestrates state, planning via MoveIt,
+    and execution.</description>
   <maintainer email="empty@empty.com">empty</maintainer>
   <license>Apache-2.0</license>
 
@@ -32,6 +33,10 @@
 
   <!-- External API (msgs/actions) -->
   <depend>rlc_executive_interfaces</depend>
+
+  <depend>rbt_irl</depend>
+  <depend>rbt_types</depend>
+
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -23,6 +23,9 @@ find_package(behaviortree_cpp REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
+find_package(rbt_irl)
+find_package(rbt_types)
+
 # Core library (no BT leaf nodes here)
 add_library(${PROJECT_NAME} SHARED
   src/core/config_loader.cpp
@@ -55,6 +58,8 @@ ament_target_dependencies(${PROJECT_NAME}
     tf2
     tf2_ros
     yaml_cpp_vendor
+    rbt_irl
+    rbt_types
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp)
@@ -84,6 +89,8 @@ ament_target_dependencies(rlc_executive_bt_nodes
     geometry_msgs
     moveit_msgs
     sensor_msgs
+    rbt_irl
+    rbt_types
 )
 
 # Most of your BT nodes use RuntimeContext, MoveGroupClient, MoveItExecutor, etc.
@@ -152,6 +159,8 @@ ament_export_dependencies(
   tf2_ros
   yaml_cpp_vendor
   yaml-cpp
+  rbt_irl
+  rbt_types
 )
 
 ament_package()
