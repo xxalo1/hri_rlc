@@ -9,7 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rbt_types REQUIRED)
 
 add_library(rbt_irl_lib
-  src/max_ent.cpp
+  src/max_ent_irl.cpp
 )
 add_library(rbt_irl::rbt_irl ALIAS rbt_irl_lib)
 
