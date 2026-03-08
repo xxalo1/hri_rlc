@@ -8,6 +8,7 @@ void registerBuildMotionPlanRequestNode(BT::BehaviorTreeFactory& factory);
 void registerExecuteTrajectoryNode(BT::BehaviorTreeFactory& factory);
 void registerLoadPoseNode(BT::BehaviorTreeFactory& factory);
 void registerMoveItPlanNode(BT::BehaviorTreeFactory& factory);
+void registerRecordServoDemoNode(BT::BehaviorTreeFactory& factory);
 
 }  // namespace rlc_executive
 
@@ -18,5 +19,5 @@ BT_REGISTER_NODES(factory)
   rlc_executive::registerExecuteTrajectoryNode(factory);
   rlc_executive::registerLoadPoseNode(factory);
   rlc_executive::registerMoveItPlanNode(factory);
+  rlc_executive::registerRecordServoDemoNode(factory);
 }
-
