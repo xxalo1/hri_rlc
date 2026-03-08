@@ -1,10 +1,14 @@
 #include "rlc_executive/core/runtime_context.hpp"
 
+#include <memory>
 #include <utility>
 
 #include "rlc_executive/execution/moveit_executor.hpp"
 #include "rlc_executive/moveit/move_group_client.hpp"
+#include "rlc_executive/moveit/moveit_servo_client.hpp"
 #include "rlc_executive/state/state_buffer.hpp"
+
+#include "rlc_utils/tesseract/tesseract_utils.hpp"
 
 namespace rlc_executive
 {
@@ -15,6 +19,11 @@ RuntimeContext::RuntimeContext(rclcpp::Node& node, ExecConfig cfg)
   state_buffer_ = std::make_shared<StateBuffer>(node, cfg_);
   move_group_client_ = std::make_shared<MoveGroupClient>(node, cfg_);
   trajectory_executor_ = std::make_shared<MoveItExecutor>(node, cfg_);
+  moveit_servo_client_ = std::make_shared<MoveItServoClient>(node, cfg_);
+
+  env_monitor_interface_ = rlc_utils::tesseract_utils::makeMonitorInterfaceFromParentNode(
+      node, node.get_logger(), cfg_.monitor.monitor_namespace, cfg_.monitor.wait_timeout,
+      cfg_.monitor.env_name);
 }
 
 const PlanningProfile*

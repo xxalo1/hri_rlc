@@ -7,12 +7,18 @@
 
 #include "rlc_executive/core/exec_config.hpp"
 
+namespace tesseract_monitoring
+{
+class ROSEnvironmentMonitorInterface;
+}
+
 namespace rlc_executive
 {
 
 class StateBuffer;
 class MoveGroupClient;
 class TrajectoryExecutor;
+class MoveItServoClient;
 
 class RuntimeContext final
 {
@@ -50,13 +56,26 @@ public:
     return *trajectory_executor_;
   }
 
+  MoveItServoClient& moveItServoClient() const
+  {
+    return *moveit_servo_client_;
+  }
+
+  tesseract_monitoring::ROSEnvironmentMonitorInterface& envMonitorInterface() const
+  {
+    return *env_monitor_interface_;
+  }
+
 private:
   rclcpp::Node* node_ = nullptr;  // non-owning
   ExecConfig cfg_;
 
   std::shared_ptr<StateBuffer> state_buffer_;
   std::shared_ptr<MoveGroupClient> move_group_client_;
+  std::shared_ptr<MoveItServoClient> moveit_servo_client_;
   std::shared_ptr<TrajectoryExecutor> trajectory_executor_;
+  std::shared_ptr<tesseract_monitoring::ROSEnvironmentMonitorInterface>
+      env_monitor_interface_;
 };
 
 }  // namespace rlc_executive
