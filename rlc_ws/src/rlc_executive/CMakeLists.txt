@@ -15,6 +15,7 @@ find_package(builtin_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 
@@ -23,8 +24,10 @@ find_package(behaviortree_cpp REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-find_package(rbt_irl)
-find_package(rbt_types)
+find_package(rbt_irl REQUIRED)
+find_package(rbt_types REQUIRED)
+find_package(rbt_planning REQUIRED CONFIG)
+find_package(rlc_utils REQUIRED)
 
 # Core library (no BT leaf nodes here)
 add_library(${PROJECT_NAME} SHARED
@@ -34,6 +37,7 @@ add_library(${PROJECT_NAME} SHARED
   src/bt/tree_runner.cpp
   src/state/state_buffer.cpp
   src/moveit/move_group_client.cpp
+  src/moveit/moveit_servo_client.cpp
   src/execution/moveit_executor.cpp
 )
 
@@ -55,14 +59,20 @@ ament_target_dependencies(${PROJECT_NAME}
     rclcpp
     rclcpp_action
     sensor_msgs
+    std_srvs
     tf2
     tf2_ros
     yaml_cpp_vendor
     rbt_irl
     rbt_types
+    rlc_utils
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp)
+target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    rbt_planning::rbt_planning
+    yaml-cpp::yaml-cpp
+)
 
 # BT plugin library (all BT leaf nodes live here)
 file(GLOB_RECURSE RLC_BT_NODE_SOURCES CONFIGURE_DEPENDS
@@ -91,6 +101,7 @@ ament_target_dependencies(rlc_executive_bt_nodes
     sensor_msgs
     rbt_irl
     rbt_types
+    rlc_utils
 )
 
 # Most of your BT nodes use RuntimeContext, MoveGroupClient, MoveItExecutor, etc.
@@ -161,6 +172,8 @@ ament_export_dependencies(
   yaml-cpp
   rbt_irl
   rbt_types
+  rlc_utils
+  rbt_planning
 )
 
 ament_package()

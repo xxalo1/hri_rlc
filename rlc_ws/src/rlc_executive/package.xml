@@ -24,6 +24,7 @@
   <!-- Planning and execution interfaces -->
   <depend>moveit_msgs</depend>
   <depend>control_msgs</depend>
+  <depend>std_srvs</depend>
 
   <!-- BT engine -->
   <depend>behaviortree_cpp</depend>
@@ -36,6 +37,8 @@
 
   <depend>rbt_irl</depend>
   <depend>rbt_types</depend>
+  <depend>rlc_utils</depend>
+  <depend>rbt_planning</depend>
 
 
   <export>
