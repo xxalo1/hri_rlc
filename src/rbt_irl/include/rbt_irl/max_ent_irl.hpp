@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <stop_token>
@@ -22,6 +23,7 @@ public:
   using FeaturePtr = rbt_types::FeaturePtr;
   using FeatureList = rbt_types::Features;
 
+  using JointVec = rbt_types::JointVec;
   using WeightVec = rbt_types::WeightVec;
   using FeatureVec = rbt_types::FeatureVec;
 
@@ -30,8 +32,13 @@ public:
   using TrajectoryEndpoints = utils::TrajectoryEndpoints;
   using TrajectoryEndpointsSet = utils::TrajectoryEndpointsSet;
 
-  using SamplerFn = std::function<Trajectory(const TrajectoryEndpoints& start_goal,
-                                             const RewardTerms& reward_terms)>;
+  using SamplerFn = std::function<TrajectorySet(const TrajectoryEndpointsSet& endpoints,
+                                                const RewardTerms& reward_terms)>;
+
+  using IterationCallback =
+      std::function<void(const WeightVec& theta, const WeightVec& theta_prev,
+                         std::chrono::milliseconds elapsed_time,
+                         int iteration)>;
 
   /**
    * @brief Configuration options for the MaxEnt IRL optimizer.
@@ -68,28 +75,25 @@ public:
    * @param[in] demos Demonstration trajectories, length >= 1.
    * @param[in] theta0 Optional initial weights; if empty, initializes to `Ones(features.size())`.
    * @param[in] st Stop token to allow early termination of the optimization.
+   * @param[in] iteration_callback Optional callback invoked after each completed
+   * optimization iteration. Receives the current weights, previous weights,
+   * elapsed wall time [ms] since the start of `fit()`, and the zero-based
+   * iteration index.
    * @return Learned weights `theta`, size = features.size().
    */
   WeightVec fit(const TrajectorySet& demo_trajs, const WeightVec& theta0 = WeightVec{},
-                std::stop_token st = {});
+                const std::stop_token& st = {},
+                const IterationCallback& iteration_callback = {});
 
   const WeightVec& theta() const
-  {
-    return theta_;
-  }
+  { return theta_; }
   void setTheta(const WeightVec& t)
-  {
-    theta_ = t;
-  }
+  { theta_ = t; }
 
   void setFeatures(const FeatureList& feats)
-  {
-    features_ = feats;
-  }
+  { features_ = feats; }
   void setOptions(const Options& opt)
-  {
-    opt_ = opt;
-  }
+  { opt_ = opt; }
 
 private:
   FeatureVec computeFeatureCounts(const Trajectory& traj) const;
@@ -110,9 +114,7 @@ private:
   void initializeTheta(const WeightVec& theta0);
 
   std::size_t featureDim() const
-  {
-    return features_.size();
-  }
+  { return features_.size(); }
 
   SamplerFn sampler_;  // injected
   Options opt_;

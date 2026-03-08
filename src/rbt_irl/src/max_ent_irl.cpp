@@ -58,19 +58,14 @@ MaxEntIRL::sampleUnderTheta(const TrajectoryEndpointsSet& demo_endpoints,
     rewards.push_back({ features_[i], theta[i] });
   }
 
-  TrajectorySet sampled_trajs;
-  sampled_trajs.reserve(demo_endpoints.size());
+  TrajectorySet sampled_trajs = sampler_(demo_endpoints, rewards);
 
-  for (const TrajectoryEndpoints& sgs : demo_endpoints)
-  {
-    Trajectory traj = sampler_(sgs, rewards);
-    sampled_trajs.push_back(std::move(traj));
-  }
   return sampled_trajs;
 }
 
 MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
-                                    const WeightVec& theta0, std::stop_token st)
+                                    const WeightVec& theta0, const std::stop_token& st,
+                                    const IterationCallback& iteration_callback)
 {
   validateConfiguration();
   validateDemos(demo_trajs);
@@ -81,8 +76,15 @@ MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
 
   const FeatureVec emp_feat_mean = computeFeatureMean(demo_trajs);
 
+  const auto ti = std::chrono::steady_clock::now();
+
   for (int it = 0; it < opt_.max_iters; ++it)
   {
+    if (st.stop_requested())
+    {
+      break;
+    }
+
     const WeightVec theta_prev = theta_;
 
     const TrajectorySet sampled_trajs = sampleUnderTheta(demo_endpoints, theta_);
@@ -90,6 +92,14 @@ MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
     const WeightVec grad = estimateGradient(emp_feat_mean, exp_feat_mean);
 
     theta_ -= opt_.learning_rate * grad;
+
+    if (iteration_callback)
+    {
+      const auto t = std::chrono::steady_clock::now();
+      const auto elapsed_time =
+          std::chrono::duration_cast<std::chrono::milliseconds>(t - ti);
+      iteration_callback(theta_, theta_prev, elapsed_time, it);
+    }
 
     if (hasConverged(theta_prev, theta_))
     {
@@ -107,14 +117,10 @@ MaxEntIRL::WeightVec MaxEntIRL::fit(const TrajectorySet& demo_trajs,
 
 MaxEntIRL::WeightVec MaxEntIRL::estimateGradient(const FeatureVec& emp_mean,
                                                  const FeatureVec& exp_mean) const
-{
-  return emp_mean - exp_mean;
-}
+{ return emp_mean - exp_mean; }
 
 bool MaxEntIRL::hasConverged(const WeightVec& theta_prev, const WeightVec& theta) const
-{
-  return (theta - theta_prev).norm() < opt_.convergence_tol;
-}
+{ return (theta - theta_prev).norm() < opt_.convergence_tol; }
 
 void MaxEntIRL::validateConfiguration() const
 {
