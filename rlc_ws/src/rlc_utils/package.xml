@@ -12,12 +12,15 @@
   <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <!-- C++ dependencies -->
+  <depend>rclcpp</depend>
   <depend>builtin_interfaces</depend>
   <depend>control_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>trajectory_msgs</depend>
   <depend>eigen</depend>
+  <depend>tesseract_msgs</depend>
+  <depend>tesseract_monitoring</depend>
 
   <!-- Python dependencies -->
   <exec_depend>python3-numpy</exec_depend>
