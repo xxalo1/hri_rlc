@@ -6,6 +6,7 @@
  */
 
 #include <rbt_planning/trajopt_solver.hpp>
+#include <rbt_types/objective_term.hpp>
 #include <rlc_planner/trajopt_planner_options.hpp>
 
 #include <moveit/planning_interface/planning_interface.hpp>
@@ -66,6 +67,8 @@ namespace rlc_planner
 class TrajOptInterface final
 {
 public:
+  using JointVec = rbt_types::JointVec;
+
   /**
    * @brief Planning result produced by plan().
    *
@@ -118,20 +121,18 @@ public:
        const std::shared_ptr<tesseract_environment::Environment>& env_snapshot) const;
 
   /**
-   * @brief Replaces the set of user-defined TrajOpt feature costs applied on each solve.
-   * @param[in] costs Feature costs to apply (stored internally by value).
-   * @note Thread-safe. Subsequent plan() calls use the updated costs.
+   * @brief Replaces the set of user-defined TrajOpt reward terms applied on each solve.
+   * @param[in] rewards Reward terms to apply (stored internally by value).
+   * @note Thread-safe. Subsequent plan() calls use the updated rewards.
    */
-  void setFeatureCosts(std::vector<rbt_planning::FeatureCost> costs);
+  void setRewards(const rbt_types::RewardTerms& rewards);
 
   /**
    * @brief Returns the request-invariant TrajOpt options.
    * @return Planner options (reference valid for the lifetime of this interface).
    */
   const TrajOptPlannerOptions::TrajOptOptions& options() const
-  {
-    return options_;
-  }
+  { return options_; }
 
 private:
   /**
@@ -181,7 +182,7 @@ private:
 
     std::vector<std::string> joint_names;
     std::vector<std::string> variable_names;
-    Eigen::VectorXd q_start;
+    JointVec q_start;
     moveit::core::RobotState start_state;
   };
 
@@ -203,7 +204,7 @@ private:
 
     std::size_t goal_index{ 0 };
     moveit_msgs::msg::Constraints goal_raw;
-    Eigen::VectorXd q_goal;  ///< Goal joint positions [rad] (StartData.joint_names order).
+    JointVec q_goal;  ///< Goal joint positions [rad] (StartData.joint_names order).
     moveit::core::RobotState goal_state;
   };
 
@@ -230,9 +231,9 @@ private:
    * @throws rlc_planner::PlanningError If the goal constraints are invalid or unsupported.
    */
   GoalData extractGoal(const planning_scene::PlanningSceneConstPtr& scene,
-                            const planning_interface::MotionPlanRequest& req,
-                            const moveit::core::JointModelGroup& jmg,
-                            const StartData& start) const;
+                       const planning_interface::MotionPlanRequest& req,
+                       const moveit::core::JointModelGroup& jmg,
+                       const StartData& start) const;
 
   /**
    * @brief Extracts an optional joint seed trajectory from `req.trajectory_constraints`.
@@ -313,9 +314,8 @@ private:
 private:
   TrajOptPlannerOptions::TrajOptOptions options_;  ///< Request-invariant TrajOpt options.
 
-  mutable std::mutex config_mutex_;  ///< Protects feature cost configuration.
-  std::vector<rbt_planning::FeatureCost>
-      feature_costs_;  ///< Feature costs applied on each solve.
+  mutable std::mutex config_mutex_;          ///< Protects feature cost configuration.
+  rbt_types::CostTerms costs_;  ///< Costs applied on each solve.
 
   mutable std::mutex cache_mutex_;  ///< Protects caches below.
   mutable std::unordered_map<std::string, SeedCacheEntry>

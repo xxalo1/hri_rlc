@@ -3,7 +3,6 @@
 #include <rlc_planner/exceptions.hpp>
 #include <rlc_planner/trajopt_interface.hpp>
 #include <rlc_planner/trajopt_planning_context.hpp>
-#include <rlc_scene_bridge/moveit_tesseract_bridge.hpp>
 
 #include <moveit/planning_scene/planning_scene.hpp>
 #include <moveit/utils/logger.hpp>
@@ -12,11 +11,14 @@
 
 #include <tesseract_monitoring/constants.h>
 #include <tesseract_monitoring/environment_monitor_interface.h>
-#include <tesseract_msgs/srv/get_environment_information.hpp>
+#include <tesseract_environment/environment.h>
 
 #include <chrono>
 #include <memory>
+#include <string>
 #include <rclcpp/exceptions/exceptions.hpp>
+
+#include <rlc_utils/tesseract_utils.hpp>
 
 namespace rlc_planner
 {
@@ -87,9 +89,9 @@ bool TrajOptPlannerManager::initialize(const moveit::core::RobotModelConstPtr& m
 
   options_ = declareAndLoadOptions(param_prefix);
 
-  if (!initializeTesseractBridge(node_, options_.scene_bridge))
+  if (!initializeTesseractMonitor(node_, options_.monitor))
   {
-    RCLCPP_ERROR(getLogger(), "initialize() failed: could not initialize scene bridge");
+    RCLCPP_ERROR(getLogger(), "initialize() failed: could not initialize Tesseract monitor");
     return false;
   }
 
@@ -111,70 +113,30 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
 {
   TrajOptPlannerOptions opt{};
 
-  // Scene bridge / Tesseract monitoring options
-  const auto monitor_namespace_param = pfx + "scene_bridge.monitor_namespace";
-  const auto env_name_param = pfx + "scene_bridge.env_name";
-  const auto scene_topic_param = pfx + "scene_bridge.scene_topic";
-  const auto get_scene_srv_param = pfx + "scene_bridge.get_scene_srv";
-  const auto scene_components_param = pfx + "scene_bridge.scene_components";
-  const auto srv_wait_ms_param = pfx + "scene_bridge.srv_wait_ms";
-  const auto scene_qos_depth_param = pfx + "scene_bridge.scene_qos_depth";
+  // Tesseract monitor connectivity options
+  const auto monitor_namespace_param = pfx + "monitor.monitor_namespace";
+  const auto env_name_param = pfx + "monitor.env_name";
+  const auto wait_timeout_ms_param = pfx + "monitor.wait_timeout_ms";
 
-  opt.scene_bridge.monitor_namespace = declareOrGetParameter<std::string>(
-      *node_, monitor_namespace_param, opt.scene_bridge.monitor_namespace);
-  // Tesseract environment name must match the environment monitor's ID (usually the
-  // URDF robot name). Default to the MoveIt robot model name for convenience.
-  opt.scene_bridge.env_name =
+  opt.monitor.monitor_namespace = declareOrGetParameter<std::string>(
+      *node_, monitor_namespace_param, opt.monitor.monitor_namespace);
+  // Environment name must match the environment monitor's ID (usually the URDF robot
+  // name). Default to the MoveIt robot model name for convenience.
+  opt.monitor.env_name =
       declareOrGetParameter<std::string>(*node_, env_name_param, model_->getName());
-  opt.scene_bridge.scene_topic = declareOrGetParameter<std::string>(
-      *node_, scene_topic_param, opt.scene_bridge.scene_topic);
-  opt.scene_bridge.get_scene_srv = declareOrGetParameter<std::string>(
-      *node_, get_scene_srv_param, opt.scene_bridge.get_scene_srv);
 
-  const int scene_components =
-      declareOrGetParameter<int>(*node_, scene_components_param,
-                                 static_cast<int>(opt.scene_bridge.scene_components));
-  if (scene_components >= 0)
+  const int wait_timeout_ms = declareOrGetParameter<int>(
+      *node_, wait_timeout_ms_param, static_cast<int>(opt.monitor.wait_timeout.count()));
+  if (wait_timeout_ms >= 0)
   {
-    opt.scene_bridge.scene_components = static_cast<uint32_t>(scene_components);
+    opt.monitor.wait_timeout = std::chrono::milliseconds{ wait_timeout_ms };
   }
   else
   {
     RCLCPP_WARN(getLogger(),
-                "scene_bridge.scene_components=%d is invalid; using default=%u",
-                scene_components, opt.scene_bridge.scene_components);
+                "monitor.wait_timeout_ms=%d is invalid; using default=%ld",
+                wait_timeout_ms, static_cast<long>(opt.monitor.wait_timeout.count()));
   }
-
-  const int srv_wait_ms = declareOrGetParameter<int>(
-      *node_, srv_wait_ms_param, static_cast<int>(opt.scene_bridge.srv_wait.count()));
-  if (srv_wait_ms >= 0)
-  {
-    opt.scene_bridge.srv_wait = std::chrono::milliseconds{ srv_wait_ms };
-  }
-  else
-  {
-    RCLCPP_WARN(getLogger(), "scene_bridge.srv_wait_ms=%d is invalid; using default=%ld",
-                srv_wait_ms, static_cast<long>(opt.scene_bridge.srv_wait.count()));
-  }
-
-  const int scene_qos_depth = declareOrGetParameter<int>(
-      *node_, scene_qos_depth_param, static_cast<int>(opt.scene_bridge.scene_qos_depth));
-  if (scene_qos_depth > 0)
-  {
-    opt.scene_bridge.scene_qos_depth = static_cast<std::size_t>(scene_qos_depth);
-  }
-  else
-  {
-    RCLCPP_WARN(getLogger(),
-                "scene_bridge.scene_qos_depth=%d is invalid; using default=%zu",
-                scene_qos_depth, opt.scene_bridge.scene_qos_depth);
-  }
-
-  // Scene bridge environment sync options
-  const auto allow_replace_param = pfx + "scene_bridge.env_sync.allow_replace";
-
-  opt.scene_bridge.env_sync.allow_replace = declareOrGetParameter<bool>(
-      *node_, allow_replace_param, opt.scene_bridge.env_sync.allow_replace);
 
   // TrajOpt interface options
   const auto default_num_steps_param = pfx + "trajopt.default_num_steps";
@@ -202,9 +164,8 @@ TrajOptPlannerOptions TrajOptPlannerManager::declareAndLoadOptions(const std::st
   return opt;
 }
 
-bool TrajOptPlannerManager::initializeTesseractBridge(
-    const rclcpp::Node::SharedPtr& node,
-    const rlc_scene_bridge::MoveItTesseractBridgeOptions& opt)
+bool TrajOptPlannerManager::initializeTesseractMonitor(
+    const rclcpp::Node::SharedPtr& node, const TrajOptPlannerOptions::MonitorOptions& opt)
 {
   rclcpp::NodeOptions node_opt;
   node_opt.context(node->get_node_base_interface()->get_context());
@@ -216,41 +177,12 @@ bool TrajOptPlannerManager::initializeTesseractBridge(
   tesseract_monitor_client_node_ =
       std::make_shared<rclcpp::Node>(client_node_name, node->get_namespace(), node_opt);
 
-  const std::string info_srv =
-      "/" + opt.monitor_namespace +
-      tesseract_monitoring::DEFAULT_GET_ENVIRONMENT_INFORMATION_SERVICE;
-  auto info_client =
-      tesseract_monitor_client_node_
-          ->create_client<tesseract_msgs::srv::GetEnvironmentInformation>(info_srv);
-
-  if (!info_client->wait_for_service(std::chrono::seconds{ 3 }))
+  monitor_interface_ = rlc_utils::tesseract_utils::makeMonitorInterface(
+      tesseract_monitor_client_node_, getLogger(), opt.monitor_namespace, opt.wait_timeout,
+      opt.env_name);
+  if (!monitor_interface_)
   {
-    RCLCPP_ERROR(getLogger(),
-                 "Tesseract monitor info service '%s' not available after 3 seconds",
-                 info_srv.c_str());
-    return false;
-  }
-
-  auto mon = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitorInterface>(
-      tesseract_monitor_client_node_, opt.env_name);
-  mon->addNamespace(opt.monitor_namespace);
-
-  if (!mon->waitForNamespace(opt.monitor_namespace, std::chrono::seconds{ 3 }))
-  {
-    RCLCPP_ERROR(getLogger(), "Tesseract monitor not reachable under namespace '%s'",
-                 opt.monitor_namespace.c_str());
-    return false;
-  }
-
-  rlc_scene_bridge::MoveItTesseractBridge::MonitorInterfaceConstPtr mon_const = mon;
-  try
-  {
-    env_bridge_ =
-        std::make_shared<rlc_scene_bridge::MoveItTesseractBridge>(node, mon_const, opt);
-  }
-  catch (const std::exception& ex)
-  {
-    RCLCPP_ERROR(getLogger(), "Failed to construct MoveItTesseractBridge: %s", ex.what());
+    RCLCPP_ERROR(getLogger(), "initialize() failed: could not create monitor interface");
     return false;
   }
   return true;
@@ -282,14 +214,9 @@ bool TrajOptPlannerManager::canServiceRequest(
                  req.group_name.c_str());
     return false;
   }
-  if (!env_bridge_)
+  if (!monitor_interface_)
   {
-    RCLCPP_ERROR(getLogger(), "Tesseract bridge is not initialized");
-    return false;
-  }
-  if (!env_bridge_->isSynchronized())
-  {
-    RCLCPP_ERROR(getLogger(), "Tesseract environment is not synchronized");
+    RCLCPP_ERROR(getLogger(), "Tesseract monitor interface is not initialized");
     return false;
   }
   if (!trajopt_interface_)
@@ -316,7 +243,26 @@ planning_interface::PlanningContextPtr TrajOptPlannerManager::getPlanningContext
   }
 
   TrajOptPlanningContext::EnvironmentPtr env_snapshot;
-  env_snapshot = env_bridge_->envSnapshot();
+  if (!monitor_interface_)
+  {
+    setError(error_code, moveit_msgs::msg::MoveItErrorCodes::FAILURE,
+             "Tesseract monitor interface is not initialized");
+    return nullptr;
+  }
+
+  try
+  {
+    auto env_uptr = monitor_interface_->getEnvironment(options_.monitor.monitor_namespace);
+    env_snapshot =
+        std::shared_ptr<tesseract_environment::Environment>(std::move(env_uptr));
+  }
+  catch (const std::exception& e)
+  {
+    setError(error_code, moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED,
+             std::string{ "Failed to snapshot Tesseract environment: " } + e.what());
+    return nullptr;
+  }
+
   if (!env_snapshot)
   {
     setError(error_code, moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED,
@@ -350,15 +296,10 @@ void TrajOptPlannerManager::validateRequest(
     throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED,
                         "Request not supported by planner_id='" + req.planner_id + "'");
   }
-  if (!env_bridge_)
+  if (!monitor_interface_)
   {
     throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::FAILURE,
-                        "Tesseract bridge is not initialized");
-  }
-  if (!env_bridge_->isSynchronized())
-  {
-    throw PlanningError(moveit_msgs::msg::MoveItErrorCodes::PLANNING_FAILED,
-                        "Tesseract environment is not synchronized");
+                        "Tesseract monitor interface is not initialized");
   }
   if (!trajopt_interface_)
   {

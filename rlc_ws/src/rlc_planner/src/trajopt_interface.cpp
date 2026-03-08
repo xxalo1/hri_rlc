@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <rbt_types/objective_term.hpp>
 #include <sstream>
 
 #include <unordered_map>
@@ -28,9 +29,7 @@ namespace
 {
 
 rclcpp::Logger getLogger()
-{
-  return moveit::getLogger("rlc_planner.trajopt_interface");
-}
+{ return moveit::getLogger("rlc_planner.trajopt_interface"); }
 
 std::string formatJointNames(const std::vector<std::string>& joint_names)
 {
@@ -170,10 +169,10 @@ TrajOptInterface::TrajOptInterface(TrajOptPlannerOptions::TrajOptOptions opt)
   }
 }
 
-void TrajOptInterface::setFeatureCosts(std::vector<rbt_planning::FeatureCost> costs)
+void TrajOptInterface::setRewards(const rbt_types::RewardTerms& rewards)
 {
   std::scoped_lock lk(config_mutex_);
-  feature_costs_ = std::move(costs);
+  costs_ = rbt_types::rewardToCost(rewards);
 }
 
 TrajOptInterface::StartData
@@ -508,10 +507,10 @@ trajopt::TrajArray TrajOptInterface::solveTrajOpt(
                         "Tesseract environment snapshot is null");
   }
 
-  std::vector<rbt_planning::FeatureCost> costs_copy;
+  rbt_types::CostTerms costs_copy;
   {
     std::scoped_lock lk(config_mutex_);
-    costs_copy = feature_costs_;
+    costs_copy = costs_;
   }
 
   const std::string manipulator_group = resolveTesseractManipulatorGroup(req);
@@ -556,10 +555,7 @@ trajopt::TrajArray TrajOptInterface::solveTrajOpt(
       solver.setTrajSeed(seed);
     }
 
-    for (auto& c : costs_copy)
-    {
-      solver.addFeatureCost(std::move(c));
-    }
+    solver.addCost(costs_copy);
 
     return solver.solve();
   }

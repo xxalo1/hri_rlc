@@ -14,10 +14,10 @@
 #include <string>
 #include <vector>
 
-namespace rlc_scene_bridge
+namespace tesseract_monitoring
 {
-class MoveItTesseractBridge;
-}  // namespace rlc_scene_bridge
+class ROSEnvironmentMonitorInterface;
+}  // namespace tesseract_monitoring
 
 namespace rlc_planner
 {
@@ -30,8 +30,8 @@ class TrajOptInterface;
  * @details
  * This plugin exposes a single planning algorithm id: `"rlc_trajopt"`.
  *
- * The manager owns a synchronized MoveIt↔Tesseract scene bridge used to provide a
- * Tesseract environment snapshot to each planning context.
+ * The manager connects to a Tesseract monitoring node and snapshots a Tesseract
+ * environment for each planning context.
  */
 class TrajOptPlannerManager final : public planning_interface::PlannerManager
 {
@@ -57,7 +57,7 @@ public:
    *
    * @details
    * Parameters are declared on `node` under `parameter_namespace` (if non-empty), then
-   * used to configure the Tesseract scene bridge and TrajOpt interface.
+   * used to configure the Tesseract monitor connectivity and TrajOpt interface.
    */
   bool initialize(const moveit::core::RobotModelConstPtr& model,
                   const rclcpp::Node::SharedPtr& node,
@@ -109,15 +109,14 @@ private:
   TrajOptPlannerOptions declareAndLoadOptions(const std::string& pfx);
 
   /**
-   * @brief Initializes the MoveIt↔Tesseract scene bridge.
+   * @brief Initializes the Tesseract environment monitor interface.
    * @param[in] node Node used for ROS interfaces.
-   * @param[in] opt Scene bridge options.
-   * @return True if the bridge was constructed and synchronized monitor connectivity was
+   * @param[in] opt Monitor options.
+   * @return True if the monitor interface was constructed and connectivity was
    * established.
    */
-  bool
-  initializeTesseractBridge(const rclcpp::Node::SharedPtr& node,
-                            const rlc_scene_bridge::MoveItTesseractBridgeOptions& opt);
+  bool initializeTesseractMonitor(const rclcpp::Node::SharedPtr& node,
+                                  const TrajOptPlannerOptions::MonitorOptions& opt);
 
   /**
    * @brief Validates that the request can be serviced in the current plugin state.
@@ -135,8 +134,8 @@ private:
 
   rclcpp::Node::SharedPtr tesseract_monitor_client_node_;  ///< Dedicated node for Tesseract monitor service calls.
 
-  std::shared_ptr<rlc_scene_bridge::MoveItTesseractBridge>
-      env_bridge_;  ///< Scene bridge providing synchronized Tesseract snapshots.
+  std::shared_ptr<tesseract_monitoring::ROSEnvironmentMonitorInterface>
+      monitor_interface_;  ///< Monitor interface used to snapshot Tesseract environments.
   std::shared_ptr<TrajOptInterface> trajopt_interface_;  ///< Shared TrajOpt interface.
 };
 

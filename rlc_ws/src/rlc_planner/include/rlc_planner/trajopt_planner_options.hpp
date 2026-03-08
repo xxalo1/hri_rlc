@@ -5,9 +5,8 @@
  * @brief Parameter-backed option structs for the TrajOpt MoveIt planner plugin.
  */
 
+#include <chrono>
 #include <string>
-
-#include <rlc_scene_bridge/scene_bridge_options.hpp>
 
 namespace rlc_planner
 {
@@ -16,11 +15,28 @@ namespace rlc_planner
  * @brief Aggregated options for the `rlc_trajopt` MoveIt planner plugin.
  *
  * @details
- * - `scene_bridge` configures the MoveIt↔Tesseract scene/environment synchronization.
+ * - `monitor` configures connectivity to the Tesseract environment monitor.
  * - `trajopt` configures TrajOpt-specific solve settings and caching behavior.
  */
 struct TrajOptPlannerOptions
 {
+  /**
+   * @brief Options for connecting to a Tesseract environment monitoring node.
+   *
+   * @details
+   * - `monitor_namespace` selects which monitor namespace to connect to.
+   * - `env_name` selects which environment name to snapshot (must match the monitor's
+   *   environment name).
+   * - `wait_timeout` controls how long initialize() waits for the monitor namespace to
+   *   become available.
+   */
+  struct MonitorOptions
+  {
+    std::string monitor_namespace{ "tesseract_monitor" };
+    std::string env_name{ "default" };
+    std::chrono::milliseconds wait_timeout{ std::chrono::milliseconds{ 3000 } };
+  };
+
   /**
    * @brief TrajOpt interface options that are fixed at initialization time.
    *
@@ -45,7 +61,7 @@ struct TrajOptPlannerOptions
     bool enable_last_solution_cache{ false };
   };
 
-  rlc_scene_bridge::MoveItTesseractBridgeOptions scene_bridge{};
+  MonitorOptions monitor{};
   TrajOptOptions trajopt{};
 };
 
