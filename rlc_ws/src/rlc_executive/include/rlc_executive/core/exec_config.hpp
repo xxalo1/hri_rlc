@@ -18,6 +18,20 @@ enum class TickOption : std::uint8_t
   EXACTLY_ONCE = 2
 };
 
+struct Monitor
+{
+  std::string monitor_namespace = "tesseract_monitor";
+  std::string env_name = "";
+  std::chrono::milliseconds wait_timeout{ 3000 };
+};
+
+struct Servo
+{
+  std::string pause_service_name = "/servo_node/pause_servo";
+  std::string switch_command_type_service_name = "/servo_node/switch_command_type";
+  std::string status_topic = "/servo_node/status";
+};
+
 struct ExecConfig
 {
   double tick_rate_hz = 30.0;
@@ -42,6 +56,10 @@ struct ExecConfig
 
   TickOption tick_option = TickOption::ONCE_UNLESS_WOKEN_UP;
   std::chrono::milliseconds tick_while_running_max_block{ 100 };
+
+  Servo servo;
+  
+  Monitor monitor;
 };
 
 }  // namespace rlc_executive
