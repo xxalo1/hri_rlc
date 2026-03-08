@@ -1,0 +1,28 @@
+scene_bridge:
+  monitor_namespace: tesseract_monitor
+  env_name: fr3
+  scene_topic: /monitored_planning_scene
+  get_scene_srv: /get_planning_scene
+
+  # MoveIt PlanningSceneComponents bitmask:
+  #   ROBOT_STATE (2) | ROBOT_STATE_ATTACHED_OBJECTS (4) | WORLD_OBJECT_GEOMETRY (16) = 22
+  scene_components: 22
+
+  # Wait time for GetPlanningScene service [ms].
+  srv_wait_ms: 500
+
+  # Subscription QoS depth for PlanningScene updates.
+  scene_qos_depth: 25
+
+  # Initial wait for monitor namespace [ms].
+  monitor_wait_ms: 3000
+
+  # Periodic resync while not synchronized [ms].
+  resync_period_ms: 1000
+
+  env_sync:
+    allow_replace: true
+    naming_policy:
+      world_link_prefix: w_
+      attached_link_prefix: a_
+
