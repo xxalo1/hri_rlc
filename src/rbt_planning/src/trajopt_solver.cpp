@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+#include "rbt_types/trajectory.hpp"
+
 namespace rbt_planning
 {
 
@@ -30,23 +32,23 @@ void TrajOptSolver::setNumSteps(int n_steps)
 {
   if (n_steps < 2)
   {
-    throw std::invalid_argument("set_num_steps: n_steps must be >= 2");
+    throw std::invalid_argument("TrajOptSolver: n_steps must be >= 2");
   }
   n_steps_ = n_steps;
 }
 
 void TrajOptSolver::setStartState(const std::vector<std::string>& joint_names,
-                                  const Eigen::VectorXd& q_start)
+                                  const TrajOptSolver::JointVec& q_start)
 {
   if (!env_)
   {
-    throw std::runtime_error("set_start_state: env_ is null");
+    throw std::runtime_error("TrajOptSolver: Environment is not set");
   }
 
   if (static_cast<int>(joint_names.size()) != q_start.size())
   {
     throw std::invalid_argument(
-        "set_start_state: joint_names.size() must match q_start.size()");
+        "TrajOptSolver: joint_names.size() must match q_start.size()");
   }
 
   joint_names_ = joint_names;
@@ -55,33 +57,34 @@ void TrajOptSolver::setStartState(const std::vector<std::string>& joint_names,
   env_->setState(joint_names_, q_start_);
 }
 
-void TrajOptSolver::setGoalState(const Eigen::VectorXd& q_goal)
+void TrajOptSolver::setGoalState(const TrajOptSolver::JointVec& q_goal)
 {
   if (q_start_.size() == 0)
   {
-    throw std::runtime_error("set_goal_state: call set_start_state first");
+    throw std::runtime_error("TrajOptSolver: call setStartState() first");
   }
 
   if (q_goal.size() != q_start_.size())
   {
-    throw std::invalid_argument("set_goal_state: q_goal must match q_start dimension");
+    throw std::invalid_argument("TrajOptSolver: q_goal must match q_start dimension");
   }
 
   q_goal_ = q_goal;
 }
 
-void TrajOptSolver::validateTrajectory(std::shared_ptr<const trajopt::TrajArray>& traj) const
+void TrajOptSolver::validateTrajectory(
+    const std::shared_ptr<const trajopt::TrajArray>& traj) const
 {
   if (traj->rows() != n_steps_)
   {
     throw std::invalid_argument(
-        "validate_trajectory: traj number of rows must match n_steps");
+        "TrajOptSolver: seed trajectory rows must match n_steps");
   }
 
   if (traj->cols() != q_start_.size())
   {
     throw std::invalid_argument(
-        "validate_trajectory: traj number of columns must match ndof");
+        "TrajOptSolver: seed trajectory cols must match ndof");
   }
 }
 
@@ -91,11 +94,11 @@ void TrajOptSolver::setTrajSeed(std::shared_ptr<const trajopt::TrajArray> traj)
   traj_seed_ = std::move(traj);
 }
 
-void TrajOptSolver::addCost(const CostTerm& cost)
+void TrajOptSolver::addCost(CostTerm cost)
 {
-  if (!cost)
+  if (!cost.feature)
   {
-    throw std::invalid_argument("addCost: cost is invalid");
+    throw std::invalid_argument("TrajOptSolver: cost term is invalid");
   }
   cost_terms_.push_back(std::move(cost));
 }
@@ -112,11 +115,11 @@ trajopt::TrajArray TrajOptSolver::solve()
 {
   if (!env_)
   {
-    throw std::runtime_error("solve: env_ is null");
+    throw std::runtime_error("TrajOptSolver: Environment is not set");
   }
   if (q_start_.size() == 0 || q_goal_.size() == 0)
   {
-    throw std::runtime_error("solve: start/goal not set");
+    throw std::runtime_error("TrajOptSolver: start/goal not set");
   }
 
   constructProblem();
@@ -195,28 +198,32 @@ void TrajOptSolver::attachCosts(trajopt::TrajOptProb& prob) const
 
   for (const auto& cost : cost_terms_)
   {
+    const std::string cost_name = cost.feature ? cost.feature->name() : "feature_cost";
     auto f = sco::ScalarOfVector::construct(
         [num_steps, dof, c = cost](const Eigen::VectorXd& x) -> double {
           Eigen::Map<const trajopt::TrajArray> traj(x.data(), num_steps, dof);
-          return c.weight * c.feature->evaluate(traj);
+          rbt_types::Trajectory traj_rbt;
+          traj_rbt.states = traj;
+          traj_rbt.dt = 1.0;
+          return c.weight * c.feature->evaluate(traj_rbt);
         });
 
-    auto cost_term = std::make_shared<sco::CostFromFunc>(f, vars, cost.name);
+    auto cost_term = std::make_shared<sco::CostFromFunc>(f, vars, cost_name);
     prob.addCost(cost_term);
   }
 }
 
-trajopt::TrajArray TrajOptSolver::makeLinearSeed(const Eigen::VectorXd& q0,
-                                                 const Eigen::VectorXd& q1,
+trajopt::TrajArray TrajOptSolver::makeLinearSeed(const TrajOptSolver::JointVec& q0,
+                                                 const TrajOptSolver::JointVec& q1,
                                                  int n_steps) const
 {
   if (n_steps < 2)
   {
-    throw std::invalid_argument("make_linear_seed: n_steps must be >= 2");
+    throw std::invalid_argument("TrajOptSolver: n_steps must be >= 2");
   }
   if (q0.size() != q1.size())
   {
-    throw std::invalid_argument("make_linear_seed: q0 and q1 must match");
+    throw std::invalid_argument("TrajOptSolver: q0 and q1 must match");
   }
 
   const int ndof = static_cast<int>(q0.size());

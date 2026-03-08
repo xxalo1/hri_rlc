@@ -17,6 +17,7 @@
 #include <trajopt_sco/sco_common.hpp>
 #include <vector>
 
+#include "rbt_types/math.hpp"
 #include "rbt_types/objective_term.hpp"
 
 namespace rbt_planning
@@ -52,10 +53,11 @@ namespace rbt_planning
  */
 class TrajOptSolver
 {
+public:
+  using JointVec = rbt_types::JointVec;
   using CostTerm = rbt_types::CostTerm;
   using CostTerms = rbt_types::CostTerms;
 
-public:
   /**
    * @brief Constructs a solver with an optional environment.
    * @param[in] env Tesseract environment used to build TrajOpt problems; may be nullptr.
@@ -109,8 +111,7 @@ public:
    * @note `joint_names` ordering must match `q_start` and should be compatible with the
    * active manipulator group.
    */
-  void setStartState(const std::vector<std::string>& joint_names,
-                     const Eigen::VectorXd& q_start);
+  void setStartState(const std::vector<std::string>& joint_names, const JointVec& q_start);
 
   /**
    * @brief Sets the goal joint state.
@@ -118,7 +119,7 @@ public:
    * @throws std::runtime_error If setStartState() has not been called.
    * @throws std::invalid_argument If `q_goal.size() != q_start.size()`.
    */
-  void setGoalState(const Eigen::VectorXd& q_goal);
+  void setGoalState(const JointVec& q_goal);
 
   /**
    * @brief Sets an explicit initial trajectory seed for the optimizer.
@@ -154,8 +155,8 @@ public:
 
 private:
   void constructProblem();
-  void validateTrajectory(std::shared_ptr<const trajopt::TrajArray>& traj) const;
-  trajopt::TrajArray makeLinearSeed(const Eigen::VectorXd& q0, const Eigen::VectorXd& q1,
+  void validateTrajectory(const std::shared_ptr<const trajopt::TrajArray>& traj) const;
+  trajopt::TrajArray makeLinearSeed(const JointVec& q0, const JointVec& q1,
                                     int n_steps) const;
   static sco::VarVector getVars(trajopt::TrajOptProb& prob);
   void attachCosts(trajopt::TrajOptProb& prob) const;
@@ -167,8 +168,8 @@ private:
   int n_steps_{ 20 };
 
   std::vector<std::string> joint_names_;
-  Eigen::VectorXd q_start_;
-  Eigen::VectorXd q_goal_;
+  JointVec q_start_;
+  JointVec q_goal_;
   std::shared_ptr<const trajopt::TrajArray> traj_seed_;
 
   std::shared_ptr<trajopt::TrajOptProb> prob_;
