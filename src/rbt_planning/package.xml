@@ -13,7 +13,9 @@
   <depend>boost</depend>
   <depend>tesseract_environment</depend>
   <depend>trajopt</depend>
+  <depend>ompl</depend>
   <depend>rbt_types</depend>
+
 
   <export>
     <build_type>cmake</build_type>

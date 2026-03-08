@@ -11,13 +11,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Dependencies (exported as part of the public interface via target_link_libraries PUBLIC)
 find_package(Eigen3 REQUIRED)
-find_package(MPI REQUIRED COMPONENTS C)
+find_package(ompl REQUIRED CONFIG)
 find_package(tesseract_environment REQUIRED)
 find_package(trajopt REQUIRED)
 find_package(rbt_types REQUIRED)
 
 add_library(rbt_planning
+  src/ompl_solver.cpp
+  src/trajopt_planner.cpp
   src/trajopt_solver.cpp
+  src/utils.cpp
 )
 add_library(rbt_planning::rbt_planning ALIAS rbt_planning)
 
@@ -32,6 +35,7 @@ target_include_directories(rbt_planning
 
 target_link_libraries(rbt_planning
   PUBLIC
+    ompl::ompl
     trajopt::trajopt
     tesseract::tesseract_environment
     Eigen3::Eigen
