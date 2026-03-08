@@ -1,22 +1,3 @@
-#  Copyright (c) 2024 Franka Robotics GmbH
-#
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
-
-# NOTE: Modified from upstream franka_ros2 by hri_rlc.
-
-# This file is an adapted version of
-# https://github.com/ros-planning/moveit_resources/blob/ca3f7930c630581b5504f3b22c40b4f82ee6369d/panda_moveit_config/launch/demo.launch.py
-
 import os
 import sys
 
@@ -49,22 +30,25 @@ def generate_launch_description() -> LaunchDescription:
     include this launch file and override:
     - which MoveIt config YAML files to use
     - which planner pipeline to enable (default: OMPL)
+    - how `robot_description` / `robot_description_semantic` are generated (URDF/SRDF xacro)
 
     Notes
     -----
-    When `planner:=rlc_trajopt`, this launch also starts a
-    `tesseract_monitoring_environment_node` because `rlc_planner` connects to it
-    via `tesseract_monitoring::ROSEnvironmentMonitorInterface`.
+    When `planner:=rlc_trajopt`, this launch also starts:
+    - a `tesseract_monitoring_environment_node` for hosting the Tesseract environment, and
+    - an `rlc_scene_bridge_node` for synchronizing MoveIt's planning scene into that
+      environment.
     """
     use_sim_time = LaunchConfiguration("use_sim_time")
-    robot_ip = LaunchConfiguration("robot_ip")
-    load_gripper = LaunchConfiguration("load_gripper")
-    use_fake_hardware = LaunchConfiguration("use_fake_hardware")
-    fake_sensor_commands = LaunchConfiguration("fake_sensor_commands")
     namespace = LaunchConfiguration("namespace")
     planner = LaunchConfiguration("planner")
     tesseract_monitor_namespace = LaunchConfiguration("tesseract_monitor_namespace")
     tesseract_joint_state_topic = LaunchConfiguration("tesseract_joint_state_topic")
+
+    urdf_xacro_file = LaunchConfiguration("urdf_xacro_file")
+    urdf_xacro_args = LaunchConfiguration("urdf_xacro_args")
+    srdf_xacro_file = LaunchConfiguration("srdf_xacro_file")
+    srdf_xacro_args = LaunchConfiguration("srdf_xacro_args")
 
     moveit_config_package = LaunchConfiguration("moveit_config_package")
     kinematics_yaml = LaunchConfiguration("kinematics_yaml")
@@ -72,6 +56,7 @@ def generate_launch_description() -> LaunchDescription:
     moveit_controllers_yaml = LaunchConfiguration("moveit_controllers_yaml")
     ompl_planning_yaml = LaunchConfiguration("ompl_planning_yaml")
     trajopt_planning_yaml = LaunchConfiguration("trajopt_planning_yaml")
+    scene_bridge_yaml = LaunchConfiguration("scene_bridge_yaml")
     use_rviz = LaunchConfiguration("use_rviz")
     rviz_config = LaunchConfiguration("rviz_config")
 
@@ -112,6 +97,39 @@ def generate_launch_description() -> LaunchDescription:
             ),
         ),
         DeclareLaunchArgument(
+            "urdf_xacro_file",
+            default_value="",
+            description=(
+                "URDF xacro file used to generate `robot_description`. This launch does "
+                "not assume any robot model; callers must pass this explicitly (absolute "
+                "path recommended)."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "urdf_xacro_args",
+            default_value="",
+            description=(
+                "Extra xacro args appended verbatim when running `urdf_xacro_file` "
+                "(space-separated tokens like `foo:=bar`)."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "srdf_xacro_file",
+            default_value="",
+            description=(
+                "SRDF xacro file used to generate `robot_description_semantic`. Callers "
+                "must pass this explicitly (absolute path recommended)."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "srdf_xacro_args",
+            default_value="",
+            description=(
+                "Extra xacro args appended verbatim when running `srdf_xacro_file` "
+                "(space-separated tokens like `foo:=bar`)."
+            ),
+        ),
+        DeclareLaunchArgument(
             "moveit_config_package",
             default_value="rlc_moveit_config",
             description="Package that provides the MoveIt config YAML files.",
@@ -146,6 +164,14 @@ def generate_launch_description() -> LaunchDescription:
             ),
         ),
         DeclareLaunchArgument(
+            "scene_bridge_yaml",
+            default_value="config/fr3/scene_bridge.yaml",
+            description=(
+                "Path to rlc_scene_bridge node parameters YAML relative to "
+                "moveit_config_package."
+            ),
+        ),
+        DeclareLaunchArgument(
             "use_rviz",
             default_value="true",
             description="Start RViz if true.",
@@ -158,77 +184,7 @@ def generate_launch_description() -> LaunchDescription:
                 "`moveit_config_package`."
             ),
         ),
-        DeclareLaunchArgument(
-            "robot_ip",
-            default_value="",
-            description="Hostname or IP address of the robot.",
-        ),
-        DeclareLaunchArgument(
-            "load_gripper",
-            default_value="true",
-            description="Whether to load the gripper (true | false).",
-        ),
-        DeclareLaunchArgument(
-            "use_fake_hardware",
-            default_value="false",
-            description="Use fake hardware.",
-        ),
-        DeclareLaunchArgument(
-            "fake_sensor_commands",
-            default_value="false",
-            description=(
-                "Fake sensor commands. Only valid when 'use_fake_hardware' is true."
-            ),
-        ),
     ]
-
-    franka_urdf_xacro = os.path.join(
-        get_package_share_directory("franka_description"),
-        "robots",
-        "fr3",
-        "fr3.urdf.xacro",
-    )
-    robot_description_command = Command(
-        [
-            FindExecutable(name="xacro"),
-            " ",
-            franka_urdf_xacro,
-            " ros2_control:=false",
-            " hand:=",
-            load_gripper,
-            " robot_type:=fr3",
-            " robot_ip:=",
-            robot_ip,
-            " use_fake_hardware:=",
-            use_fake_hardware,
-            " fake_sensor_commands:=",
-            fake_sensor_commands,
-        ]
-    )
-    robot_description = {
-        "robot_description": ParameterValue(robot_description_command, value_type=str)
-    }
-
-    franka_srdf_xacro = os.path.join(
-        get_package_share_directory("franka_description"),
-        "robots",
-        "fr3",
-        "fr3.srdf.xacro",
-    )
-    robot_description_semantic_command = Command(
-        [
-            FindExecutable(name="xacro"),
-            " ",
-            franka_srdf_xacro,
-            " hand:=",
-            load_gripper,
-        ]
-    )
-    robot_description_semantic = {
-        "robot_description_semantic": ParameterValue(
-            robot_description_semantic_command, value_type=str
-        )
-    }
 
     def launch_setup(context, *args, **kwargs):  # noqa: ANN001, ARG001
         """Create actions after resolving launch configurations."""
@@ -243,6 +199,49 @@ def generate_launch_description() -> LaunchDescription:
 
         moveit_config_package_value = moveit_config_package.perform(context)
 
+        urdf_xacro_file_value = urdf_xacro_file.perform(context).strip()
+        srdf_xacro_file_value = srdf_xacro_file.perform(context).strip()
+        if not urdf_xacro_file_value or not srdf_xacro_file_value:
+            raise RuntimeError(
+                "Both `urdf_xacro_file` and `srdf_xacro_file` must be provided. "
+                "This launch file does not select a robot model by default."
+            )
+        if not os.path.exists(urdf_xacro_file_value):
+            raise RuntimeError(f"URDF xacro file not found: '{urdf_xacro_file_value}'")
+        if not os.path.exists(srdf_xacro_file_value):
+            raise RuntimeError(f"SRDF xacro file not found: '{srdf_xacro_file_value}'")
+
+        urdf_xacro_args_value = urdf_xacro_args.perform(context).strip()
+        srdf_xacro_args_value = srdf_xacro_args.perform(context).strip()
+
+        robot_description_cmd = [
+            FindExecutable(name="xacro"),
+            " ",
+            urdf_xacro_file_value,
+        ]
+        if urdf_xacro_args_value:
+            robot_description_cmd += [" ", urdf_xacro_args_value]
+        robot_description_command = Command(robot_description_cmd)
+        robot_description = {
+            "robot_description": ParameterValue(
+                robot_description_command, value_type=str
+            )
+        }
+
+        robot_description_semantic_cmd = [
+            FindExecutable(name="xacro"),
+            " ",
+            srdf_xacro_file_value,
+        ]
+        if srdf_xacro_args_value:
+            robot_description_semantic_cmd += [" ", srdf_xacro_args_value]
+        robot_description_semantic_command = Command(robot_description_semantic_cmd)
+        robot_description_semantic = {
+            "robot_description_semantic": ParameterValue(
+                robot_description_semantic_command, value_type=str
+            )
+        }
+
         kinematics = load_yaml(
             moveit_config_package_value, kinematics_yaml.perform(context)
         )
@@ -255,6 +254,7 @@ def generate_launch_description() -> LaunchDescription:
 
         planning_configs = {}
         tesseract_monitor_env = None
+        scene_bridge_node = None
 
         match planner_enum:
             case Planner.OMPL:
@@ -276,12 +276,24 @@ def generate_launch_description() -> LaunchDescription:
                 }
 
                 trajopt_params = planning_configs[Planner.RLC_TRAJOPT]
-                scene_bridge_params = trajopt_params.setdefault("scene_bridge", {})
-                if not isinstance(scene_bridge_params, dict):
+                monitor_params = trajopt_params.setdefault("monitor", {})
+                if not isinstance(monitor_params, dict):
                     raise RuntimeError(
-                        "Expected 'scene_bridge' to be a mapping in trajopt_planning_yaml."
+                        "Expected 'monitor' to be a mapping in trajopt_planning_yaml."
                     )
-                scene_bridge_params["monitor_namespace"] = (
+                monitor_params["monitor_namespace"] = (
+                    tesseract_monitor_namespace.perform(context)
+                )
+
+                scene_bridge_params = load_yaml(
+                    moveit_config_package_value, scene_bridge_yaml.perform(context)
+                )
+                scene_bridge_section = scene_bridge_params.setdefault("scene_bridge", {})
+                if not isinstance(scene_bridge_section, dict):
+                    raise RuntimeError(
+                        "Expected 'scene_bridge' to be a mapping in scene_bridge_yaml."
+                    )
+                scene_bridge_section["monitor_namespace"] = (
                     tesseract_monitor_namespace.perform(context)
                 )
 
@@ -307,6 +319,17 @@ def generate_launch_description() -> LaunchDescription:
                             "joint_state_topic": tesseract_joint_state_topic,
                             "publish_environment": False,
                         },
+                    ],
+                )
+
+                scene_bridge_node = Node(
+                    package="rlc_scene_bridge",
+                    executable="rlc_scene_bridge_node",
+                    namespace=namespace,
+                    output="screen",
+                    parameters=[
+                        {"use_sim_time": use_sim_time},
+                        scene_bridge_params,
                     ],
                 )
 
@@ -363,6 +386,8 @@ def generate_launch_description() -> LaunchDescription:
         actions = []
         if tesseract_monitor_env is not None:
             actions.append(tesseract_monitor_env)
+        if scene_bridge_node is not None:
+            actions.append(scene_bridge_node)
         actions.append(move_group_node)
         actions.append(rviz_node)
 
