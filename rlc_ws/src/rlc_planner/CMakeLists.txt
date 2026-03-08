@@ -15,7 +15,7 @@ find_package(pluginlib REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(tesseract_monitoring REQUIRED)
-find_package(rlc_scene_bridge REQUIRED)
+find_package(rlc_utils REQUIRED)
 
 # Non-ament (CMake) dependencies
 find_package(rbt_planning REQUIRED CONFIG)
@@ -46,7 +46,6 @@ ament_target_dependencies(rlc_planner_plugin
   moveit_core
   moveit_msgs
   tesseract_monitoring
-  rlc_scene_bridge
 )
 
 target_link_libraries(rlc_planner_plugin
@@ -54,7 +53,7 @@ target_link_libraries(rlc_planner_plugin
   rbt_planning::rbt_planning
   trajopt::trajopt
   tesseract::tesseract_environment
-  rlc_scene_bridge::scene_bridge
+  rlc_utils::tesseract
 )
 
 pluginlib_export_plugin_description_file(moveit_core rlc_planner_plugins.xml)

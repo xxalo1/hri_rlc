@@ -17,9 +17,9 @@
   <depend>tesseract_monitoring</depend>
   <depend>tesseract_environment</depend>
 
-  <depend>rlc_scene_bridge</depend>
   <depend>rbt_planning</depend>
   <depend>trajopt</depend>
+  <depend>rlc_utils</depend>
 
   <depend>eigen</depend>
 
