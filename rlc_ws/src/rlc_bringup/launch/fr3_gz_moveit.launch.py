@@ -3,7 +3,11 @@ from __future__ import annotations
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -21,6 +25,7 @@ def generate_launch_description() -> LaunchDescription:
     world = LaunchConfiguration("world")
     robot_name = LaunchConfiguration("robot_name")
     xacro_file = LaunchConfiguration("xacro_file")
+    srdf_xacro_file = LaunchConfiguration("srdf_xacro_file")
     controllers_yaml = LaunchConfiguration("controllers_yaml")
     load_gripper = LaunchConfiguration("load_gripper")
     ee_id = LaunchConfiguration("ee_id")
@@ -30,6 +35,9 @@ def generate_launch_description() -> LaunchDescription:
 
     moveit_namespace = LaunchConfiguration("namespace")
     planner = LaunchConfiguration("planner")
+
+    move_group_urdf_xacro_args = LaunchConfiguration("move_group_urdf_xacro_args")
+    move_group_srdf_xacro_args = LaunchConfiguration("move_group_srdf_xacro_args")
 
     moveit_config_package = LaunchConfiguration("moveit_config_package")
     moveit_kinematics_yaml = LaunchConfiguration("kinematics_yaml")
@@ -88,7 +96,10 @@ def generate_launch_description() -> LaunchDescription:
             "trajopt_planning_yaml": moveit_trajopt_planning_yaml,
             "tesseract_monitor_namespace": tesseract_monitor_namespace,
             "tesseract_joint_state_topic": tesseract_joint_state_topic,
-            "load_gripper": load_gripper,
+            "urdf_xacro_file": xacro_file,
+            "urdf_xacro_args": move_group_urdf_xacro_args,
+            "srdf_xacro_file": srdf_xacro_file,
+            "srdf_xacro_args": move_group_srdf_xacro_args,
             "use_rviz": use_rviz,
             "rviz_config": rviz_config,
         }.items(),
@@ -124,6 +135,18 @@ def generate_launch_description() -> LaunchDescription:
                 description="Robot URDF Xacro file.",
             ),
             DeclareLaunchArgument(
+                "srdf_xacro_file",
+                default_value=PathJoinSubstitution(
+                    [
+                        FindPackageShare("franka_description"),
+                        "robots",
+                        "fr3",
+                        "fr3.srdf.xacro",
+                    ]
+                ),
+                description="Robot SRDF Xacro file.",
+            ),
+            DeclareLaunchArgument(
                 "controllers_yaml",
                 default_value=PathJoinSubstitution(
                     [
@@ -143,6 +166,32 @@ def generate_launch_description() -> LaunchDescription:
                 "ee_id",
                 default_value="franka_hand",
                 description="End-effector id for FR3 xacros (e.g., franka_hand, none).",
+            ),
+            DeclareLaunchArgument(
+                "move_group_urdf_xacro_args",
+                default_value=PythonExpression(
+                    [
+                        '"ros2_control:=false hand:=" + "',
+                        load_gripper,
+                        '" + " ee_id:=" + "',
+                        ee_id,
+                        '" + " robot_type:=fr3"',
+                    ]
+                ),
+                description="URDF xacro args used by MoveIt (FR3-specific).",
+            ),
+            DeclareLaunchArgument(
+                "move_group_srdf_xacro_args",
+                default_value=PythonExpression(
+                    [
+                        '"hand:=" + "',
+                        load_gripper,
+                        '" + " ee_id:=" + "',
+                        ee_id,
+                        '"',
+                    ]
+                ),
+                description="SRDF xacro args used by MoveIt (FR3-specific).",
             ),
             DeclareLaunchArgument(
                 "controller_manager",
