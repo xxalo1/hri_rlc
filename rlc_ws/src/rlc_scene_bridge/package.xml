@@ -18,6 +18,8 @@
   <depend>tesseract_scene_graph</depend>
   <depend>tesseract_geometry</depend>
   <depend>tesseract_monitoring</depend>
+  <depend>tesseract_msgs</depend>
+  <depend>rlc_utils</depend>
 
   <depend>eigen</depend>
 

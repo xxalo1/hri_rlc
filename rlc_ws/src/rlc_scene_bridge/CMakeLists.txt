@@ -14,12 +14,14 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(shape_msgs REQUIRED)
+find_package(tesseract_msgs REQUIRED)
 
 # tesseract core packages are `build_type=cmake` (exported via CMake config)
 find_package(tesseract_environment REQUIRED CONFIG)
 find_package(tesseract_geometry REQUIRED CONFIG)
 find_package(tesseract_scene_graph REQUIRED CONFIG)
 find_package(tesseract_monitoring REQUIRED CONFIG)
+find_package(rlc_utils REQUIRED)
 
 add_library(rlc_scene_bridge_lib SHARED
   src/moveit_tesseract_bridge.cpp
@@ -58,6 +60,27 @@ target_link_libraries(rlc_scene_bridge_lib
   tesseract_monitoring::tesseract_monitoring_environment_interface
 )
 
+add_executable(rlc_scene_bridge_node
+  src/rlc_scene_bridge_node.cpp
+)
+
+target_compile_features(rlc_scene_bridge_node PUBLIC cxx_std_20)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  target_compile_options(rlc_scene_bridge_node PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+ament_target_dependencies(rlc_scene_bridge_node
+  rclcpp
+  tesseract_monitoring
+  tesseract_msgs
+)
+
+target_link_libraries(rlc_scene_bridge_node
+  rlc_scene_bridge_lib
+  rlc_utils::tesseract
+)
+
 install(TARGETS rlc_scene_bridge_lib
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
@@ -66,7 +89,12 @@ install(TARGETS rlc_scene_bridge_lib
   INCLUDES DESTINATION include
 )
 
+install(TARGETS rlc_scene_bridge_node
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
 
 ament_export_include_directories(include)
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET NAMESPACE rlc_scene_bridge::)
