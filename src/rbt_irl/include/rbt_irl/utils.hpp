@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-#include <Eigen/Core>
 #include <cstddef>
 
 #include "rbt_types/trajectory.hpp"
@@ -12,15 +10,15 @@ namespace utils
 {
 using Trajectory = rbt_types::Trajectory;
 using TrajectorySet = rbt_types::TrajectorySet;
+using JointVec = rbt_types::JointVec;
+using TrajectoryEndpoints = rbt_types::JointEndpoints;
+using TrajectoryEndpointsSet = rbt_types::JointEndpointsSet;
 
-struct TrajectoryEndpoints
-{
-  Eigen::RowVectorXd start;
-  Eigen::RowVectorXd goal;
-};
-
-using TrajectoryEndpointsSet = std::vector<TrajectoryEndpoints>;
-
+/**
+ * @brief Extracts start/goal joint states from each demonstration trajectory.
+ * @param[in] trajs Demonstration trajectories, length = num_demos.
+ * @return Extracted start/goal pairs, length = `trajs.size()`.
+ */
 inline TrajectoryEndpointsSet extractTrajectoryEndpoints(const TrajectorySet& trajs)
 {
   const std::size_t n = trajs.size();
@@ -32,8 +30,8 @@ inline TrajectoryEndpointsSet extractTrajectoryEndpoints(const TrajectorySet& tr
   {
     const Trajectory& traj = trajs[i];
     out.emplace_back();
-    out.back().start = traj.states.row(0);
-    out.back().goal = traj.states.row(traj.states.rows() - 1);
+    out.back().start = traj.states.row(0).transpose();
+    out.back().goal = traj.states.row(traj.states.rows() - 1).transpose();
   }
 
   return out;
