@@ -10,6 +10,7 @@
 #include <moveit_msgs/msg/motion_plan_request.hpp>
 #include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <moveit_msgs/msg/servo_status.hpp>
 
 namespace rlc_executive
 {
@@ -162,6 +163,26 @@ struct PlanningRequest
 {
   moveit_msgs::msg::MotionPlanRequest moveit_request;
   PlanningProfile profile;
+};
+
+struct ServoPauseResult
+{
+  bool paused = true;
+  bool success = false;
+  std::string message;
+};
+
+struct ServoCommandTypeResult
+{
+  std::int8_t command_type = 0;
+  bool success = false;
+  std::string message;
+};
+
+struct ServoStatusSnapshot
+{
+  moveit_msgs::msg::ServoStatus status;
+  double age_sec = 0.0;
 };
 
 }  // namespace rlc_executive
