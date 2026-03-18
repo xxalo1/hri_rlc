@@ -10,6 +10,7 @@
             <BuildMotionPlanRequest
                 target_pose="{target_pose}"
                 link_name="fr3_link8"
+                group_name="fr3_arm"
                 request="{plan.request}"
                 error="{motion_plan.error}"
             />
