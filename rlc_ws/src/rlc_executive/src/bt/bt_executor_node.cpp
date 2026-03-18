@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -71,12 +72,22 @@ void BtExecutorNode::start()
   cfg_ = config::loadExecConfigFromFile(exec_cfg_path);
   config::loadPlanningProfilesInto(cfg_, profiles_cfg_path);
 
-  RCLCPP_INFO(get_logger(), "tick_rate_hz: %.2f", cfg_.tick_rate_hz);
+  if (cfg_.tick.rate_hz <= 0.0)
+  {
+    throw std::invalid_argument("BtExecutorNode: tick.rate_hz must be > 0");
+  }
+  if (cfg_.tick.while_running_max_block.count() < 0)
+  {
+    throw std::invalid_argument(
+        "BtExecutorNode: tick.while_running_max_block must be >= 0");
+  }
+
+  RCLCPP_INFO(get_logger(), "tick_rate_hz: %.2f", cfg_.tick.rate_hz);
 
   ctx_ = std::make_shared<RuntimeContext>(*this, cfg_);
 
-  tree_runner_.setTickOption(cfg_.tick_option);
-  tree_runner_.setTickWhileRunningMaxBlock(cfg_.tick_while_running_max_block);
+  tree_runner_.setTickOption(cfg_.tick.option);
+  tree_runner_.setTickWhileRunningMaxBlock(cfg_.tick.while_running_max_block);
 
   tree_runner_.configure(plugins_path);
   tree_runner_.loadTreeFromXmlFile(tree_xml_path, ctx_);
@@ -112,7 +123,7 @@ void BtExecutorNode::start()
     }
   }
 
-  const auto period = std::chrono::duration<double>(1.0 / cfg_.tick_rate_hz);
+  const auto period = std::chrono::duration<double>(1.0 / cfg_.tick.rate_hz);
   tick_timer_ = this->create_wall_timer(
       std::chrono::duration_cast<std::chrono::nanoseconds>(period), [this]() { tick(); });
 }
