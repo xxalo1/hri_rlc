@@ -1,14 +1,37 @@
 #include "rlc_executive/state/state_buffer.hpp"
 
+#include <stdexcept>
+
 #include <rclcpp/qos.hpp>
 #include <tf2/exceptions.h>
 
 namespace rlc_executive
 {
 
-StateBuffer::StateBuffer(rclcpp::Node& node, const ExecConfig& cfg)
+StateBuffer::StateBuffer(rclcpp::Node& node, const StateConfig& cfg)
   : node_(&node), cfg_(&cfg), tf_buffer_(node.get_clock()), tf_listener_(tf_buffer_)
 {
+  if (cfg_->joint_states_topic.empty())
+  {
+    throw std::invalid_argument("StateBuffer: joint_states_topic must not be empty");
+  }
+  if (cfg_->base_frame.empty())
+  {
+    throw std::invalid_argument("StateBuffer: base_frame must not be empty");
+  }
+  if (cfg_->ee_frame.empty())
+  {
+    throw std::invalid_argument("StateBuffer: ee_frame must not be empty");
+  }
+  if (cfg_->tf_timeout_sec < 0.0)
+  {
+    throw std::invalid_argument("StateBuffer: tf_timeout_sec must be >= 0");
+  }
+  if (cfg_->state_stale_sec < 0.0)
+  {
+    throw std::invalid_argument("StateBuffer: state_stale_sec must be >= 0");
+  }
+
   auto joint_state_cb = [this](const sensor_msgs::msg::JointState::ConstSharedPtr& msg) {
     onJointState(msg);
   };
@@ -19,16 +42,16 @@ StateBuffer::StateBuffer(rclcpp::Node& node, const ExecConfig& cfg)
 void StateBuffer::onJointState(const sensor_msgs::msg::JointState::ConstSharedPtr& msg)
 {
   std::lock_guard<std::mutex> lock(mtx_);
-  latest_joint_state_ = *msg;
+  latest_joint_state_ = msg;
 }
 
 bool StateBuffer::hasJointState() const
 {
   std::lock_guard<std::mutex> lock(mtx_);
-  return latest_joint_state_.has_value();
+  return latest_joint_state_ != nullptr;
 }
 
-std::optional<sensor_msgs::msg::JointState> StateBuffer::getLatestJointState() const
+sensor_msgs::msg::JointState::ConstSharedPtr StateBuffer::getLatestJointState() const
 {
   std::lock_guard<std::mutex> lock(mtx_);
   return latest_joint_state_;
@@ -36,7 +59,7 @@ std::optional<sensor_msgs::msg::JointState> StateBuffer::getLatestJointState() c
 
 bool StateBuffer::isJointStateFresh() const
 {
-  std::optional<sensor_msgs::msg::JointState> js;
+  sensor_msgs::msg::JointState::ConstSharedPtr js;
   {
     std::lock_guard<std::mutex> lock(mtx_);
     js = latest_joint_state_;
