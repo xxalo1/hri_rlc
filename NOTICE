@@ -1,0 +1,10 @@
+hri_rlc
+
+Copyright 2026 Hasan Al Thobaiti
+Copyright 2026 Rashed Albalawi
+
+This product is licensed under the Apache License, Version 2.0; see the LICENSE file.
+
+This repository includes third-party and upstream-derived components. Those components
+retain their original copyright and license notices as described in their respective
+package directories (for example, rlc_ws/src/rlc_moveit_config/NOTICE).
