@@ -5,8 +5,10 @@
   <version>0.0.0</version>
   <description>Shared ROS 2 utilities and message conversions for the RLC stack.</description>
 
-  <maintainer email="rashed@example.com">rwolv</maintainer>
-  <license>MIT</license>
+  <maintainer email="193288475+hasan-fahad1@users.noreply.github.com">Hasan Al Thobaiti</maintainer>
+  <maintainer email="252933012+alb-rashed@users.noreply.github.com">Rashed Albalawi</maintainer>
+  <license>Apache-2.0</license>
+  <!-- See repo root LICENSE and NOTICE for terms and attribution. -->
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
