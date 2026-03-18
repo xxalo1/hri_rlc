@@ -30,7 +30,13 @@ public:
   using Client = rclcpp_action::Client<MoveGroup>;
   using GoalHandle = rclcpp_action::ClientGoalHandle<MoveGroup>;
 
-  MoveGroupClient(rclcpp::Node& node, const ExecConfig& cfg);
+  /**
+   * @brief Creates a MoveGroup action client.
+   * @param[in] node ROS node used to create the action client and timestamps.
+   * @param[in] cfg MoveGroup configuration with the action endpoint name.
+   * @throws std::invalid_argument If `cfg.action_name` is empty.
+   */
+  MoveGroupClient(rclcpp::Node& node, const MoveGroupConfig& cfg);
 
   // Non-blocking: send plan request and return immediately.
   bool start(const moveit_msgs::msg::MotionPlanRequest& req,
@@ -57,7 +63,7 @@ private:
   void handleResult(std::uint64_t seq, const GoalHandle::WrappedResult& wrapped);
 
   rclcpp::Node* node_ = nullptr;
-  const ExecConfig* cfg_ = nullptr;
+  const MoveGroupConfig* cfg_ = nullptr;
 
   Client::SharedPtr client_;
 

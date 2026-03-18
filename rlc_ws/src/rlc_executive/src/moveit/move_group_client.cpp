@@ -1,6 +1,7 @@
 #include "rlc_executive/moveit/move_group_client.hpp"
 
 #include <chrono>
+#include <stdexcept>
 #include <string>
 
 #include <moveit_msgs/msg/move_it_error_codes.hpp>
@@ -8,10 +9,15 @@
 namespace rlc_executive
 {
 
-MoveGroupClient::MoveGroupClient(rclcpp::Node& node, const ExecConfig& cfg)
+MoveGroupClient::MoveGroupClient(rclcpp::Node& node, const MoveGroupConfig& cfg)
   : node_(&node), cfg_(&cfg)
 {
-  client_ = rclcpp_action::create_client<MoveGroup>(node_, cfg_->move_group_action_name);
+  if (cfg_->action_name.empty())
+  {
+    throw std::invalid_argument("MoveGroupClient: action_name must not be empty");
+  }
+
+  client_ = rclcpp_action::create_client<MoveGroup>(node_, cfg_->action_name);
 }
 
 void MoveGroupClient::handleGoalResponse(std::uint64_t seq, const GoalHandle::SharedPtr& goal_handle)
@@ -131,7 +137,7 @@ bool MoveGroupClient::start(const moveit_msgs::msg::MotionPlanRequest& req,
     if (error_msg)
     {
       *error_msg = "MoveGroupClient: MoveGroup action server not ready: " +
-                   cfg_->move_group_action_name;
+                   cfg_->action_name;
     }
     return false;
   }
