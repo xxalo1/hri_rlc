@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -26,24 +25,24 @@ namespace rlc_executive
 class RuntimeContext;
 
 /**
- * @brief Records a servo-driven joint-space demonstration into a trajectory set.
+ * @brief Records a servo-driven joint-space demonstration into one trajectory.
  *
  * @details
  * This BT node unpauses MoveIt Servo on start, samples the latest joint state from the
- * runtime `StateBuffer` at a fixed sample period, and appends the recorded trajectory
- * to the `demonstrations` port when `stop_recording` becomes true.
+ * runtime `StateBuffer` at a fixed sample period, and publishes the recorded
+ * trajectory to the `demonstration` port when `stop_recording` becomes true.
+ * Joint positions are recorded exactly as they arrive in `JointState.position`,
+ * so the saved trajectory uses the incoming joint ordering and current joint count
+ * without filtering or remapping.
  *
  * Input ports:
- * - `group_name`: Manipulator group whose joint ordering is used for the recorded demo.
  * - `sample_dt`: Fixed sample period [s] used for the saved trajectory.
  * - `stop_recording`: Level-triggered stop flag. It should be `false` when recording
  *   starts and set to `true` when the demonstration should finish.
  *
- * In/out ports:
- * - `demonstrations`: Existing demonstration set to append to; if empty, a new set is
- *   created.
- *
  * Output ports:
+ * - `demonstration`: Recorded joint-space trajectory [rad], shape =
+ *   (num_samples, joint_dim), RowMajor.
  * - `error`: Human-readable failure text.
  * - `feedback`: Running progress text.
  * - `elapsed_sec`: Elapsed recording time [s].
@@ -55,7 +54,6 @@ class RecordServoDemo final : public BT::StatefulActionNode
 {
 public:
   using Trajectory = rbt_types::Trajectory;
-  using TrajectorySet = rbt_types::TrajectorySet;
   using JointVec = rbt_types::JointVec;
 
   /**
@@ -67,17 +65,15 @@ public:
 
   /**
    * @brief Declares the ports consumed and produced by this BT node.
-   * @return BehaviorTree port list containing recording inputs, the demonstration
-   * set, and standard diagnostic outputs.
+   * @return BehaviorTree port list containing recording inputs, the recorded
+   * demonstration output, and standard diagnostic outputs.
    */
   static BT::PortsList providedPorts()
   {
     return {
-      BT::InputPort<std::string>(PortKeys::GROUP_NAME),
       BT::InputPort<double>(PortKeys::SAMPLE_DT, 0.05, ""),
       BT::InputPort<bool>(PortKeys::STOP_RECORDING, false, ""),
-      BT::BidirectionalPort<std::shared_ptr<const TrajectorySet>>(
-          PortKeys::DEMONSTRATIONS, std::shared_ptr<const TrajectorySet>(), ""),
+      BT::OutputPort<std::shared_ptr<const Trajectory>>(PortKeys::DEMONSTRATION),
       BT::OutputPort<std::string>(PortKeys::ERROR),
       BT::OutputPort<std::string>(PortKeys::FEEDBACK),
       BT::OutputPort<double>(PortKeys::ELAPSED_SEC),
@@ -89,33 +85,12 @@ public:
    */
   struct PortKeys : bt_utils::DiagnosticPortKeys
   {
-    static inline const std::string GROUP_NAME = "group_name";
     static inline const std::string SAMPLE_DT = "sample_dt";
     static inline const std::string STOP_RECORDING = "stop_recording";
-    static inline const std::string DEMONSTRATIONS = "demonstrations";
+    static inline const std::string DEMONSTRATION = "demonstration";
   };
 
 private:
-  std::vector<std::string> resolveGroupJointNames(const std::string& group_name) const;
-
-  JointVec extractGroupPositions(
-      const sensor_msgs::msg::JointState& joint_state) const;
-
-  void runSamplingWorker(std::stop_token stop_token);
-
-  Trajectory buildRecordedTrajectory() const;
-
-  std::shared_ptr<const TrajectorySet>
-  buildUpdatedDemoSet(const Trajectory& trajectory) const;
-
-  BT::NodeStatus onStart() override;
-
-  BT::NodeStatus onRunning() override;
-
-  void onHalted() override;
-
-  BT::NodeStatus failWithError(const std::string& msg, double elapsed_sec = 0.0);
-
   struct ProgressState
   {
     std::string feedback;
@@ -125,15 +100,43 @@ private:
     bool failed{ false };
   };
 
+  JointVec extractPositions(const sensor_msgs::msg::JointState& joint_state) const;
+  void runSamplingWorker(std::stop_token stop_token);
+  Trajectory buildRecordedTrajectory() const;
+
+  BT::NodeStatus onStart() override;
+  BT::NodeStatus onRunning() override;
+  void onHalted() override;
+
+  BT::NodeStatus failWithError(const std::string& msg, double elapsed_sec = 0.0);
+
+  void requestWorkerStop() noexcept;
+  void joinWorker() noexcept;
+  void requestServoPaused(bool pause) noexcept;
+  void stopAndJoinWorker() noexcept;
+
+  ProgressState readProgress() const;
+  void writeProgress(std::optional<double> elapsed_sec = std::nullopt,
+                     std::optional<bool> failed = std::nullopt,
+                     std::optional<std::string> feedback_msg = std::nullopt,
+                     std::optional<std::string> error_msg = std::nullopt,
+                     std::optional<std::size_t> sample_count = std::nullopt);
+  void writeProgressLocked(std::optional<double> elapsed_sec, std::optional<bool> failed,
+                           std::optional<std::string> feedback_msg,
+                           std::optional<std::string> error_msg,
+                           std::optional<std::size_t> sample_count);
+
   std::shared_ptr<RuntimeContext> ctx_;
   std::optional<rclcpp::Logger> logger_;
-  std::string group_name_;
   double sample_dt_{ 0.05 };
-  std::vector<std::string> joint_names_;
+  std::size_t joint_dim_{ 0 };
   mutable std::mutex recording_mutex_;
   ProgressState progress_{};
   std::vector<JointVec> recorded_samples_;
+
   std::jthread worker_thread_{};
+  std::mutex stop_mutex_;
+  std::condition_variable stop_cv_;
 };
 
 }  // namespace rlc_executive
