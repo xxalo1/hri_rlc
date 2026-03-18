@@ -4,6 +4,13 @@ Authors:
 - Hasan Al Thobaiti
 - Rashed Albalawi
 
+## License
+
+This repository is licensed under the Apache License 2.0; see `LICENSE`.
+
+For required attribution notices (including upstream-derived components), see `NOTICE`
+and any package-level `LICENSE`/`NOTICE` files.
+
 Core libs live in `src/` and the ROS 2 workspace lives in `rlc_ws/`.
 
 ## Setup
