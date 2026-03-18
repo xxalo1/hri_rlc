@@ -16,10 +16,10 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="g201951870",
-    maintainer_email="asme.kfupm.website@gmail.com",
+    maintainer="Hasan Al Thobaiti, Rashed Albalawi",
+    maintainer_email="193288475+hasan-fahad1@users.noreply.github.com",
     description="Minimal bringup for Franka robots in Gazebo and ROS 2.",
-    license="MIT",
+    license="Apache-2.0",
     extras_require={
         "test": [
             "pytest",
