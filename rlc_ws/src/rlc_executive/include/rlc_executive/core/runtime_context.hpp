@@ -19,6 +19,7 @@ class StateBuffer;
 class MoveGroupClient;
 class TrajectoryExecutor;
 class MoveItServoClient;
+class TeleoperationSession;
 
 class RuntimeContext final
 {
@@ -66,6 +67,11 @@ public:
     return *env_monitor_interface_;
   }
 
+  TeleoperationSession& teleoperationSession() const
+  {
+    return *teleoperation_session_;
+  }
+
 private:
   rclcpp::Node* node_ = nullptr;  // non-owning
   ExecConfig cfg_;
@@ -76,6 +82,7 @@ private:
   std::shared_ptr<TrajectoryExecutor> trajectory_executor_;
   std::shared_ptr<tesseract_monitoring::ROSEnvironmentMonitorInterface>
       env_monitor_interface_;
+  std::shared_ptr<TeleoperationSession> teleoperation_session_;
 };
 
 }  // namespace rlc_executive

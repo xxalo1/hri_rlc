@@ -1,6 +1,7 @@
 #include "rlc_executive/execution/moveit_executor.hpp"
 
 #include <chrono>
+#include <stdexcept>
 #include <string>
 
 #include <moveit_msgs/msg/move_it_error_codes.hpp>
@@ -8,9 +9,15 @@
 namespace rlc_executive
 {
 
-MoveItExecutor::MoveItExecutor(rclcpp::Node& node, const ExecConfig& cfg)
+MoveItExecutor::MoveItExecutor(rclcpp::Node& node, const ExecutionConfig& cfg)
   : node_(&node), cfg_(&cfg)
 {
+  if (cfg_->execute_traj_action_name.empty())
+  {
+    throw std::invalid_argument(
+        "MoveItExecutor: execute_traj_action_name must not be empty");
+  }
+
   client_ = rclcpp_action::create_client<ExecuteTrajectory>(
       node_, cfg_->execute_traj_action_name);
 }
