@@ -1,20 +1,35 @@
 #include "rlc_executive/moveit/moveit_servo_client.hpp"
 
 #include <future>
+#include <stdexcept>
 #include <utility>
 
 namespace rlc_executive
 {
 
-MoveItServoClient::MoveItServoClient(rclcpp::Node& node, const ExecConfig& cfg)
+MoveItServoClient::MoveItServoClient(rclcpp::Node& node, const ServoConfig& cfg)
   : node_(&node), cfg_(&cfg)
 {
-  pause_client_ = node_->create_client<PauseSrv>(cfg_->servo.pause_service_name);
+  if (cfg_->pause_service_name.empty())
+  {
+    throw std::invalid_argument("MoveItServoClient: pause_service_name must not be empty");
+  }
+  if (cfg_->switch_command_type_service_name.empty())
+  {
+    throw std::invalid_argument(
+        "MoveItServoClient: switch_command_type_service_name must not be empty");
+  }
+  if (cfg_->status_topic.empty())
+  {
+    throw std::invalid_argument("MoveItServoClient: status_topic must not be empty");
+  }
+
+  pause_client_ = node_->create_client<PauseSrv>(cfg_->pause_service_name);
   cmd_type_client_ =
-      node_->create_client<CmdTypeSrv>(cfg_->servo.switch_command_type_service_name);
+      node_->create_client<CmdTypeSrv>(cfg_->switch_command_type_service_name);
 
   status_sub_ = node_->create_subscription<moveit_msgs::msg::ServoStatus>(
-      cfg_->servo.status_topic, rclcpp::QoS(10),
+      cfg_->status_topic, rclcpp::QoS(10),
       [this](const moveit_msgs::msg::ServoStatus::ConstSharedPtr& msg) { onStatus(msg); });
 }
 
@@ -34,7 +49,7 @@ ServoPauseResult MoveItServoClient::setPaused(bool paused,
   if (!pause_client_->wait_for_service(timeout))
   {
     out.success = false;
-    out.message = "pause_servo service not available: " + cfg_->servo.pause_service_name;
+    out.message = "pause_servo service not available: " + cfg_->pause_service_name;
     return out;
   }
 
@@ -73,7 +88,7 @@ MoveItServoClient::setCommandType(CommandType type, std::chrono::milliseconds ti
   {
     out.success = false;
     out.message = "switch_command_type service not available: " +
-                  cfg_->servo.switch_command_type_service_name;
+                  cfg_->switch_command_type_service_name;
     return out;
   }
 

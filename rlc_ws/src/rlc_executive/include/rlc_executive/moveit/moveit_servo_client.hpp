@@ -30,7 +30,13 @@ public:
     POSE = CmdTypeSrv::Request::POSE,
   };
 
-  MoveItServoClient(rclcpp::Node& node, const ExecConfig& cfg);
+  /**
+   * @brief Creates clients for the MoveIt Servo control services and status topic.
+   * @param[in] node ROS node used to create the clients, subscription, and timestamps.
+   * @param[in] cfg Servo configuration with service and topic names.
+   * @throws std::invalid_argument If any required service or topic name is empty.
+   */
+  MoveItServoClient(rclcpp::Node& node, const ServoConfig& cfg);
 
   ServoPauseResult
   setPaused(bool paused,
@@ -46,7 +52,7 @@ private:
   void onStatus(const moveit_msgs::msg::ServoStatus::ConstSharedPtr& msg);
 
   rclcpp::Node* node_ = nullptr;
-  const ExecConfig* cfg_ = nullptr;
+  const ServoConfig* cfg_ = nullptr;
 
   rclcpp::Client<PauseSrv>::SharedPtr pause_client_;
   rclcpp::Client<CmdTypeSrv>::SharedPtr cmd_type_client_;
