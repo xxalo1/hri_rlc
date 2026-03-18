@@ -25,7 +25,13 @@ public:
   using Client = rclcpp_action::Client<ExecuteTrajectory>;
   using GoalHandle = rclcpp_action::ClientGoalHandle<ExecuteTrajectory>;
 
-  MoveItExecutor(rclcpp::Node& node, const ExecConfig& cfg);
+  /**
+   * @brief Creates an ExecuteTrajectory action client.
+   * @param[in] node ROS node used to create the action client and timestamps.
+   * @param[in] cfg Execution configuration with the ExecuteTrajectory action name.
+   * @throws std::invalid_argument If `cfg.execute_traj_action_name` is empty.
+   */
+  MoveItExecutor(rclcpp::Node& node, const ExecutionConfig& cfg);
 
   bool start(const moveit_msgs::msg::RobotTrajectory& traj,
              const PlanningProfile& profile, std::string* error_msg = nullptr) override;
@@ -52,7 +58,7 @@ private:
   void handleResult(std::uint64_t seq, const GoalHandle::WrappedResult& wrapped);
 
   rclcpp::Node* node_ = nullptr;
-  const ExecConfig* cfg_ = nullptr;
+  const ExecutionConfig* cfg_ = nullptr;
 
   Client::SharedPtr client_;
 
