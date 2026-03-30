@@ -22,6 +22,7 @@
             />
             <ExecuteTrajectory
                 trajectory="{plan.trajectory}"
+                group_name="fr3_arm"
                 planning_profile="trajopt_default"
                 exec_result="{plan.exec_result}"
                 error="{plan.exec_error}"
