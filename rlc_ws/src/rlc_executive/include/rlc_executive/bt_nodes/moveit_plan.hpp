@@ -7,9 +7,9 @@
 #include <behaviortree_cpp/action_node.h>
 
 #include <moveit_msgs/msg/motion_plan_request.hpp>
-#include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <rclcpp/logger.hpp>
 
+#include "rbt_types/trajectory.hpp"
 #include "rlc_executive/core/types.hpp"
 
 namespace rlc_executive
@@ -31,7 +31,7 @@ class RuntimeContext;
  *
  * Output ports:
  * - `plan_result`: Planning result summary (status + message + error_code + timing).
- * - `trajectory`: Planned trajectory on success.
+ * - `trajectory`: Planned joint-space trajectory on success.
  */
 class MoveItPlan final : public BT::StatefulActionNode
 {
@@ -47,8 +47,7 @@ public:
           PortKeys::REQUEST),
       BT::InputPort<std::string>(PortKeys::PLANNING_PROFILE),
       BT::OutputPort<PlanSummary>(PortKeys::PLAN_RESULT),
-      BT::OutputPort<std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>>(
-          PortKeys::TRAJECTORY),
+      BT::OutputPort<std::shared_ptr<const rbt_types::Trajectory>>(PortKeys::TRAJECTORY),
     };
   }
 

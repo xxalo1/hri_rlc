@@ -60,7 +60,7 @@ BT::NodeStatus MoveItPlan::onStart()
 
     // Clear previous output to avoid stale blackboard values.
     bt_utils::setOutput(*this, PortKeys::TRAJECTORY,
-                        std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>());
+                        std::shared_ptr<const rbt_types::Trajectory>());
 
     RCLCPP_INFO(*logger_, "start planning_profile='%s' group='%s'", profile_name_.c_str(),
                 req->group_name.c_str());
@@ -101,12 +101,13 @@ BT::NodeStatus MoveItPlan::onRunning()
 
     if (pr.status == PlanStatus::SUCCESS)
     {
-      const std::shared_ptr<const moveit_msgs::msg::RobotTrajectory> traj =
-          std::make_shared<moveit_msgs::msg::RobotTrajectory>(std::move(pr.trajectory));
+      const std::shared_ptr<const rbt_types::Trajectory> traj =
+          std::make_shared<rbt_types::Trajectory>(
+              bt_utils::fromRobotTrajectory(pr.trajectory));
       bt_utils::setOutput(*this, PortKeys::TRAJECTORY, traj);
 
-      const std::size_t traj_points = traj->joint_trajectory.points.size();
-      const std::size_t traj_joints = traj->joint_trajectory.joint_names.size();
+      const std::size_t traj_points = traj->length();
+      const std::size_t traj_joints = traj->dim();
       RCLCPP_INFO(*logger_, "SUCCESS (%.3fs) traj_points=%zu traj_joints=%zu",
                   out.planning_time_sec, traj_points, traj_joints);
 
@@ -132,8 +133,7 @@ void MoveItPlan::onHalted()
 BT::NodeStatus MoveItPlan::failWithError(const std::string& msg)
 {
   setOutput(PortKeys::PLAN_RESULT, makePlanSummary(PlanStatus::FAILURE, msg));
-  setOutput(PortKeys::TRAJECTORY,
-            std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>());
+  setOutput(PortKeys::TRAJECTORY, std::shared_ptr<const rbt_types::Trajectory>());
   if (logger_)
   {
     RCLCPP_ERROR(*logger_, "%s", msg.c_str());
