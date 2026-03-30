@@ -19,162 +19,6 @@ namespace
 
 YAML::Node mapNode(const YAML::Node& parent, const std::string& key);
 
-int resolveSdlAxisName(const std::string& token)
-{
-  if (token == "LEFTX")
-  {
-    return 0;
-  }
-  if (token == "LEFTY")
-  {
-    return 1;
-  }
-  if (token == "RIGHTX")
-  {
-    return 2;
-  }
-  if (token == "RIGHTY")
-  {
-    return 3;
-  }
-  if (token == "TRIGGERLEFT")
-  {
-    return 4;
-  }
-  if (token == "TRIGGERRIGHT")
-  {
-    return 5;
-  }
-
-  return -1;
-}
-
-int resolveSdlButtonName(const std::string& token)
-{
-  if (token == "A")
-  {
-    return 0;
-  }
-  if (token == "B")
-  {
-    return 1;
-  }
-  if (token == "X")
-  {
-    return 2;
-  }
-  if (token == "Y")
-  {
-    return 3;
-  }
-  if (token == "BACK" || token == "SELECT")
-  {
-    return 4;
-  }
-  if (token == "GUIDE")
-  {
-    return 5;
-  }
-  if (token == "START")
-  {
-    return 6;
-  }
-  if (token == "LEFTSTICK")
-  {
-    return 7;
-  }
-  if (token == "RIGHTSTICK")
-  {
-    return 8;
-  }
-  if (token == "LEFTSHOULDER")
-  {
-    return 9;
-  }
-  if (token == "RIGHTSHOULDER")
-  {
-    return 10;
-  }
-  if (token == "DPAD_UP")
-  {
-    return 11;
-  }
-  if (token == "DPAD_DOWN")
-  {
-    return 12;
-  }
-  if (token == "DPAD_LEFT")
-  {
-    return 13;
-  }
-  if (token == "DPAD_RIGHT")
-  {
-    return 14;
-  }
-
-  return -1;
-}
-
-std::string normalizeControllerToken(const std::string& token)
-{
-  std::string normalized;
-  normalized.reserve(token.size());
-
-  for (const unsigned char c : token)
-  {
-    if (std::isspace(c) != 0)
-    {
-      continue;
-    }
-
-    if (c == '-')
-    {
-      normalized.push_back('_');
-      continue;
-    }
-
-    normalized.push_back(static_cast<char>(std::toupper(c)));
-  }
-
-  return normalized;
-}
-
-int parseControllerIndex(const YAML::Node& node, const std::string& context,
-                         int (*resolve_token)(const std::string&))
-{
-  if (!node || node.IsNull())
-  {
-    throw std::runtime_error("Missing required YAML key '" + context + "'");
-  }
-  if (!node.IsScalar())
-  {
-    throw std::runtime_error("Expected scalar value at YAML key '" + context + "'");
-  }
-
-  try
-  {
-    const int index = node.as<int>();
-    if (index < 0)
-    {
-      throw std::runtime_error("YAML key '" + context + "' must be >= 0");
-    }
-    return index;
-  }
-  catch (const YAML::BadConversion&)
-  {
-  }
-
-  const std::string token = normalizeControllerToken(node.as<std::string>());
-  const int index = resolve_token(token);
-  if (index < 0)
-  {
-    throw std::runtime_error("Unsupported controller mapping '" + node.as<std::string>() +
-                             "' at YAML key '" + context + "'");
-  }
-
-  return index;
-}
-
 void loadAxisMapping(ServoJoyAxisConfig& axis_cfg, const YAML::Node& parent,
                      const std::string& key)
 {
@@ -186,19 +30,19 @@ void loadAxisMapping(ServoJoyAxisConfig& axis_cfg, const YAML::Node& parent,
 
   if (const YAML::Node n = axis_node["x"])
   {
-    axis_cfg.x = parseControllerIndex(n, key + ".x", resolveSdlAxisName);
+    axis_cfg.x = n.as<std::string>();
   }
   if (const YAML::Node n = axis_node["y"])
   {
-    axis_cfg.y = parseControllerIndex(n, key + ".y", resolveSdlAxisName);
+    axis_cfg.y = n.as<std::string>();
   }
   if (const YAML::Node n = axis_node["z_pos"])
   {
-    axis_cfg.z_pos = parseControllerIndex(n, key + ".z_pos", resolveSdlAxisName);
+    axis_cfg.z_pos = n.as<std::string>();
   }
   if (const YAML::Node n = axis_node["z_neg"])
   {
-    axis_cfg.z_neg = parseControllerIndex(n, key + ".z_neg", resolveSdlAxisName);
+    axis_cfg.z_neg = n.as<std::string>();
   }
 }
 
@@ -213,11 +57,11 @@ void loadButtonMapping(ServoJoyButtonsConfig& button_cfg, const YAML::Node& pare
 
   if (const YAML::Node n = button_node["finish"])
   {
-    button_cfg.finish = parseControllerIndex(n, key + ".finish", resolveSdlButtonName);
+    button_cfg.finish = n.as<std::string>();
   }
   if (const YAML::Node n = button_node["abort"])
   {
-    button_cfg.abort = parseControllerIndex(n, key + ".abort", resolveSdlButtonName);
+    button_cfg.abort = n.as<std::string>();
   }
 }
 
@@ -336,51 +180,45 @@ ExecConfig loadExecConfigFromFile(const std::string& yaml_path)
   cfg.planning.default_profile =
       getOr<std::string>(planning, "default_profile", cfg.planning.default_profile);
 
-  const YAML::Node servo = mapNode(root, "servo");
-  cfg.servo.pause_service_name =
-      getOr<std::string>(servo, "pause_service_name", cfg.servo.pause_service_name);
-  cfg.servo.switch_command_type_service_name = getOr<std::string>(
-      servo, "switch_command_type_service_name",
-      cfg.servo.switch_command_type_service_name);
-  cfg.servo.status_topic =
-      getOr<std::string>(servo, "status_topic", cfg.servo.status_topic);
+  const YAML::Node teleoperation = mapNode(root, "teleoperation");
+  cfg.teleoperation.frontend =
+      getOr<std::string>(teleoperation, "frontend", cfg.teleoperation.frontend);
 
-  const YAML::Node servo_joy = mapNode(root, "servo_joy_frontend");
-  cfg.servo_joy_frontend.joy_topic =
-      getOr<std::string>(servo_joy, "joy_topic", cfg.servo_joy_frontend.joy_topic);
-  cfg.servo_joy_frontend.twist_topic =
-      getOr<std::string>(servo_joy, "twist_topic", cfg.servo_joy_frontend.twist_topic);
-  cfg.servo_joy_frontend.joint_topic =
-      getOr<std::string>(servo_joy, "joint_topic", cfg.servo_joy_frontend.joint_topic);
-  cfg.servo_joy_frontend.pose_topic =
-      getOr<std::string>(servo_joy, "pose_topic", cfg.servo_joy_frontend.pose_topic);
-  cfg.servo_joy_frontend.command_frame =
-      getOr<std::string>(servo_joy, "command_frame", cfg.servo_joy_frontend.command_frame);
-  if (cfg.servo_joy_frontend.command_frame.empty())
+  const YAML::Node teleop_servo = mapNode(teleoperation, "servo");
+  cfg.teleoperation.servo.pause_service_name = getOr<std::string>(
+      teleop_servo, "pause_service_name", cfg.teleoperation.servo.pause_service_name);
+  cfg.teleoperation.servo.switch_command_type_service_name = getOr<std::string>(
+      teleop_servo, "switch_command_type_service_name",
+      cfg.teleoperation.servo.switch_command_type_service_name);
+  cfg.teleoperation.servo.status_topic = getOr<std::string>(
+      teleop_servo, "status_topic", cfg.teleoperation.servo.status_topic);
+
+  const YAML::Node teleop_joy = mapNode(teleoperation, "joy");
+  cfg.teleoperation.joy.joy_topic =
+      getOr<std::string>(teleop_joy, "joy_topic", cfg.teleoperation.joy.joy_topic);
+  cfg.teleoperation.joy.twist_topic =
+      getOr<std::string>(teleop_joy, "twist_topic", cfg.teleoperation.joy.twist_topic);
+  cfg.teleoperation.joy.joint_topic =
+      getOr<std::string>(teleop_joy, "joint_topic", cfg.teleoperation.joy.joint_topic);
+  cfg.teleoperation.joy.pose_topic =
+      getOr<std::string>(teleop_joy, "pose_topic", cfg.teleoperation.joy.pose_topic);
+  cfg.teleoperation.joy.command_frame =
+      getOr<std::string>(teleop_joy, "command_frame", cfg.teleoperation.joy.command_frame);
+  if (cfg.teleoperation.joy.command_frame.empty())
   {
-    cfg.servo_joy_frontend.command_frame = cfg.state.base_frame;
+    cfg.teleoperation.joy.command_frame = cfg.state.base_frame;
   }
-    cfg.servo_joy_frontend.deadzone =
-      getOr<double>(servo_joy, "deadzone", cfg.servo_joy_frontend.deadzone);
-    cfg.servo_joy_frontend.linear_scale =
-      getOr<double>(servo_joy, "linear_scale", cfg.servo_joy_frontend.linear_scale);
-    cfg.servo_joy_frontend.angular_scale =
-      getOr<double>(servo_joy, "angular_scale", cfg.servo_joy_frontend.angular_scale);
+  cfg.teleoperation.joy.deadzone =
+      getOr<double>(teleop_joy, "deadzone", cfg.teleoperation.joy.deadzone);
+  cfg.teleoperation.joy.linear_scale =
+      getOr<double>(teleop_joy, "linear_scale", cfg.teleoperation.joy.linear_scale);
+  cfg.teleoperation.joy.angular_scale =
+      getOr<double>(teleop_joy, "angular_scale", cfg.teleoperation.joy.angular_scale);
 
-    loadAxisMapping(cfg.servo_joy_frontend.axis_linear, servo_joy, "axis_linear");
-    loadAxisMapping(cfg.servo_joy_frontend.axis_angular, servo_joy, "axis_angular");
+  loadAxisMapping(cfg.teleoperation.joy.axis_linear, teleop_joy, "axis_linear");
+  loadAxisMapping(cfg.teleoperation.joy.axis_angular, teleop_joy, "axis_angular");
 
-    if (const YAML::Node legacy_finish = servo_joy["button_finish"])
-    {
-    cfg.servo_joy_frontend.buttons.finish = parseControllerIndex(
-        legacy_finish, "servo_joy_frontend.button_finish", resolveSdlButtonName);
-    }
-    if (const YAML::Node legacy_abort = servo_joy["button_abort"])
-    {
-    cfg.servo_joy_frontend.buttons.abort = parseControllerIndex(
-        legacy_abort, "servo_joy_frontend.button_abort", resolveSdlButtonName);
-    }
-    loadButtonMapping(cfg.servo_joy_frontend.buttons, servo_joy, "buttons");
+  loadButtonMapping(cfg.teleoperation.joy.buttons, teleop_joy, "buttons");
 
   const YAML::Node monitor = mapNode(root, "monitor");
   cfg.monitor.monitor_namespace =

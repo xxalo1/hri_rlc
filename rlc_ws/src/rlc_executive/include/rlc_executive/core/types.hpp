@@ -110,7 +110,7 @@ struct StateSnapshot
  * @details
  * This type intentionally excludes the planned trajectory to keep BehaviorTree
  * blackboard values small. Publish the trajectory separately (e.g. via a BT output
- * port of type `std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>`).
+ * port of type `std::shared_ptr<const rbt_types::Trajectory>`).
  *
  * Fields:
  * - `status`: Planning status.
@@ -134,7 +134,8 @@ struct PlanSummary
  * @details
  * This type contains the full planned trajectory by value for convenience inside
  * planning clients. BT nodes should prefer publishing a lightweight summary
- * (`PlanSummary`) and publishing the trajectory separately via a shared pointer.
+ * (`PlanSummary`) and publishing the trajectory separately via an executive
+ * trajectory shared pointer.
  */
 struct PlanResult
 {
@@ -183,6 +184,13 @@ struct ServoStatusSnapshot
 {
   moveit_msgs::msg::ServoStatus status;
   double age_sec = 0.0;
+};
+
+enum class DemoRequest
+{
+  NONE,
+  FINISH,
+  ABORT
 };
 
 }  // namespace rlc_executive
