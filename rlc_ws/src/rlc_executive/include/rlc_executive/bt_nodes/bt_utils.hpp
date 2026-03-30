@@ -4,10 +4,14 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <behaviortree_cpp/tree_node.h>
 #include <behaviortree_cpp/exceptions.h>
+#include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <rclcpp/logger.hpp>
+
+#include "rbt_types/trajectory.hpp"
 
 namespace rlc_executive
 {
@@ -154,6 +158,29 @@ void setSuccessDiagnostics(BT::TreeNode& node, double elapsed_sec);
  */
 void setFailureDiagnostics(BT::TreeNode& node, const std::string& error,
                            double elapsed_sec);
+
+/**
+ * @brief Converts a MoveIt robot trajectory to the executive trajectory type.
+ * @param[in] robot_trajectory MoveIt joint trajectory with waypoint positions and
+ * timing.
+ * @return Joint-space trajectory with positions copied to `states` and a fixed sample
+ * period `dt` [s].
+ */
+rbt_types::Trajectory
+fromRobotTrajectory(const moveit_msgs::msg::RobotTrajectory& robot_trajectory);
+
+/**
+ * @brief Converts the executive trajectory type to a MoveIt robot trajectory.
+ * @param[in] trajectory Joint-space trajectory with fixed sample period `dt` [s] and
+ * shape = (`length`, `dim`).
+ * @param[in] joint_names Joint names matching trajectory column order, size =
+ * `trajectory.dim()`.
+ * @return MoveIt robot trajectory with waypoint positions and `time_from_start`
+ * reconstructed from `trajectory.dt`.
+ */
+moveit_msgs::msg::RobotTrajectory
+toRobotTrajectory(const rbt_types::Trajectory& trajectory,
+                  const std::vector<std::string>& joint_names);
 
 /**
  * @brief Reads a required input port.
