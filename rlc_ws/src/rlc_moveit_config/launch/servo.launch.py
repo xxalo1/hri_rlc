@@ -1,10 +1,11 @@
 """
-Launch MoveIt Servo as a standalone node, optionally starting it paused.
+Launch MoveIt Servo and the game controller frontend.
 
 Design goals
-1. Namespace agnostic: all topic and service names should work under any ROS namespace.
+1. Namespace agnostic: all Servo topic and service names should work under any ROS namespace.
 2. Consistent with rlc_moveit_config's existing launch style (OpaqueFunction + YAML loading).
-3. Start paused by default, then unpause via the standard `~/pause_servo` service when desired.
+3. Always start Servo paused, then unpause via the standard `~/pause_servo` service when desired.
+4. Launch the game controller node alongside Servo so `/joy` is available immediately.
 """
 
 from __future__ import annotations
@@ -31,29 +32,17 @@ if _THIS_DIR not in sys.path:
 from move_group_utils import load_yaml  # noqa: E402
 
 
-def _normalize_ns(ns: str) -> str:
-    ns = (ns or "").strip()
-    if ns == "/":
-        return ""
-    return ns.strip("/")
-
-
-def _svc_name(ns: str, node_name: str, srv_name: str) -> str:
-    n = _normalize_ns(ns)
-    if not n:
-        return f"/{node_name}/{srv_name}"
-    return f"/{n}/{node_name}/{srv_name}"
-
-
 def generate_launch_description() -> LaunchDescription:
     """
-    Launch MoveIt Servo as a standalone node.
+    Launch MoveIt Servo as a standalone node with the game controller input node.
 
     Notes
     -----
     This launch is intended to be composable: callers must provide the URDF/SRDF
     xacro inputs via `urdf_xacro_file` / `srdf_xacro_file` (and optional
     `*_xacro_args`). This launch does not select a robot model by default.
+    Servo is always paused shortly after startup, and the `joy` package's
+    `game_controller_node` is started in the root namespace to publish `/joy`.
     """
     use_sim_time = LaunchConfiguration("use_sim_time")
     namespace = LaunchConfiguration("namespace")
@@ -70,9 +59,6 @@ def generate_launch_description() -> LaunchDescription:
 
     planning_group_name = LaunchConfiguration("planning_group_name")
     update_period = LaunchConfiguration("update_period")
-    start_paused = LaunchConfiguration("start_paused")
-    pause_call_delay = LaunchConfiguration("pause_call_delay")
-
     declared_arguments = [
         DeclareLaunchArgument(
             "use_sim_time",
@@ -147,19 +133,31 @@ def generate_launch_description() -> LaunchDescription:
             default_value="0.01",
             description="Used by the acceleration limiting smoothing plugin.",
         ),
-        DeclareLaunchArgument(
-            "start_paused",
-            default_value="true",
-            description="If true, call `pause_servo` once after startup.",
-        ),
-        DeclareLaunchArgument(
-            "pause_call_delay",
-            default_value="1.0",
-            description="Seconds to wait before calling pause_servo on startup.",
-        ),
     ]
 
     def launch_setup(context, *args, **kwargs):  # noqa: ANN001, ARG001
+        """
+        Build the launch actions after resolving launch-time file paths.
+
+        Parameters
+        ----------
+        context : LaunchContext
+            Launch runtime context used to resolve substitutions.
+        *args
+            Unused positional arguments required by `OpaqueFunction`.
+        **kwargs
+            Unused keyword arguments required by `OpaqueFunction`.
+
+        Returns
+        -------
+        list[Action]
+            Launch actions for the game controller node, Servo node, and startup pause call.
+
+        Raises
+        ------
+        RuntimeError
+            If required xacro or YAML inputs are missing.
+        """
         moveit_config_package_value = moveit_config_package.perform(context)
 
         urdf_xacro_file_value = urdf_xacro_file.perform(context).strip()
@@ -224,10 +222,17 @@ def generate_launch_description() -> LaunchDescription:
         kinematics_config = {"robot_description_kinematics": kinematics}
         joint_limits_config = {"robot_description_planning": joint_limits}
 
+        game_controller_node = Node(
+            package="joy",
+            executable="game_controller_node",
+            namespace="",
+            output="screen",
+            parameters=[{"use_sim_time": use_sim_time}],
+        )
+
         servo_node = Node(
             package="moveit_servo",
             executable="servo_node",
-            name="servo_node",
             namespace=namespace,
             output="screen",
             parameters=[
@@ -245,37 +250,28 @@ def generate_launch_description() -> LaunchDescription:
             ],
         )
 
-        actions = [servo_node]
+        ns_value = namespace.perform(context).strip().strip("/")
+        pause_service = "/servo_node/pause_servo"
+        if ns_value:
+            pause_service = f"/{ns_value}/servo_node/pause_servo"
 
-        start_paused_value = start_paused.perform(context).lower() in (
-            "1",
-            "true",
-            "yes",
+        pause_cmd = ExecuteProcess(
+            cmd=[
+                "ros2",
+                "service",
+                "call",
+                pause_service,
+                "std_srvs/srv/SetBool",
+                "{data: true}",
+            ],
+            output="screen",
         )
-        if start_paused_value:
-            ns_value = namespace.perform(context)
-            pause_service = _svc_name(ns_value, "servo_node", "pause_servo")
 
-            pause_cmd = ExecuteProcess(
-                cmd=[
-                    "ros2",
-                    "service",
-                    "call",
-                    pause_service,
-                    "std_srvs/srv/SetBool",
-                    "{data: true}",
-                ],
-                output="screen",
-            )
-
-            actions.append(
-                TimerAction(
-                    period=float(pause_call_delay.perform(context)),
-                    actions=[pause_cmd],
-                )
-            )
-
-        return actions
+        return [
+            game_controller_node,
+            servo_node,
+            TimerAction(period=1.0, actions=[pause_cmd]),
+        ]
 
     return LaunchDescription(
         declared_arguments + [OpaqueFunction(function=launch_setup)]
