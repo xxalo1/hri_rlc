@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(rlc_controller_cpp LANGUAGES CXX)
+project(rlc_controller_cpp LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,6 +21,8 @@ find_package(control_msgs REQUIRED)
 find_package(rbt_core_cpp REQUIRED CONFIG)
 
 find_package(rlc_utils REQUIRED)
+
+find_package(MPI REQUIRED COMPONENTS C)
 
 option(BUILD_LEGACY_NODE "Build legacy rclcpp controller node" OFF)
 
