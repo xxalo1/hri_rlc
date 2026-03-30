@@ -1,4 +1,4 @@
-#include "rlc_executive/moveit/teleoperation_session.hpp"
+#include "rlc_executive/servo/teleoperation_session.hpp"
 
 namespace rlc_executive
 {
@@ -8,7 +8,7 @@ TeleoperationSession::TeleoperationSession(rclcpp::Node& node)
 {
 }
 
-TeleoperationSession::DemoRequest TeleoperationSession::takeRequest()
+DemoRequest TeleoperationSession::takeRequest()
 {
   std::scoped_lock lock(request_mtx_);
 
@@ -18,7 +18,7 @@ TeleoperationSession::DemoRequest TeleoperationSession::takeRequest()
   return out;
 }
 
-TeleoperationSession::DemoRequest TeleoperationSession::peekRequest() const
+DemoRequest TeleoperationSession::peekRequest() const
 {
   std::scoped_lock lock(request_mtx_);
   return request_;

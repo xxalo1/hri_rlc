@@ -1,7 +1,9 @@
-#include "rlc_executive/moveit/servo_joy_frontend.hpp"
+#include "rlc_executive/servo/servo_joy_frontend.hpp"
 
-#include <stdexcept>
 #include <cmath>
+#include <stdexcept>
+
+#include "rlc_executive/servo/joy_mapping.hpp"
 
 namespace rlc_executive
 {
@@ -32,6 +34,20 @@ ServoJoyFrontend::ServoJoyFrontend(rclcpp::Node& node, const ServoJoyFrontendCon
   }
 
   command_frame_ = cfg_.command_frame;
+  axis_linear_.x = servo::resolveJoyAxisIndex(cfg_.axis_linear.x, "axis_linear.x");
+  axis_linear_.y = servo::resolveJoyAxisIndex(cfg_.axis_linear.y, "axis_linear.y");
+  axis_linear_.z_pos = servo::resolveJoyAxisIndex(cfg_.axis_linear.z_pos, "axis_linear.z_pos");
+  axis_linear_.z_neg = servo::resolveJoyAxisIndex(cfg_.axis_linear.z_neg, "axis_linear.z_neg");
+
+  axis_angular_.x = servo::resolveJoyAxisIndex(cfg_.axis_angular.x, "axis_angular.x");
+  axis_angular_.y = servo::resolveJoyAxisIndex(cfg_.axis_angular.y, "axis_angular.y");
+  axis_angular_.z_pos =
+      servo::resolveJoyButtonIndex(cfg_.axis_angular.z_pos, "axis_angular.z_pos");
+  axis_angular_.z_neg =
+      servo::resolveJoyButtonIndex(cfg_.axis_angular.z_neg, "axis_angular.z_neg");
+
+  buttons_.finish = servo::resolveJoyButtonIndex(cfg_.buttons.finish, "buttons.finish");
+  buttons_.abort = servo::resolveJoyButtonIndex(cfg_.buttons.abort, "buttons.abort");
 
   twist_pub_ = node_->create_publisher<geometry_msgs::msg::TwistStamped>(cfg_.twist_topic,
                                                                          rclcpp::QoS(10));
@@ -79,14 +95,8 @@ void ServoJoyFrontend::publishServoCommand(const sensor_msgs::msg::Joy& joy)
     }
 
     case CommandMode::JOINT_JOG:
-    {
-      joint_pub_->publish(makeJointJogCommand(joy));
-      return;
-    }
-
     case CommandMode::POSE:
     {
-      pose_pub_->publish(makePoseCommand(joy));
       return;
     }
   }
@@ -99,15 +109,15 @@ ServoJoyFrontend::makeTwistCommand(const sensor_msgs::msg::Joy& joy) const
   cmd.header.stamp = node_->now();
   cmd.header.frame_id = command_frame_;
 
-  cmd.twist.linear.x = cfg_.linear_scale * axisValue(joy, cfg_.axis_linear.x);
-  cmd.twist.linear.y = cfg_.linear_scale * axisValue(joy, cfg_.axis_linear.y);
-  cmd.twist.linear.z = cfg_.linear_scale * triggerAxisValue(joy, cfg_.axis_linear.z_pos,
-                                                            cfg_.axis_linear.z_neg);
+  cmd.twist.linear.x = cfg_.linear_scale * axisValue(joy, axis_linear_.x);
+  cmd.twist.linear.y = cfg_.linear_scale * axisValue(joy, axis_linear_.y);
+  cmd.twist.linear.z =
+      cfg_.linear_scale * triggerAxisValue(joy, axis_linear_.z_pos, axis_linear_.z_neg);
 
-  cmd.twist.angular.x = cfg_.angular_scale * axisValue(joy, cfg_.axis_angular.x);
-  cmd.twist.angular.y = cfg_.angular_scale * axisValue(joy, cfg_.axis_angular.y);
-  cmd.twist.angular.z =
-      cfg_.angular_scale * buttonPairValue(joy, cfg_.axis_angular.z_pos, cfg_.axis_angular.z_neg);
+  cmd.twist.angular.x = cfg_.angular_scale * axisValue(joy, axis_angular_.x);
+  cmd.twist.angular.y = cfg_.angular_scale * axisValue(joy, axis_angular_.y);
+  cmd.twist.angular.z = cfg_.angular_scale * buttonPairValue(joy, axis_angular_.z_pos,
+                                                             axis_angular_.z_neg);
 
   return cmd;
 }
@@ -166,21 +176,20 @@ double ServoJoyFrontend::buttonPairValue(const sensor_msgs::msg::Joy& joy, int p
   return pos ? 1.0 : -1.0;
 }
 
-std::optional<TeleoperationSession::DemoRequest>
-ServoJoyFrontend::detectDemoRequest(const sensor_msgs::msg::Joy& joy)
+std::optional<DemoRequest> ServoJoyFrontend::detectDemoRequest(const sensor_msgs::msg::Joy& joy)
 {
-  const bool finish_pressed = isButtonPressed(joy, cfg_.buttons.finish);
-  const bool abort_pressed = isButtonPressed(joy, cfg_.buttons.abort);
+  const bool finish_pressed = isButtonPressed(joy, buttons_.finish);
+  const bool abort_pressed = isButtonPressed(joy, buttons_.abort);
 
-  std::optional<TeleoperationSession::DemoRequest> out;
+  std::optional<DemoRequest> out;
 
   if (finish_pressed && !finish_button_prev_)
   {
-    out = TeleoperationSession::DemoRequest::FINISH;
+    out = DemoRequest::FINISH;
   }
   else if (abort_pressed && !abort_button_prev_)
   {
-    out = TeleoperationSession::DemoRequest::ABORT;
+    out = DemoRequest::ABORT;
   }
 
   finish_button_prev_ = finish_pressed;
