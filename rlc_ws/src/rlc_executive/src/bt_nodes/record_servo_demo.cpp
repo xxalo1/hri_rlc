@@ -11,8 +11,9 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 
 #include "rlc_executive/bt_nodes/bt_utils.hpp"
+#include "rlc_executive/core/types.hpp"
 #include "rlc_executive/core/runtime_context.hpp"
-#include "rlc_executive/moveit/moveit_servo_client.hpp"
+#include "rlc_executive/servo/teleoperation_controller.hpp"
 #include "rlc_executive/state/state_buffer.hpp"
 
 namespace rlc_executive
@@ -68,7 +69,7 @@ void RecordServoDemo::requestServoPaused(bool pause) noexcept
     return;
   }
 
-  const ServoPauseResult result = ctx_->moveItServoClient().setPaused(pause);
+  const ServoPauseResult result = ctx_->teleoperationController().setActive(!pause);
   if (!result.success && logger_)
   {
     RCLCPP_WARN(*logger_, "failed to set servo to %s: %s", pause ? "paused" : "unpaused",
@@ -269,7 +270,7 @@ BT::NodeStatus RecordServoDemo::onStart()
   {
     if (ctx_)
     {
-      const ServoPauseResult pause_result = ctx_->moveItServoClient().setPaused(true);
+      const ServoPauseResult pause_result = ctx_->teleoperationController().setActive(false);
       if (!pause_result.success && logger_)
       {
         RCLCPP_WARN(*logger_, "failed to pause servo during startup cleanup: %s",
@@ -300,7 +301,7 @@ BT::NodeStatus RecordServoDemo::onRunning()
                            snapshot.elapsed_sec);
     }
 
-    if (const auto servo_status = ctx_->moveItServoClient().status();
+    if (const auto servo_status = ctx_->teleoperationController().status();
         servo_status && isHardServoHalt(servo_status->status.code))
     {
       stopAndJoinWorker();
@@ -309,9 +310,9 @@ BT::NodeStatus RecordServoDemo::onRunning()
                            snapshot.elapsed_sec);
     }
 
-    const auto request = ctx_->teleoperationSession().takeRequest();
+    const auto request = ctx_->teleoperationController().takeRequest();
 
-    if (request == TeleoperationSession::DemoRequest::NONE)
+    if (request == DemoRequest::NONE)
     {
       return BT::NodeStatus::RUNNING;
     }
@@ -329,7 +330,7 @@ BT::NodeStatus RecordServoDemo::onRunning()
 
     requestServoPaused(true);
 
-    if (request == TeleoperationSession::DemoRequest::ABORT)
+    if (request == DemoRequest::ABORT)
     {
       return failWithError("servo demo recording aborted by operator",
                            snapshot.elapsed_sec);
