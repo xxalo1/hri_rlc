@@ -2,10 +2,12 @@
 
 #include <exception>
 #include <string>
+#include <vector>
 
 #include <behaviortree_cpp/bt_factory.h>
 
 #include <rclcpp/rclcpp.hpp>
+#include <tesseract_monitoring/environment_monitor_interface.h>
 
 #include "rlc_executive/bt_nodes/bt_utils.hpp"
 #include "rlc_executive/core/runtime_context.hpp"
@@ -37,7 +39,7 @@ BT::NodeStatus ExecuteTrajectory::onStart()
     bt_utils::ensureContextAndLogger(*this, ctx_, logger_);
 
     const auto traj =
-        bt_utils::requireInput<std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>>(
+        bt_utils::requireInput<std::shared_ptr<const rbt_types::Trajectory>>(
             *this, PortKeys::TRAJECTORY);
     if (!traj)
     {
@@ -45,6 +47,8 @@ BT::NodeStatus ExecuteTrajectory::onStart()
                              PortKeys::TRAJECTORY, "' is null");
     }
 
+    const std::string group_name =
+        bt_utils::requireInput<std::string>(*this, PortKeys::GROUP_NAME);
     profile_name_ =
         bt_utils::requireInput<std::string>(*this, PortKeys::PLANNING_PROFILE);
 
@@ -55,14 +59,27 @@ BT::NodeStatus ExecuteTrajectory::onStart()
                              "]: unknown planning_profile '", profile_name_, "'");
     }
 
-    const std::size_t traj_points = traj->joint_trajectory.points.size();
-    const std::size_t traj_joints = traj->joint_trajectory.joint_names.size();
+    const std::string& monitor_namespace = ctx_->config().monitor.monitor_namespace;
+    auto env_uptr = ctx_->envMonitorInterface().getEnvironment(monitor_namespace);
+    if (!env_uptr)
+    {
+      throw BT::RuntimeError(registrationName(), "[", fullPath(),
+                             "]: failed to snapshot Tesseract environment from namespace '",
+                             monitor_namespace, "'");
+    }
+
+    const std::vector<std::string> joint_names = env_uptr->getGroupJointNames(group_name);
+    const moveit_msgs::msg::RobotTrajectory moveit_traj =
+        bt_utils::toRobotTrajectory(*traj, joint_names);
+
+    const std::size_t traj_points = traj->length();
+    const std::size_t traj_joints = traj->dim();
 
     RCLCPP_INFO(*logger_, "start planning_profile='%s' traj_points=%zu traj_joints=%zu",
                 profile_name_.c_str(), traj_points, traj_joints);
 
     std::string err;
-    if (!ctx_->trajectoryExecutor().start(*traj, *profile, &err))
+    if (!ctx_->trajectoryExecutor().start(moveit_traj, *profile, &err))
     {
       throw BT::RuntimeError(registrationName(), "[", fullPath(),
                              "]: failed to start execution: ", err);

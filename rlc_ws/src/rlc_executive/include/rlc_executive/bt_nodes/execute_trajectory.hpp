@@ -5,9 +5,9 @@
 #include <string>
 
 #include <behaviortree_cpp/action_node.h>
-#include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <rclcpp/logger.hpp>
 
+#include "rbt_types/trajectory.hpp"
 #include "rlc_executive/bt_nodes/bt_utils.hpp"
 #include "rlc_executive/core/types.hpp"
 
@@ -25,6 +25,7 @@ class RuntimeContext;
  *
  * Input ports:
  * - `trajectory`: Trajectory to execute.
+ * - `group_name`: Joint group used to recover trajectory joint ordering.
  * - `planning_profile`: Planning profile name (selects execution backend configuration).
  *
  * Output ports:
@@ -46,8 +47,8 @@ public:
   static BT::PortsList providedPorts()
   {
     return {
-      BT::InputPort<std::shared_ptr<const moveit_msgs::msg::RobotTrajectory>>(
-          PortKeys::TRAJECTORY),
+      BT::InputPort<std::shared_ptr<const rbt_types::Trajectory>>(PortKeys::TRAJECTORY),
+      BT::InputPort<std::string>(PortKeys::GROUP_NAME),
       BT::InputPort<std::string>(PortKeys::PLANNING_PROFILE),
       BT::OutputPort<ExecResult>(PortKeys::EXEC_RESULT),
       BT::OutputPort<std::string>(PortKeys::ERROR),
@@ -62,6 +63,7 @@ public:
   struct PortKeys : bt_utils::DiagnosticPortKeys
   {
     static inline const std::string TRAJECTORY = "trajectory";
+    static inline const std::string GROUP_NAME = "group_name";
     static inline const std::string PLANNING_PROFILE = "planning_profile";
     static inline const std::string EXEC_RESULT = "exec_result";
   };
