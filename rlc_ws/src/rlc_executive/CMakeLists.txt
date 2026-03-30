@@ -37,7 +37,11 @@ add_library(${PROJECT_NAME} SHARED
   src/bt/tree_runner.cpp
   src/state/state_buffer.cpp
   src/moveit/move_group_client.cpp
-  src/moveit/moveit_servo_client.cpp
+  src/servo/joy_mapping.cpp
+  src/servo/moveit_servo_client.cpp
+  src/servo/teleoperation_session.cpp
+  src/servo/servo_joy_frontend.cpp
+  src/servo/teleoperation_controller.cpp
   src/execution/moveit_executor.cpp
 )
 

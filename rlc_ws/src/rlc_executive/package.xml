@@ -34,9 +34,6 @@
   <!-- YAML config -->
   <depend>yaml_cpp_vendor</depend>
 
-  <!-- External API (msgs/actions) -->
-  <depend>rlc_executive_interfaces</depend>
-
   <depend>rbt_irl</depend>
   <depend>rbt_types</depend>
   <depend>rlc_utils</depend>
