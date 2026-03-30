@@ -18,8 +18,7 @@ namespace rlc_executive
 class StateBuffer;
 class MoveGroupClient;
 class TrajectoryExecutor;
-class MoveItServoClient;
-class TeleoperationSession;
+class TeleoperationController;
 
 class RuntimeContext final
 {
@@ -57,19 +56,18 @@ public:
     return *trajectory_executor_;
   }
 
-  MoveItServoClient& moveItServoClient() const
-  {
-    return *moveit_servo_client_;
-  }
-
   tesseract_monitoring::ROSEnvironmentMonitorInterface& envMonitorInterface() const
   {
     return *env_monitor_interface_;
   }
 
-  TeleoperationSession& teleoperationSession() const
+  /**
+   * @brief Returns the owning Servo teleoperation controller.
+   * @return Teleoperation controller used by runtime and BT leaves.
+   */
+  TeleoperationController& teleoperationController() const
   {
-    return *teleoperation_session_;
+    return *teleoperation_controller_;
   }
 
 private:
@@ -78,11 +76,10 @@ private:
 
   std::shared_ptr<StateBuffer> state_buffer_;
   std::shared_ptr<MoveGroupClient> move_group_client_;
-  std::shared_ptr<MoveItServoClient> moveit_servo_client_;
   std::shared_ptr<TrajectoryExecutor> trajectory_executor_;
   std::shared_ptr<tesseract_monitoring::ROSEnvironmentMonitorInterface>
       env_monitor_interface_;
-  std::shared_ptr<TeleoperationSession> teleoperation_session_;
+  std::shared_ptr<TeleoperationController> teleoperation_controller_;
 };
 
 }  // namespace rlc_executive

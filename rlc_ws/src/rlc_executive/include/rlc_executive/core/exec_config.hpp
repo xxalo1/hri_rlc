@@ -119,35 +119,48 @@ struct ServoConfig
  */
 
 /**
- * @brief Maps logical Cartesian directions to SDL game-controller indices.
+ * @brief Stores raw controller mapping values for one joystick directional group.
  *
  * @details
- * - `x`: Index for the X direction.
- * - `y`: Index for the Y direction.
- * - `z_pos`: Index for the positive Z direction.
- * - `z_neg`: Index for the negative Z direction.
+ * - `x`: Raw controller token or non-negative raw index for the X direction.
+ * - `y`: Raw controller token or non-negative raw index for the Y direction.
+ * - `z_pos`: Raw controller token or non-negative raw index for the positive Z direction.
+ * - `z_neg`: Raw controller token or non-negative raw index for the negative Z direction.
  */
 struct ServoJoyAxisConfig
 {
-  int x = 0;
-  int y = 0;
-  int z_pos = 0;
-  int z_neg = 0;
+  std::string x = "LEFTX";
+  std::string y = "LEFTY";
+  std::string z_pos = "TRIGGERRIGHT";
+  std::string z_neg = "TRIGGERLEFT";
 };
 
 /**
- * @brief Maps demo-session actions to SDL game-controller button indices.
+ * @brief Maps demo-session actions to joystick button tokens or raw indices.
  *
  * @details
- * - `finish`: Button that requests `TeleoperationSession::DemoRequest::FINISH`.
- * - `abort`: Button that requests `TeleoperationSession::DemoRequest::ABORT`.
+ * - `finish`: SDL button token or non-negative raw index that requests `DemoRequest::FINISH`.
+ * - `abort`: SDL button token or non-negative raw index that requests `DemoRequest::ABORT`.
  */
 struct ServoJoyButtonsConfig
 {
-  int finish = 6;  // START
-  int abort = 4;   // BACK/SELECT
+  std::string finish = "START";
+  std::string abort = "BACK";
 };
 
+/**
+ * @brief Configures the joystick frontend that publishes Servo command topics.
+ *
+ * @details
+ * - `joy_topic`: Source joystick topic carrying `sensor_msgs::msg::Joy`.
+ * - `twist_topic`: Servo twist-command topic receiving `geometry_msgs::msg::TwistStamped`.
+ * - `joint_topic`: Servo joint-jog topic receiving `control_msgs::msg::JointJog`.
+ * - `pose_topic`: Servo pose-command topic receiving `geometry_msgs::msg::PoseStamped`.
+ * - `command_frame`: Frame id attached to outgoing commands.
+ * - `axis_linear`: Raw linear-axis mapping tokens or indices.
+ * - `axis_angular`: Raw angular-axis mapping tokens or indices.
+ * - `buttons`: Raw button mapping tokens or indices.
+ */
 struct ServoJoyFrontendConfig
 {
   std::string joy_topic = "/joy";
@@ -160,9 +173,25 @@ struct ServoJoyFrontendConfig
   double linear_scale = 0.25;
   double angular_scale = 0.75;
 
-  ServoJoyAxisConfig axis_linear{ 1, 0, 5, 4 };   // LEFTY, LEFTX, TRIGGERRIGHT, TRIGGERLEFT
-  ServoJoyAxisConfig axis_angular{ 3, 2, 10, 9 };  // RIGHTY, RIGHTX, RIGHTSHOULDER, LEFTSHOULDER
+  ServoJoyAxisConfig axis_linear{ "LEFTY", "LEFTX", "TRIGGERRIGHT", "TRIGGERLEFT" };
+  ServoJoyAxisConfig axis_angular{ "RIGHTY", "RIGHTX", "RIGHTSHOULDER", "LEFTSHOULDER" };
   ServoJoyButtonsConfig buttons;
+};
+
+/**
+ * @brief Configures the executive's top-level teleoperation controller.
+ *
+ * @details
+ * - `frontend`: Input frontend instantiated by `TeleoperationController`.
+ * Validation of the frontend name is owned by the controller.
+ * - `servo`: Servo service and status-topic configuration owned by the controller.
+ * - `joy`: Joystick frontend configuration used when `frontend == "joy"`.
+ */
+struct TeleoperationConfig
+{
+  std::string frontend = "joy";
+  ServoConfig servo;
+  ServoJoyFrontendConfig joy;
 };
 
 /**
@@ -194,8 +223,7 @@ struct ExecConfig
   MoveGroupConfig move_group;
   ExecutionConfig execution;
   PlanningConfig planning;
-  ServoConfig servo;
-  ServoJoyFrontendConfig servo_joy_frontend;
+  TeleoperationConfig teleoperation;
   MonitorConfig monitor;
 };
 
