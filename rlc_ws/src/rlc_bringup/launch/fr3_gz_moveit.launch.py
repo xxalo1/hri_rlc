@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     LaunchConfiguration,
@@ -13,13 +14,15 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description() -> LaunchDescription:
     """
-    Launch FR3 in Gazebo Sim and MoveIt `move_group`.
+    Launch FR3 in Gazebo Sim, MoveIt `move_group`, and optional Servo teleoperation.
 
     Notes
     -----
     This is a composition launch that includes:
     - `rlc_bringup/launch/fr3_gz_control.launch.py` (Gazebo + ros2_control + controllers)
     - `rlc_moveit_config/launch/move_group.launch.py` (MoveIt)
+    - `rlc_moveit_config/launch/servo.launch.py` (Servo + game controller) when
+      `launch_servo:=true`
     """
     use_sim_time = LaunchConfiguration("use_sim_time")
     world = LaunchConfiguration("world")
@@ -35,6 +38,7 @@ def generate_launch_description() -> LaunchDescription:
 
     moveit_namespace = LaunchConfiguration("namespace")
     planner = LaunchConfiguration("planner")
+    launch_servo = LaunchConfiguration("launch_servo")
 
     move_group_urdf_xacro_args = LaunchConfiguration("move_group_urdf_xacro_args")
     move_group_srdf_xacro_args = LaunchConfiguration("move_group_srdf_xacro_args")
@@ -102,6 +106,30 @@ def generate_launch_description() -> LaunchDescription:
             "srdf_xacro_args": move_group_srdf_xacro_args,
             "use_rviz": use_rviz,
             "rviz_config": rviz_config,
+        }.items(),
+    )
+
+    servo_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("rlc_moveit_config"),
+                    "launch",
+                    "servo.launch.py",
+                ]
+            )
+        ),
+        condition=IfCondition(launch_servo),
+        launch_arguments={
+            "use_sim_time": use_sim_time,
+            "namespace": moveit_namespace,
+            "moveit_config_package": moveit_config_package,
+            "kinematics_yaml": moveit_kinematics_yaml,
+            "joint_limits_yaml": moveit_joint_limits_yaml,
+            "urdf_xacro_file": xacro_file,
+            "urdf_xacro_args": move_group_urdf_xacro_args,
+            "srdf_xacro_file": srdf_xacro_file,
+            "srdf_xacro_args": move_group_srdf_xacro_args,
         }.items(),
     )
 
@@ -219,6 +247,11 @@ def generate_launch_description() -> LaunchDescription:
                 description="Planner pipeline selection (ompl | rlc_trajopt).",
             ),
             DeclareLaunchArgument(
+                "launch_servo",
+                default_value="true",
+                description="Launch MoveIt Servo and the game controller node if true.",
+            ),
+            DeclareLaunchArgument(
                 "use_rviz",
                 default_value="true",
                 description="Start RViz if true.",
@@ -279,5 +312,6 @@ def generate_launch_description() -> LaunchDescription:
             ),
             gz_control_launch,
             move_group_launch,
+            servo_launch,
         ]
     )
